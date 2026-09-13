@@ -46,6 +46,7 @@
 ## Utilisation
 
 With `reports.delivery.view`, per member and period:
+
 - billable hours
 - non-billable hours
 - utilisation = billable / available

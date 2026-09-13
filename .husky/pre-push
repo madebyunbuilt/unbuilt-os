@@ -1,0 +1,9 @@
+# main only changes through pull requests. GitHub can't enforce this on our plan, so the hook does.
+while read -r _local_ref _local_sha remote_ref _remote_sha; do
+  if [ "$remote_ref" = "refs/heads/main" ]; then
+    echo "Refusing to push to main. Push a branch and open a pull request." >&2
+    exit 1
+  fi
+done
+
+pnpm typecheck && pnpm lint

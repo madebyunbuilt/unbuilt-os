@@ -12,30 +12,30 @@
 
 ### Event catalogue (defaults)
 
-| Event                              | Recipients                          | In-app | Email | WhatsApp |
-| ---------------------------------- | ----------------------------------- | :----: | :---: | :------: |
-| Enquiry received                   | `enquiries.manage`                  | ✓      | ✓     | ✓        |
-| Deal follow-up due                 | Deal owner                          | ✓      | ✓     |          |
-| Document viewed                    | Document owner                      | ✓      |       |          |
-| Signature requested                | Signer (client or team)             |        | ✓     | ✓        |
-| Document signed / declined         | Owner, signers                      | ✓      | ✓     |          |
-| Deliverable ready for review       | Client contacts on project          | ✓      | ✓     | ✓        |
-| Deliverable approved / changes requested | Project manager, submitter    | ✓      | ✓     |          |
-| Change request sent                | Client admins                       | ✓      | ✓     | ✓        |
-| Change request decided             | Project manager                     | ✓      | ✓     |          |
-| Invoice sent                       | Billing contacts                    | ✓      | ✓     | ✓        |
-| Invoice due / overdue reminders    | Billing contacts                    |        | ✓     | ✓        |
-| Payment received                   | Billing contacts (receipt), Finance | ✓      | ✓     |          |
-| Ticket created                     | Assignee or triage group            | ✓      | ✓     |          |
-| Ticket reply                       | The other side                      | ✓      | ✓     | ✓ (client) |
-| SLA 75% / breached                 | Assignee, PM, admins                | ✓      | ✓     | ✓ (P1 breach) |
-| Monitor down / recovered           | Project team, admins                | ✓      | ✓     | ✓        |
-| Retainer 80% / 100%                | PM, client admins                   | ✓      | ✓     |          |
-| Renewal upcoming                   | PM, billing contacts from 30 days   | ✓      | ✓     |          |
-| Time off requested / decided       | Approvers / requester               | ✓      | ✓     |          |
-| Weekly update sent                 | Client contacts on project          | ✓      | ✓     |          |
-| @mention                           | Mentioned member                    | ✓      | ✓     |          |
-| Bill due                           | `bills.pay`                         | ✓      | ✓     |          |
+| Event                                    | Recipients                          | In-app | Email |   WhatsApp    |
+| ---------------------------------------- | ----------------------------------- | :----: | :---: | :-----------: |
+| Enquiry received                         | `enquiries.manage`                  |   ✓    |   ✓   |       ✓       |
+| Deal follow-up due                       | Deal owner                          |   ✓    |   ✓   |               |
+| Document viewed                          | Document owner                      |   ✓    |       |               |
+| Signature requested                      | Signer (client or team)             |        |   ✓   |       ✓       |
+| Document signed / declined               | Owner, signers                      |   ✓    |   ✓   |               |
+| Deliverable ready for review             | Client contacts on project          |   ✓    |   ✓   |       ✓       |
+| Deliverable approved / changes requested | Project manager, submitter          |   ✓    |   ✓   |               |
+| Change request sent                      | Client admins                       |   ✓    |   ✓   |       ✓       |
+| Change request decided                   | Project manager                     |   ✓    |   ✓   |               |
+| Invoice sent                             | Billing contacts                    |   ✓    |   ✓   |       ✓       |
+| Invoice due / overdue reminders          | Billing contacts                    |        |   ✓   |       ✓       |
+| Payment received                         | Billing contacts (receipt), Finance |   ✓    |   ✓   |               |
+| Ticket created                           | Assignee or triage group            |   ✓    |   ✓   |               |
+| Ticket reply                             | The other side                      |   ✓    |   ✓   |  ✓ (client)   |
+| SLA 75% / breached                       | Assignee, PM, admins                |   ✓    |   ✓   | ✓ (P1 breach) |
+| Monitor down / recovered                 | Project team, admins                |   ✓    |   ✓   |       ✓       |
+| Retainer 80% / 100%                      | PM, client admins                   |   ✓    |   ✓   |               |
+| Renewal upcoming                         | PM, billing contacts from 30 days   |   ✓    |   ✓   |               |
+| Time off requested / decided             | Approvers / requester               |   ✓    |   ✓   |               |
+| Weekly update sent                       | Client contacts on project          |   ✓    |   ✓   |               |
+| @mention                                 | Mentioned member                    |   ✓    |   ✓   |               |
+| Bill due                                 | `bills.pay`                         |   ✓    |   ✓   |               |
 
 ## Email (Resend)
 
@@ -64,16 +64,17 @@
 
 All in `convex/http.ts`:
 
-| Route                        | Verification                                        |
-| ---------------------------- | --------------------------------------------------- |
-| `POST /webhooks/paystack`    | HMAC-SHA512 `x-paystack-signature`                  |
-| `POST /webhooks/resend`      | Svix signature headers                              |
-| `POST /webhooks/inbound-email` | Provider signature or basic auth secret           |
-| `GET/POST /webhooks/whatsapp` | Verify token (GET), `X-Hub-Signature-256` (POST)   |
-| `POST /public/enquiries`     | Turnstile, origin allowlist, rate limit             |
-| `GET /public/site-content`   | Bearer token                                        |
+| Route                          | Verification                                     |
+| ------------------------------ | ------------------------------------------------ |
+| `POST /webhooks/paystack`      | HMAC-SHA512 `x-paystack-signature`               |
+| `POST /webhooks/resend`        | Svix signature headers                           |
+| `POST /webhooks/inbound-email` | Provider signature or basic auth secret          |
+| `GET/POST /webhooks/whatsapp`  | Verify token (GET), `X-Hub-Signature-256` (POST) |
+| `POST /public/enquiries`       | Turnstile, origin allowlist, rate limit          |
+| `GET /public/site-content`     | Bearer token                                     |
 
 Rules for every webhook:
+
 1. Verify the signature before parsing.
 2. Insert into `webhookEvents` keyed by provider and event id; if it already exists, return 200 and stop.
 3. Schedule an internal action to process it, then return 200 quickly.
@@ -101,6 +102,7 @@ Rules for every webhook:
 ## Dashboards and reports
 
 **Home dashboard** by role:
+
 - **Admin**: revenue this month, outstanding balance, overdue, pipeline, SLA breaches, monitors down, renewals due.
 - **Finance**: ready-to-send invoices, overdue, WHT credits outstanding, bills due, cash received.
 - **PM**: projects at risk, approvals pending, tickets near breach, unsent updates.
@@ -109,17 +111,17 @@ Rules for every webhook:
 
 **Reports** (with permission), in NGN using stored FX rates, with a currency filter:
 
-| Report                  | Content                                                                                 |
-| ----------------------- | --------------------------------------------------------------------------------------- |
-| Revenue                 | Invoiced and received by month, client, service type, project                           |
-| Receivables aging       | Balances in 0–30, 31–60, 61–90, 90+ day buckets by client                               |
-| Pipeline                | Value and weighted value by stage, owner, expected close month; win rate; lost reasons  |
-| Project profitability   | Billed − (time × cost rate) − expenses − bills, margin %, per project and type          |
-| Utilisation             | Billable and non-billable hours per member, utilisation %                               |
-| SLA compliance          | Response and resolution compliance by client, priority and month; uptime                |
-| WHT credits             | Expected vs certificate received, by client and age                                     |
-| VAT summary             | VAT charged by month and treatment                                                      |
-| Expenses and bills      | By category, vendor, project                                                            |
+| Report                | Content                                                                                |
+| --------------------- | -------------------------------------------------------------------------------------- |
+| Revenue               | Invoiced and received by month, client, service type, project                          |
+| Receivables aging     | Balances in 0–30, 31–60, 61–90, 90+ day buckets by client                              |
+| Pipeline              | Value and weighted value by stage, owner, expected close month; win rate; lost reasons |
+| Project profitability | Billed − (time × cost rate) − expenses − bills, margin %, per project and type         |
+| Utilisation           | Billable and non-billable hours per member, utilisation %                              |
+| SLA compliance        | Response and resolution compliance by client, priority and month; uptime               |
+| WHT credits           | Expected vs certificate received, by client and age                                    |
+| VAT summary           | VAT charged by month and treatment                                                     |
+| Expenses and bills    | By category, vendor, project                                                           |
 
 Use `@convex-dev/aggregate` (or maintained summary tables updated in the same mutations) for totals; never scan whole
 tables in a query.
@@ -154,6 +156,7 @@ tables in a query.
 ## Settings
 
 Sections, each permission-gated:
+
 - **Organisation**: legal name, address, TIN, VAT number, logo.
 - **Billing**: bank accounts, defaults, numbering, late fees, reminders (`settings.billing.sensitive`).
 - **Tax**: VAT and WHT defaults.

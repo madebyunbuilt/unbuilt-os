@@ -1,0 +1,29 @@
+@import 'tailwindcss';
+
+/* Brand tokens from 01-product.md. The full theme arrives with the app shell. */
+:root {
+  --ink: #000000;
+  --paper: #ffffff;
+  --prussian: #11297a;
+  --line: #bfd0ff;
+  --hi-vis: #ffc400;
+  --background: var(--paper);
+  --foreground: var(--ink);
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: var(--ink);
+    --foreground: var(--paper);
+  }
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+}

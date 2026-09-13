@@ -2,24 +2,24 @@
 
 ## Stack
 
-| Layer            | Choice                                                                                          |
-| ---------------- | ----------------------------------------------------------------------------------------------- |
-| Runtime          | Node 24, pnpm 11                                                                                 |
-| Frontend         | Next.js 16 (App Router), React 19, TypeScript strict, Tailwind v4, shadcn/ui, lucide icons       |
-| Forms            | react-hook-form with Zod schemas shared between client and Convex argument validation where practical |
-| Tables           | TanStack Table                                                                                  |
-| Backend          | Convex: queries, mutations, actions, HTTP actions, scheduler, crons, file storage, search indexes |
-| Convex packages  | `convex-helpers` (custom functions, relationships), `@convex-dev/better-auth`, `@convex-dev/aggregate`, `@convex-dev/rate-limiter`, `@convex-dev/workpool` for outbound email and WhatsApp |
-| Auth             | Better Auth: magic link, organization, two-factor, admin plugins                                 |
-| PDF              | `@react-pdf/renderer` in `"use node"` actions                                                     |
-| Email            | Resend + React Email                                                                            |
-| Payments         | Paystack REST API and webhooks                                                                   |
-| Messaging        | Meta WhatsApp Cloud API                                                                          |
-| Calendar         | Google Calendar API (OAuth per team member)                                                      |
-| Bot protection   | Cloudflare Turnstile on public forms                                                             |
-| Monitoring       | Sentry for Next.js; Convex log streams or exception reporting as the Convex plan allows          |
-| Testing          | Vitest + `convex-test` for backend, Vitest + Testing Library for components, Playwright end to end |
-| Hosting          | Vercel (Next.js), Convex cloud                                                                   |
+| Layer           | Choice                                                                                                                                                                                     |
+| --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Runtime         | Node 24, pnpm 11                                                                                                                                                                           |
+| Frontend        | Next.js 16 (App Router), React 19, TypeScript strict, Tailwind v4, shadcn/ui, lucide icons                                                                                                 |
+| Forms           | react-hook-form with Zod schemas shared between client and Convex argument validation where practical                                                                                      |
+| Tables          | TanStack Table                                                                                                                                                                             |
+| Backend         | Convex: queries, mutations, actions, HTTP actions, scheduler, crons, file storage, search indexes                                                                                          |
+| Convex packages | `convex-helpers` (custom functions, relationships), `@convex-dev/better-auth`, `@convex-dev/aggregate`, `@convex-dev/rate-limiter`, `@convex-dev/workpool` for outbound email and WhatsApp |
+| Auth            | Better Auth: magic link, organization, two-factor, admin plugins                                                                                                                           |
+| PDF             | `@react-pdf/renderer` in `"use node"` actions                                                                                                                                              |
+| Email           | Resend + React Email                                                                                                                                                                       |
+| Payments        | Paystack REST API and webhooks                                                                                                                                                             |
+| Messaging       | Meta WhatsApp Cloud API                                                                                                                                                                    |
+| Calendar        | Google Calendar API (OAuth per team member)                                                                                                                                                |
+| Bot protection  | Cloudflare Turnstile on public forms                                                                                                                                                       |
+| Monitoring      | Sentry for Next.js; Convex log streams or exception reporting as the Convex plan allows                                                                                                    |
+| Testing         | Vitest + `convex-test` for backend, Vitest + Testing Library for components, Playwright end to end                                                                                         |
+| Hosting         | Vercel (Next.js), Convex cloud                                                                                                                                                             |
 
 ## Repo layout
 
@@ -74,11 +74,11 @@ permissions itself (see `03-auth-and-permissions.md`).
 
 ## Environments
 
-| Environment | Convex                                  | Vercel                                    | Integrations                          |
-| ----------- | --------------------------------------- | ----------------------------------------- | ------------------------------------- |
-| Development | Personal dev deployment per developer   | `pnpm dev`                                | Paystack test keys, Resend test domain, WhatsApp test number |
-| Preview     | Convex preview deployment per PR if the plan supports it, otherwise a shared staging deployment | Vercel preview per PR | Test keys only |
-| Production  | Production deployment                   | `os.unbuilt.studio`, `portal.unbuilt.studio` | Live keys                            |
+| Environment | Convex                                                                                          | Vercel                                       | Integrations                                                 |
+| ----------- | ----------------------------------------------------------------------------------------------- | -------------------------------------------- | ------------------------------------------------------------ |
+| Development | Personal dev deployment per developer                                                           | `pnpm dev`                                   | Paystack test keys, Resend test domain, WhatsApp test number |
+| Preview     | Convex preview deployment per PR if the plan supports it, otherwise a shared staging deployment | Vercel preview per PR                        | Test keys only                                               |
+| Production  | Production deployment                                                                           | `os.unbuilt.studio`, `portal.unbuilt.studio` | Live keys                                                    |
 
 Seed script (`convex/seed.ts`, internal mutation) creates default roles, permission sets, an owner invite, Nigerian
 public holidays for the current and next year, default SLA policies, document templates, and sample data in

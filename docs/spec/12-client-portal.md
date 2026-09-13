@@ -51,6 +51,7 @@ client (see `03-auth-and-permissions.md`).
 ## Public token pages
 
 Contacts without portal access can still act through token links, with no account:
+
 - `/sign/[token]` for signing.
 - `/pay/[token]` for viewing and paying one invoice.
 

@@ -1,0 +1,24 @@
+node_modules
+.next
+out
+build
+coverage
+next-env.d.ts
+*.tsbuildinfo
+
+# Env files. Real values stay local; .env.example is committed as a template.
+.env
+.env*.local
+!.env.example
+
+# Playwright
+/test-results/
+/playwright-report/
+/playwright/.cache/
+
+# OS and editors
+.DS_Store
+*.log
+
+# Vercel
+.vercel

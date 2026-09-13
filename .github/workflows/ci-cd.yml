@@ -1,0 +1,187 @@
+name: CI/CD
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  # Superseded PR runs are cancelled. Production deploys always finish.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  VERCEL_CLI: vercel@59.16.0
+  VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+  VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+  VERCEL_TELEMETRY_DISABLED: 1
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm audit --prod --audit-level high
+      - run: pnpm check
+      - run: pnpm test
+      - run: pnpm build
+
+  commitlint:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec commitlint --from ${{ github.event.pull_request.base.sha }} --to ${{ github.event.pull_request.head.sha }}
+
+  preview:
+    needs: check
+    # Pull requests from forks don't receive secrets, so they can't deploy.
+    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      deployments: write
+      pull-requests: write
+    environment:
+      name: preview
+      url: ${{ steps.deploy.outputs.alias }}
+    outputs:
+      alias: ${{ steps.deploy.outputs.alias }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+
+      - name: Pull Vercel settings
+        run: pnpm --reporter=silent dlx $VERCEL_CLI pull --yes --environment=preview --token=${{ secrets.VERCEL_TOKEN }}
+
+      # Every preview shares the staging Convex deployment (the Convex plan has no per-PR previews).
+      # Single quotes keep the token out of the command Convex echoes; the shell expands it at run time.
+      - name: Deploy Convex and build
+        env:
+          CONVEX_DEPLOY_KEY: ${{ secrets.CONVEX_DEPLOY_KEY_STAGING }}
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: >-
+          pnpm exec convex deploy
+          --cmd 'pnpm --reporter=silent dlx $VERCEL_CLI build --token=$VERCEL_TOKEN'
+          --cmd-url-env-var-name NEXT_PUBLIC_CONVEX_URL
+
+      - name: Deploy
+        id: deploy
+        run: |
+          url=$(pnpm --reporter=silent dlx $VERCEL_CLI deploy --prebuilt --token=${{ secrets.VERCEL_TOKEN }} | grep -Eo "https://[^ ]+" | tail -1)
+          alias="unbuilt-os-pr-${{ github.event.pull_request.number }}.vercel.app"
+          pnpm --reporter=silent dlx $VERCEL_CLI alias set "$url" "$alias" --token=${{ secrets.VERCEL_TOKEN }}
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+          echo "alias=https://$alias" >> "$GITHUB_OUTPUT"
+
+      - name: Comment on the pull request
+        uses: actions/github-script@v9
+        env:
+          ALIAS: ${{ steps.deploy.outputs.alias }}
+          URL: ${{ steps.deploy.outputs.url }}
+        with:
+          script: |
+            const marker = '<!-- vercel-preview -->';
+            const pr = context.payload.pull_request;
+            const sha = pr.head.sha.slice(0, 7);
+            const { data: commit } = await github.rest.repos.getCommit({ ...context.repo, ref: pr.head.sha });
+            const subject = commit.commit.message.split('\n')[0];
+            const time = new Date().toLocaleString('en-GB', { timeZone: 'Africa/Lagos', dateStyle: 'medium', timeStyle: 'short' });
+            const body = [
+              marker,
+              '### 🔗 Preview ready',
+              '',
+              `**${process.env.ALIAS}**`,
+              '',
+              `Commit \`${sha}\` · ${subject}`,
+              `Deployed ${time} (Lagos) · [this exact build](${process.env.URL})`,
+              '',
+              '<sub>Updates on every push to this branch. Backend: shared staging Convex deployment.</sub>',
+            ].join('\n');
+
+            const comments = await github.paginate(github.rest.issues.listComments, { ...context.repo, issue_number: pr.number });
+            const existing = comments.find((c) => c.body?.includes(marker));
+            if (existing) {
+              await github.rest.issues.updateComment({ ...context.repo, comment_id: existing.id, body });
+            } else {
+              await github.rest.issues.createComment({ ...context.repo, issue_number: pr.number, body });
+            }
+
+  e2e:
+    needs: preview
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec playwright install --with-deps chromium
+      - run: pnpm test:e2e
+        env:
+          PLAYWRIGHT_BASE_URL: ${{ needs.preview.outputs.alias }}
+          VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
+      - uses: actions/upload-artifact@v7
+        if: failure()
+        with:
+          name: playwright-report
+          path: playwright-report
+          retention-days: 7
+
+  production:
+    needs: check
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      deployments: write
+    environment:
+      name: production
+      url: ${{ steps.deploy.outputs.url }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+
+      - name: Pull Vercel settings
+        run: pnpm --reporter=silent dlx $VERCEL_CLI pull --yes --environment=production --token=${{ secrets.VERCEL_TOKEN }}
+
+      - name: Deploy Convex and build
+        env:
+          CONVEX_DEPLOY_KEY: ${{ secrets.CONVEX_DEPLOY_KEY_PRODUCTION }}
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: >-
+          pnpm exec convex deploy
+          --cmd 'pnpm --reporter=silent dlx $VERCEL_CLI build --prod --token=$VERCEL_TOKEN'
+          --cmd-url-env-var-name NEXT_PUBLIC_CONVEX_URL
+
+      - name: Deploy
+        id: deploy
+        run: |
+          url=$(pnpm --reporter=silent dlx $VERCEL_CLI deploy --prebuilt --prod --token=${{ secrets.VERCEL_TOKEN }} | grep -Eo "https://[^ ]+" | tail -1)
+          echo "url=$url" >> "$GITHUB_OUTPUT"

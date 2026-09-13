@@ -11,15 +11,15 @@ shared in chat, SLA tracking by memory, and case studies hard-coded in the websi
 
 ## Who uses it
 
-| User                | Surface | Needs                                                                                  |
-| ------------------- | ------- | -------------------------------------------------------------------------------------- |
-| Owner and admins    | Team    | Everything, including money, settings, roles and the audit log                         |
-| Finance             | Team    | Invoices, payments, WHT, credit notes, bills, expenses, reports                        |
-| Project managers    | Team    | Clients, deals, projects, documents, change requests, tickets, client communication    |
-| Designers and devs  | Team    | Their assigned projects: tasks, time, deliverables, files, vault items for the project |
-| Content editors     | Team    | The CMS only                                                                           |
-| Client admins       | Portal  | Their company's invoices, payments, documents to sign, projects, tickets, colleagues   |
-| Client members      | Portal  | View their company's projects and documents, comment, approve deliverables, raise tickets |
+| User               | Surface | Needs                                                                                     |
+| ------------------ | ------- | ----------------------------------------------------------------------------------------- |
+| Owner and admins   | Team    | Everything, including money, settings, roles and the audit log                            |
+| Finance            | Team    | Invoices, payments, WHT, credit notes, bills, expenses, reports                           |
+| Project managers   | Team    | Clients, deals, projects, documents, change requests, tickets, client communication       |
+| Designers and devs | Team    | Their assigned projects: tasks, time, deliverables, files, vault items for the project    |
+| Content editors    | Team    | The CMS only                                                                              |
+| Client admins      | Portal  | Their company's invoices, payments, documents to sign, projects, tickets, colleagues      |
+| Client members     | Portal  | View their company's projects and documents, comment, approve deliverables, raise tickets |
 
 ## Two surfaces, one app
 
@@ -31,23 +31,23 @@ reach a team route or a team function (see `03-auth-and-permissions.md`).
 
 ## Confirmed decisions
 
-| Area              | Decision                                                                                                    |
-| ----------------- | ----------------------------------------------------------------------------------------------------------- |
-| Scope             | Everything in this spec ships together                                                                      |
-| Backend           | Convex (database, functions, file storage, scheduler, crons, HTTP actions)                                   |
-| Auth              | Better Auth through the official Convex component. Magic link and required TOTP 2FA for the team; magic link plus email code for clients |
-| Frontend          | Next.js 16 App Router, TypeScript strict, Tailwind v4, shadcn/ui                                             |
-| PDFs              | `@react-pdf/renderer` in Convex Node actions                                                                 |
-| Email             | Resend, templates in React Email                                                                             |
-| WhatsApp          | Meta WhatsApp Cloud API with approved templates and recorded opt-in                                         |
-| Payments          | Paystack payment links on invoices, bank transfer as fallback, webhook marks paid                           |
-| E-signatures      | Built in-house with an evidence trail and a certificate page                                                 |
-| Client portal     | Yes, same app, separate hostname and permissions                                                            |
-| Permissions       | Permission keys in code, roles as sets of keys, custom roles, project membership, append-only audit log     |
-| CMS               | Works, service pages, insights, legal pages, testimonials, site settings. Website stays static and rebuilds on publish |
-| Repo              | Separate repo `madebyunbuilt/unbuilt-os`. The website repo stays where it is                                |
-| Hosting           | Vercel for Next.js, deployed from GitHub Actions with the Vercel CLI, same model as the website             |
-| Package manager   | pnpm only                                                                                                   |
+| Area            | Decision                                                                                                                                 |
+| --------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| Scope           | Everything in this spec ships together                                                                                                   |
+| Backend         | Convex (database, functions, file storage, scheduler, crons, HTTP actions)                                                               |
+| Auth            | Better Auth through the official Convex component. Magic link and required TOTP 2FA for the team; magic link plus email code for clients |
+| Frontend        | Next.js 16 App Router, TypeScript strict, Tailwind v4, shadcn/ui                                                                         |
+| PDFs            | `@react-pdf/renderer` in Convex Node actions                                                                                             |
+| Email           | Resend, templates in React Email                                                                                                         |
+| WhatsApp        | Meta WhatsApp Cloud API with approved templates and recorded opt-in                                                                      |
+| Payments        | Paystack payment links on invoices, bank transfer as fallback, webhook marks paid                                                        |
+| E-signatures    | Built in-house with an evidence trail and a certificate page                                                                             |
+| Client portal   | Yes, same app, separate hostname and permissions                                                                                         |
+| Permissions     | Permission keys in code, roles as sets of keys, custom roles, project membership, append-only audit log                                  |
+| CMS             | Works, service pages, insights, legal pages, testimonials, site settings. Website stays static and rebuilds on publish                   |
+| Repo            | Separate repo `madebyunbuilt/unbuilt-os`. The website repo stays where it is                                                             |
+| Hosting         | Vercel for Next.js, deployed from GitHub Actions with the Vercel CLI, same model as the website                                          |
+| Package manager | pnpm only                                                                                                                                |
 
 ## Modules
 
@@ -70,21 +70,21 @@ reach a team route or a team function (see `03-auth-and-permissions.md`).
 
 ## Glossary
 
-| Term             | Meaning                                                                                              |
-| ---------------- | ---------------------------------------------------------------------------------------------------- |
-| Client           | A company (or individual) the studio works for or might work for                                    |
-| Contact          | A person at a client. May have portal access                                                          |
-| Enquiry          | A raw submission from the website form                                                               |
-| Deal             | A potential piece of work moving through the pipeline                                                |
-| Document         | Any generated business document: quote, proposal, SOW, contract, SLA, NDA, DPA, change request, handover |
-| Document chain   | The link from a quote to the proposal, SOW, contract and billing schedule derived from it           |
-| Deliverable      | Something the client approves: a design, a build, a document                                        |
-| Change request   | A priced change to agreed scope that the client approves                                              |
-| Retainer         | A recurring monthly agreement with included hours                                                     |
-| SLA policy       | Response and resolution targets per priority, measured in business hours                             |
-| WHT              | Withholding tax a paying company deducts from an invoice and remits to the tax authority              |
-| Work             | A public case study on the website                                                                    |
-| Minor units      | The smallest unit of a currency: kobo for NGN, cents for USD and EUR                                  |
+| Term           | Meaning                                                                                                  |
+| -------------- | -------------------------------------------------------------------------------------------------------- |
+| Client         | A company (or individual) the studio works for or might work for                                         |
+| Contact        | A person at a client. May have portal access                                                             |
+| Enquiry        | A raw submission from the website form                                                                   |
+| Deal           | A potential piece of work moving through the pipeline                                                    |
+| Document       | Any generated business document: quote, proposal, SOW, contract, SLA, NDA, DPA, change request, handover |
+| Document chain | The link from a quote to the proposal, SOW, contract and billing schedule derived from it                |
+| Deliverable    | Something the client approves: a design, a build, a document                                             |
+| Change request | A priced change to agreed scope that the client approves                                                 |
+| Retainer       | A recurring monthly agreement with included hours                                                        |
+| SLA policy     | Response and resolution targets per priority, measured in business hours                                 |
+| WHT            | Withholding tax a paying company deducts from an invoice and remits to the tax authority                 |
+| Work           | A public case study on the website                                                                       |
+| Minor units    | The smallest unit of a currency: kobo for NGN, cents for USD and EUR                                     |
 
 ## Design
 

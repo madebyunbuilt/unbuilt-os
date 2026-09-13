@@ -8,6 +8,7 @@ order). Tax rates in this file are defaults to be confirmed; see `18-open-questi
 ### Creating
 
 Sources:
+
 - manual
 - a billing schedule item
 - a retainer period
@@ -18,6 +19,7 @@ Sources:
 - a late fee
 
 An invoice records:
+
 - **Client and project**, and the contract it falls under.
 - **Currency.** Defaults from the client. NGN, USD or EUR.
 - **FX rate to NGN.** Defaults to the latest `fxRates` entry for the currency, and is editable until the invoice is sent.
@@ -48,6 +50,7 @@ An invoice records:
 ### Reminders
 
 Daily cron at 09:00 Lagos time:
+
 - 3 days before the due date
 - on the due date
 - 3, 7 and 14 days after the due date
@@ -95,6 +98,7 @@ Each reminder is sent once and recorded on `invoices.reminders`. Clients or invo
 
 When a client deducts WHT, they pay less than the invoice total and remit the difference to the tax authority on the
 studio's behalf.
+
 - Recording a payment asks for "WHT deducted" (defaults to the expected WHT when the payment equals total − expected WHT).
 - The invoice is settled when paid + WHT credited + credit notes = total.
 - Each deduction creates a `whtCredits` row with status `expected`. Finance uploads the WHT credit note or receipt when

@@ -4,12 +4,12 @@
 
 - A policy has a business hours calendar and targets per priority:
 
-| Priority | Meaning                                  | Default first response | Default resolution |
-| -------- | ---------------------------------------- | ---------------------- | ------------------ |
-| P1       | Production down or data at risk          | 1 business hour        | 8 business hours   |
-| P2       | Major feature broken, no workaround      | 4 business hours       | 3 business days    |
-| P3       | Minor issue or workaround exists         | 1 business day         | 10 business days   |
-| P4       | Question or small change request         | 2 business days        | Best effort        |
+| Priority | Meaning                             | Default first response | Default resolution |
+| -------- | ----------------------------------- | ---------------------- | ------------------ |
+| P1       | Production down or data at risk     | 1 business hour        | 8 business hours   |
+| P2       | Major feature broken, no workaround | 4 business hours       | 3 business days    |
+| P3       | Minor issue or workaround exists    | 1 business day         | 10 business days   |
+| P4       | Question or small change request    | 2 business days        | Best effort        |
 
 - Optional: included support minutes per month (linked to a retainer) and an uptime target.
 - Clients and projects reference a policy. A ticket uses the project's policy, then the client's, then none.

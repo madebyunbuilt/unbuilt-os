@@ -49,6 +49,7 @@ policies (see `18-open-questions.md`).
 ### Personal data inventory
 
 Document in `docs/privacy/inventory.md`:
+
 - contacts
 - team members
 - enquiries
@@ -69,6 +70,7 @@ For each: lawful basis, retention and processors (Convex, Vercel, Resend, Meta, 
 ### Privacy requests
 
 `privacy.requests.manage`:
+
 - Log requests (access, correction, deletion, restriction) with a due date (default 30 days; confirm the statutory period
   with counsel).
 - **Access**: generate a JSON and PDF export of everything linked to the subject's email across contacts, enquiries,
@@ -83,16 +85,16 @@ For each: lawful basis, retention and processors (Convex, Vercel, Resend, Meta, 
 
 Defaults, configurable, to be confirmed:
 
-| Data                                           | Default retention                                   |
-| ---------------------------------------------- | --------------------------------------------------- |
-| Enquiries that never became clients            | 2 years after last activity                         |
-| Clients, projects, documents, invoices, payments | Engagement plus 7 years (tax and accounting)      |
-| Signed documents and signature evidence        | Engagement plus 7 years, or longer for contracts under legal hold |
-| Vault items                                    | Deleted 30 days after handover archive              |
-| Monitor checks                                 | 90 days                                             |
-| Message logs                                   | 2 years                                             |
-| Audit log                                      | 7 years                                             |
-| Offboarded team member personal data           | 7 years for employment records, otherwise 2 years   |
+| Data                                             | Default retention                                                 |
+| ------------------------------------------------ | ----------------------------------------------------------------- |
+| Enquiries that never became clients              | 2 years after last activity                                       |
+| Clients, projects, documents, invoices, payments | Engagement plus 7 years (tax and accounting)                      |
+| Signed documents and signature evidence          | Engagement plus 7 years, or longer for contracts under legal hold |
+| Vault items                                      | Deleted 30 days after handover archive                            |
+| Monitor checks                                   | 90 days                                                           |
+| Message logs                                     | 2 years                                                           |
+| Audit log                                        | 7 years                                                           |
+| Offboarded team member personal data             | 7 years for employment records, otherwise 2 years                 |
 
 A monthly cron lists records past retention for an admin to approve deletion in bulk.
 

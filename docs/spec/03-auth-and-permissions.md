@@ -15,12 +15,12 @@ two email addresses. Never let one session act on both surfaces.
 
 ## Sign-in
 
-| Surface | Method                                                                                          |
-| ------- | ----------------------------------------------------------------------------------------------- |
+| Surface | Method                                                                                                                                     |
+| ------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
 | Team    | Email magic link, then TOTP two-factor. 2FA is mandatory; a team member without 2FA can only reach the 2FA setup screen. Passkeys optional |
-| Portal  | Email magic link, then a 6-digit email code on new devices. No passwords                         |
-| Signing | Token link from the signature request email, then a 6-digit email code before signing (see `07-documents-and-esign.md`) |
-| Paying  | Token link from the invoice email opens the invoice and Paystack checkout without an account     |
+| Portal  | Email magic link, then a 6-digit email code on new devices. No passwords                                                                   |
+| Signing | Token link from the signature request email, then a 6-digit email code before signing (see `07-documents-and-esign.md`)                    |
+| Paying  | Token link from the invoice email opens the invoice and Paystack checkout without an account                                               |
 
 - Magic links expire in 15 minutes and work once.
 - Team sessions expire after 12 hours of inactivity; portal sessions after 7 days.
@@ -33,16 +33,16 @@ two email addresses. Never let one session act on both surfaces.
 
 `convex/lib/functions.ts` exposes the only function builders modules may use:
 
-| Builder                          | Caller                   | Checks, in order                                                                 |
-| -------------------------------- | ------------------------ | -------------------------------------------------------------------------------- |
-| `teamQuery(permission)`          | Team                     | Session valid, principal is an active team member with 2FA, role has `permission` |
-| `teamMutation(permission)`       | Team                     | As above, then writes an audit entry (see Audit)                                  |
-| `teamAction(permission)`         | Team                     | As above; actions call internal functions for data access                        |
-| `portalQuery(permission)`        | Client user              | Session valid, principal is an active client user, role has `permission`, and every read is filtered to `ctx.clientId` |
-| `portalMutation(permission)`     | Client user              | As above, plus audit                                                              |
-| `tokenQuery` / `tokenMutation`   | Signing and pay links    | Token valid, unexpired, scoped to one document or invoice                        |
-| `publicHttp`                     | Website, webhooks        | Rate limit, signature or Turnstile verification                                  |
-| `internalQuery` / `internalMutation` / `internalAction` | Scheduler, crons, other functions | Not callable from clients               |
+| Builder                                                 | Caller                            | Checks, in order                                                                                                       |
+| ------------------------------------------------------- | --------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| `teamQuery(permission)`                                 | Team                              | Session valid, principal is an active team member with 2FA, role has `permission`                                      |
+| `teamMutation(permission)`                              | Team                              | As above, then writes an audit entry (see Audit)                                                                       |
+| `teamAction(permission)`                                | Team                              | As above; actions call internal functions for data access                                                              |
+| `portalQuery(permission)`                               | Client user                       | Session valid, principal is an active client user, role has `permission`, and every read is filtered to `ctx.clientId` |
+| `portalMutation(permission)`                            | Client user                       | As above, plus audit                                                                                                   |
+| `tokenQuery` / `tokenMutation`                          | Signing and pay links             | Token valid, unexpired, scoped to one document or invoice                                                              |
+| `publicHttp`                                            | Website, webhooks                 | Rate limit, signature or Turnstile verification                                                                        |
+| `internalQuery` / `internalMutation` / `internalAction` | Scheduler, crons, other functions | Not callable from clients                                                                                              |
 
 The builders put `ctx.principal`, `ctx.permissions`, `ctx.clientId` (portal only) and `ctx.can(permission)` on the
 context.
@@ -116,46 +116,46 @@ are saved.
 
 System roles are seeded, cannot be deleted, and only the Owner can edit them. `roles.manage` can create custom roles.
 
-| Area                         | Owner | Admin | Finance | Project manager | Member | Content editor |
-| ---------------------------- | :---: | :---: | :-----: | :-------------: | :----: | :------------: |
-| Enquiries, deals, clients    | All   | All   | View    | All except delete | —    | —              |
-| Contacts, rate card, intake  | All   | All   | View    | All             | —      | —              |
-| Projects                     | All   | All   | View all | All            | Assigned | —            |
-| Tasks, deliverables          | All   | All   | —       | All             | Assigned | —            |
-| Time                         | All   | All   | View all | View, approve  | Own    | —              |
-| Change requests, updates     | All   | All   | View    | Create, send    | —      | —              |
-| Documents and templates      | All   | All   | View    | Create, update, send | View assigned | —      |
-| Countersign documents        | Yes   | Yes   | —       | —               | —      | —              |
-| Invoices                     | All   | All   | All     | Create drafts   | —      | —              |
-| Payments, credit notes, refunds, write-offs | All | All | All | —          | —      | —              |
-| Expenses                     | All   | All   | Approve | Log             | Log    | —              |
-| Vendors and bills            | All   | All   | All     | —               | —      | —              |
-| Finance reports and exports  | All   | All   | All     | —               | —      | —              |
-| Tickets, SLA, monitors, renewals | All | All  | View    | All             | Assigned tickets | —      |
-| Vault                        | All   | All   | —       | Assigned, manage | Assigned | —            |
-| Team, time off, capacity     | All   | All   | View    | View, capacity  | Request time off | —    |
-| Cost rates (sensitive)       | Yes   | Yes   | Yes     | —               | —      | —              |
-| CMS                          | All   | All   | —       | View            | —      | Edit, publish  |
-| Settings, roles, integrations | All  | All   | Billing settings | —      | —      | —              |
-| Audit log, privacy requests  | All   | All   | —       | —               | —      | —              |
-| Transfer ownership           | Yes   | —     | —       | —               | —      | —              |
+| Area                                        | Owner | Admin |     Finance      |   Project manager    |      Member      | Content editor |
+| ------------------------------------------- | :---: | :---: | :--------------: | :------------------: | :--------------: | :------------: |
+| Enquiries, deals, clients                   |  All  |  All  |       View       |  All except delete   |        —         |       —        |
+| Contacts, rate card, intake                 |  All  |  All  |       View       |         All          |        —         |       —        |
+| Projects                                    |  All  |  All  |     View all     |         All          |     Assigned     |       —        |
+| Tasks, deliverables                         |  All  |  All  |        —         |         All          |     Assigned     |       —        |
+| Time                                        |  All  |  All  |     View all     |    View, approve     |       Own        |       —        |
+| Change requests, updates                    |  All  |  All  |       View       |     Create, send     |        —         |       —        |
+| Documents and templates                     |  All  |  All  |       View       | Create, update, send |  View assigned   |       —        |
+| Countersign documents                       |  Yes  |  Yes  |        —         |          —           |        —         |       —        |
+| Invoices                                    |  All  |  All  |       All        |    Create drafts     |        —         |       —        |
+| Payments, credit notes, refunds, write-offs |  All  |  All  |       All        |          —           |        —         |       —        |
+| Expenses                                    |  All  |  All  |     Approve      |         Log          |       Log        |       —        |
+| Vendors and bills                           |  All  |  All  |       All        |          —           |        —         |       —        |
+| Finance reports and exports                 |  All  |  All  |       All        |          —           |        —         |       —        |
+| Tickets, SLA, monitors, renewals            |  All  |  All  |       View       |         All          | Assigned tickets |       —        |
+| Vault                                       |  All  |  All  |        —         |   Assigned, manage   |     Assigned     |       —        |
+| Team, time off, capacity                    |  All  |  All  |       View       |    View, capacity    | Request time off |       —        |
+| Cost rates (sensitive)                      |  Yes  |  Yes  |       Yes        |          —           |        —         |       —        |
+| CMS                                         |  All  |  All  |        —         |         View         |        —         | Edit, publish  |
+| Settings, roles, integrations               |  All  |  All  | Billing settings |          —           |        —         |       —        |
+| Audit log, privacy requests                 |  All  |  All  |        —         |          —           |        —         |       —        |
+| Transfer ownership                          |  Yes  |   —   |        —         |          —           |        —         |       —        |
 
 **Client roles**
 
-| Permission area                        | Client admin | Client member |
-| -------------------------------------- | :----------: | :-----------: |
-| View projects, milestones, updates     | Yes          | Yes           |
-| Approve deliverables                   | Yes          | Yes           |
-| Approve change requests                | Yes          | —             |
-| View documents                         | Yes          | Yes           |
-| Sign documents                         | Yes          | Only when named as a signer |
-| View and pay invoices                  | Yes          | —             |
-| Raise and view tickets                 | Yes          | Yes           |
-| Submit credentials to the vault        | Yes          | Yes           |
-| Submit intake forms                    | Yes          | Yes           |
-| View SLA and retainer reports          | Yes          | —             |
-| Invite and remove colleagues           | Yes          | —             |
-| Upload files                           | Yes          | Yes           |
+| Permission area                    | Client admin |        Client member        |
+| ---------------------------------- | :----------: | :-------------------------: |
+| View projects, milestones, updates |     Yes      |             Yes             |
+| Approve deliverables               |     Yes      |             Yes             |
+| Approve change requests            |     Yes      |              —              |
+| View documents                     |     Yes      |             Yes             |
+| Sign documents                     |     Yes      | Only when named as a signer |
+| View and pay invoices              |     Yes      |              —              |
+| Raise and view tickets             |     Yes      |             Yes             |
+| Submit credentials to the vault    |     Yes      |             Yes             |
+| Submit intake forms                |     Yes      |             Yes             |
+| View SLA and retainer reports      |     Yes      |              —              |
+| Invite and remove colleagues       |     Yes      |              —              |
+| Upload files                       |     Yes      |             Yes             |
 
 ## Audit log
 

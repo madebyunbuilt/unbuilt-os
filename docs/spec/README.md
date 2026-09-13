@@ -18,23 +18,23 @@ the work by dependency.
 
 ## Files
 
-| File                          | Covers                                                                                    |
-| ----------------------------- | ----------------------------------------------------------------------------------------- |
-| `01-product.md`               | What the OS is, who uses it, the two surfaces, confirmed decisions, glossary, design       |
-| `02-architecture.md`          | Stack, repo layout, environments, CI/CD, conventions, testing                              |
-| `03-auth-and-permissions.md`  | Better Auth, team and client identities, permission keys, roles, enforcement, audit        |
-| `04-data-model.md`            | Every Convex table, key fields and indexes, money, numbering and time rules                |
-| `05-crm.md`                   | Enquiries, pipeline and deals, clients, contacts, rate card, calendar, intake               |
-| `06-projects.md`              | Projects, milestones, deliverables, tasks, time, change requests, updates, handover        |
-| `07-documents-and-esign.md`   | Templates, the document chain, versions, PDF, view tracking, e-signatures                  |
-| `08-billing-and-finance.md`   | Invoices, VAT, WHT, payments, Paystack, schedules, retainers, credit notes, FX, bills       |
-| `09-support-and-sla.md`       | Tickets, SLA policies, business hours, retainer hours, uptime monitoring, renewals          |
-| `10-vault.md`                 | Encrypted client credentials                                                               |
-| `11-team.md`                  | Team members, contractors, rates, time off, capacity                                       |
-| `12-client-portal.md`         | Everything a client can see and do                                                          |
-| `13-cms-and-website.md`       | Works, service pages, insights, legal, testimonials, settings, publishing, enquiries        |
-| `14-platform.md`              | Notifications, email, WhatsApp, search, reports, files, imports and exports, settings, PWA |
-| `15-security-and-compliance.md` | Encryption, rate limits, backups, NDPA and GDPR, data requests, retention                 |
-| `16-key-flows.md`             | End-to-end flows that cross modules                                                        |
-| `17-build-sequence.md`        | Order of work and definition of done                                                       |
-| `18-open-questions.md`        | Decisions that need the studio, an accountant or a lawyer                                  |
+| File                            | Covers                                                                                     |
+| ------------------------------- | ------------------------------------------------------------------------------------------ |
+| `01-product.md`                 | What the OS is, who uses it, the two surfaces, confirmed decisions, glossary, design       |
+| `02-architecture.md`            | Stack, repo layout, environments, CI/CD, conventions, testing                              |
+| `03-auth-and-permissions.md`    | Better Auth, team and client identities, permission keys, roles, enforcement, audit        |
+| `04-data-model.md`              | Every Convex table, key fields and indexes, money, numbering and time rules                |
+| `05-crm.md`                     | Enquiries, pipeline and deals, clients, contacts, rate card, calendar, intake              |
+| `06-projects.md`                | Projects, milestones, deliverables, tasks, time, change requests, updates, handover        |
+| `07-documents-and-esign.md`     | Templates, the document chain, versions, PDF, view tracking, e-signatures                  |
+| `08-billing-and-finance.md`     | Invoices, VAT, WHT, payments, Paystack, schedules, retainers, credit notes, FX, bills      |
+| `09-support-and-sla.md`         | Tickets, SLA policies, business hours, retainer hours, uptime monitoring, renewals         |
+| `10-vault.md`                   | Encrypted client credentials                                                               |
+| `11-team.md`                    | Team members, contractors, rates, time off, capacity                                       |
+| `12-client-portal.md`           | Everything a client can see and do                                                         |
+| `13-cms-and-website.md`         | Works, service pages, insights, legal, testimonials, settings, publishing, enquiries       |
+| `14-platform.md`                | Notifications, email, WhatsApp, search, reports, files, imports and exports, settings, PWA |
+| `15-security-and-compliance.md` | Encryption, rate limits, backups, NDPA and GDPR, data requests, retention                  |
+| `16-key-flows.md`               | End-to-end flows that cross modules                                                        |
+| `17-build-sequence.md`          | Order of work and definition of done                                                       |
+| `18-open-questions.md`          | Decisions that need the studio, an accountant or a lawyer                                  |

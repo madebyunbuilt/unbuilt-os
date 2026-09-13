@@ -2,18 +2,18 @@
 
 ## Document types
 
-| Type           | Purpose                                                   | Priced | Signed by default |
-| -------------- | --------------------------------------------------------- | :----: | :---------------: |
-| Quote          | Price for defined work, valid until a date                | Yes    | No, accepted in portal |
-| Proposal       | Approach, scope, timeline and price                       | Yes    | No, accepted in portal |
-| SOW            | Detailed scope, deliverables, milestones, acceptance terms | Yes   | Yes               |
-| Contract       | Master services agreement: terms, IP, liability, payment   | No    | Yes               |
-| SLA            | Support targets, hours, uptime, remedies                  | Optional | Yes             |
-| NDA            | Confidentiality                                           | No     | Yes               |
-| DPA            | Data processing agreement for client personal data        | No     | Yes               |
-| Change request | Priced change to scope                                    | Yes    | By threshold (see `06-projects.md`) |
-| Handover       | What was delivered and transferred                        | No     | Yes               |
-| Team agreement | Contractor agreement, NDA or employment contract for team | No     | Yes               |
+| Type           | Purpose                                                    |  Priced  |          Signed by default          |
+| -------------- | ---------------------------------------------------------- | :------: | :---------------------------------: |
+| Quote          | Price for defined work, valid until a date                 |   Yes    |       No, accepted in portal        |
+| Proposal       | Approach, scope, timeline and price                        |   Yes    |       No, accepted in portal        |
+| SOW            | Detailed scope, deliverables, milestones, acceptance terms |   Yes    |                 Yes                 |
+| Contract       | Master services agreement: terms, IP, liability, payment   |    No    |                 Yes                 |
+| SLA            | Support targets, hours, uptime, remedies                   | Optional |                 Yes                 |
+| NDA            | Confidentiality                                            |    No    |                 Yes                 |
+| DPA            | Data processing agreement for client personal data         |    No    |                 Yes                 |
+| Change request | Priced change to scope                                     |   Yes    | By threshold (see `06-projects.md`) |
+| Handover       | What was delivered and transferred                         |    No    |                 Yes                 |
+| Team agreement | Contractor agreement, NDA or employment contract for team  |    No    |                 Yes                 |
 
 ## Templates and clauses
 
