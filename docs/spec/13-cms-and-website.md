@@ -7,14 +7,14 @@ and rebuilds when content is published.
 
 ## Content types
 
-| Type          | Website use                                                  | Shape                                   |
-| ------------- | ------------------------------------------------------------ | --------------------------------------- |
-| Works         | `/work` list, `/work/[slug]` case studies, home "Things we've built" | Mirrors the website `Project` type (see `04-data-model.md`) |
-| Service pages | `/services` list, and one landing page per service at `/services/[slug]` | Mirrors `Service` plus SEO fields and a rich body |
-| Insights      | `/insights` and `/insights/[slug]` articles                  | Posts with SEO fields                    |
-| Legal pages   | `/legal/[slug]`, and the portal's privacy notice and terms   | Mirrors `LegalDoc`                        |
-| Testimonials  | Case studies and the home page                              | Quote, author, role, client, work        |
-| Site settings | Email, phone, socials, status text, SEO defaults            | Mirrors `site` plus status and SEO       |
+| Type          | Website use                                                              | Shape                                                       |
+| ------------- | ------------------------------------------------------------------------ | ----------------------------------------------------------- |
+| Works         | `/work` list, `/work/[slug]` case studies, home "Things we've built"     | Mirrors the website `Project` type (see `04-data-model.md`) |
+| Service pages | `/services` list, and one landing page per service at `/services/[slug]` | Mirrors `Service` plus SEO fields and a rich body           |
+| Insights      | `/insights` and `/insights/[slug]` articles                              | Posts with SEO fields                                       |
+| Legal pages   | `/legal/[slug]`, and the portal's privacy notice and terms               | Mirrors `LegalDoc`                                          |
+| Testimonials  | Case studies and the home page                                           | Quote, author, role, client, work                           |
+| Site settings | Email, phone, socials, status text, SEO defaults                         | Mirrors `site` plus status and SEO                          |
 
 The website changes required to consume this (new routes for service pages and insights, and replacing the content
 files) are a separate PR in the website repo, described below.
@@ -60,6 +60,7 @@ files) are a separate PR in the website repo, described below.
 ### Content endpoint
 
 `GET /public/site-content` (Convex HTTP action):
+
 - Requires `Authorization: Bearer <WEBSITE_CONTENT_TOKEN>`, a secret shared with the website's build environment. It is
   read-only and returns published content only.
 - Returns one JSON document:
@@ -85,6 +86,7 @@ files) are a separate PR in the website repo, described below.
 ### Enquiries
 
 `POST /public/enquiries` (Convex HTTP action):
+
 - CORS allows only `https://unbuilt.studio` and the website's preview domains.
 - Body: the enquiry sheet fields plus `turnstileToken`.
 - Verifies Turnstile server-side, rate-limits (5 per hour per IP, 3 per day per email), validates with Zod, stores the

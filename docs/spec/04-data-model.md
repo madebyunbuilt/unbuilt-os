@@ -34,19 +34,19 @@ Better Auth's own tables (users, sessions, accounts, verification) are owned by 
   transactions guarantee no duplicates or gaps.
 - Default formats (configurable in settings, zero-padded to 4 digits, never reset):
 
-| Record         | Format          |
-| -------------- | --------------- |
-| Invoice        | `UNB-INV-0001`  |
-| Quote          | `UNB-QUO-0001`  |
-| Proposal       | `UNB-PRO-0001`  |
-| SOW            | `UNB-SOW-0001`  |
-| Contract       | `UNB-CON-0001`  |
-| SLA            | `UNB-SLA-0001`  |
-| Change request | `UNB-CR-0001`   |
-| Credit note    | `UNB-CN-0001`   |
-| Receipt        | `UNB-RCT-0001`  |
-| Ticket         | `UNB-TKT-0001`  |
-| Project code   | `UNB-P-0001`    |
+| Record         | Format         |
+| -------------- | -------------- |
+| Invoice        | `UNB-INV-0001` |
+| Quote          | `UNB-QUO-0001` |
+| Proposal       | `UNB-PRO-0001` |
+| SOW            | `UNB-SOW-0001` |
+| Contract       | `UNB-CON-0001` |
+| SLA            | `UNB-SLA-0001` |
+| Change request | `UNB-CR-0001`  |
+| Credit note    | `UNB-CN-0001`  |
+| Receipt        | `UNB-RCT-0001` |
+| Ticket         | `UNB-TKT-0001` |
+| Project code   | `UNB-P-0001`   |
 
 - Drafts get a number only when first sent or issued, so abandoned drafts never burn numbers.
 
