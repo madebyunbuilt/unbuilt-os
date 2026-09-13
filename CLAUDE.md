@@ -8,6 +8,7 @@ and the website CMS. The full specification is in `docs/spec/`; start with `docs
 - Read `docs/spec/01-product.md`, `02-architecture.md`, `03-auth-and-permissions.md` and `04-data-model.md`.
 - Then read only the module file for the task, plus `16-key-flows.md` if the work crosses modules.
 - Follow `docs/spec/17-build-sequence.md` for order and the definition of done.
+- Next.js 16 differs from older versions. Check the bundled docs described in `AGENTS.md` before writing Next.js code.
 - If the spec does not answer a question about money, tax, signatures, permissions or personal data, stop and ask.
   Do not invent the rule. Check `18-open-questions.md` first.
 
