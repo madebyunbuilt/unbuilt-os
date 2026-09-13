@@ -1,4 +1,10 @@
-import { defineSchema } from 'convex/server';
+import { defineSchema, defineTable } from 'convex/server';
+import { v } from 'convex/values';
 
-// Tables arrive with the Foundation pull requests that use them. The field contract is docs/spec/04-data-model.md.
-export default defineSchema({});
+// Field contract: docs/spec/04-data-model.md. Tables arrive with the pull requests that use them.
+export default defineSchema({
+  counters: defineTable({
+    key: v.string(),
+    value: v.number(),
+  }).index('by_key', ['key']),
+});

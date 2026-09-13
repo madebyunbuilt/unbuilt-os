@@ -8,13 +8,21 @@
  * @module
  */
 
+import type * as lib_businessTime from "../lib/businessTime.js";
+import type * as lib_money from "../lib/money.js";
+import type * as lib_numbering from "../lib/numbering.js";
+
 import type {
   ApiFromModules,
   FilterApi,
   FunctionReference,
 } from "convex/server";
 
-declare const fullApi: ApiFromModules<{}>;
+declare const fullApi: ApiFromModules<{
+  "lib/businessTime": typeof lib_businessTime;
+  "lib/money": typeof lib_money;
+  "lib/numbering": typeof lib_numbering;
+}>;
 
 /**
  * A utility for referencing Convex functions in your app's public API.
