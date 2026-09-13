@@ -1,0 +1,105 @@
+# 05 — CRM
+
+## Enquiries
+
+- The website's enquiry sheet posts to the Convex HTTP endpoint `POST /public/enquiries` (see
+  `13-cms-and-website.md`). Fields match the existing form: `services[]`, `stage`, `budget`, `timeline`, `about`,
+  `name`, `email`, `company`, plus a Turnstile token.
+- The endpoint verifies Turnstile, applies a rate limit per IP and per email, and stores an `enquiries` row.
+- A new enquiry notifies everyone with `enquiries.manage` (in-app, email, WhatsApp by preference) and replies to the
+  sender with an acknowledgement email.
+- The enquiry inbox lists new enquiries first. Actions: **Convert** (creates or matches a client by email domain or
+  company name, creates a contact and a deal in the first open stage, links the enquiry), **Mark spam**, **Close**.
+- Duplicate detection: an enquiry from an email that already belongs to a contact shows that client and their open deals.
+
+## Pipeline and deals
+
+- Stages are editable (`pipelineStages`), each with a default probability. Defaults: New (10%), Discovery (25%),
+  Proposal sent (50%), Negotiation (75%), Won (100%), Lost (0%).
+- Kanban board and table views. Dragging a deal between stages records a `status_change` activity.
+- Each deal has: value and currency, probability (defaults from the stage, editable), expected close date, owner,
+  services, source, next follow-up date.
+- **Follow-ups**: a deal with no activity and no future follow-up for 7 days notifies its owner. A follow-up date that
+  passes without activity notifies the owner that day.
+- **Won** requires choosing or creating the project (optionally from a template) and links the accepted documents.
+  **Lost** requires a lost reason from a configurable list plus free text.
+- Pipeline value = sum of open deal values; weighted value = sum of value × probability, both converted to NGN at
+  today's rate for display only.
+
+## Clients
+
+- List with filters: status, owner, tag, industry, has overdue invoices, has open tickets.
+- Client page tabs:
+  - **Overview**: status, owner, key figures (lifetime billed, outstanding balance, open deals, active projects, open tickets),
+    recent activity.
+  - **Contacts**
+  - **Deals**
+  - **Projects**
+  - **Documents**
+  - **Invoices and payments**: with a statement of account.
+  - **Tickets**
+  - **Vault**: permission-gated.
+  - **Assets**: renewals.
+  - **Files**
+  - **Activity**: the full timeline.
+  - **Settings**: billing details, VAT treatment, WHT, currency, payment terms, SLA policy, portal access.
+- **Billing details** used by invoices: legal name, address, TIN, VAT treatment (standard, zero-rated, exempt), whether
+  WHT applies and at what rate, default currency, payment terms.
+- **Status** moves from lead to active automatically when the first project starts, and to past when the last project
+  completes with no active retainer. Manual override is allowed and recorded.
+
+## Contacts
+
+- A client has many contacts. Flags: primary, billing (receives invoices), portal access, WhatsApp opt-in.
+- **Portal invitation**: enabling portal access sends a magic-link invite and assigns a client role (default Client
+  member; the first contact invited becomes Client admin).
+- **WhatsApp opt-in** must be recorded with how it was given (portal checkbox, written consent, form) before any
+  WhatsApp message is sent to that contact.
+- A contact who leaves the company is marked `left`: portal access is revoked, history is kept.
+
+## Activity timeline
+
+- Every client, contact, deal, project and ticket has a timeline built from `activities`.
+- System events are written automatically:
+  - status changes
+  - document sent, viewed, signed
+  - invoice sent, viewed, paid
+  - email and WhatsApp sent
+  - ticket events
+- Team members add notes, calls and meetings manually. Notes support @mentions, which notify the mentioned member.
+
+## Rate card
+
+- Items with a unit (fixed, hour, day, week, month) and a price per currency.
+- Adding a rate card item to a quote or invoice fills in description, unit price for the document's currency, and
+  taxable flag; the user can override the price on that document.
+- If an item has no price in the document's currency, the user must enter one; never convert automatically.
+- Inactive items stay on existing documents but cannot be added to new ones.
+
+## Calendar
+
+- Each team member can connect Google Calendar through OAuth (tokens encrypted in `integrations`).
+- Creating a meeting from a deal, client or project creates a Google Calendar event with a Meet link when the organiser is
+  connected, invites the attendees, and stores the event id.
+- A booking page per team member at `os.unbuilt.studio/book/[member]` shows free slots from their calendar within
+  business hours. Booking from it creates a meeting, and a lead and contact if the email is new.
+- Updates and cancellations in the OS sync to Google. Changes made in Google Calendar are not synced back.
+
+## Intake forms
+
+- Form builder: text, long text, single choice, multiple choice, date, file upload, URL.
+- Intake forms can be attached to project templates. When a project is created from the template, the form is sent to
+  the client's primary contact through the portal.
+- Responses attach to the client and project and are visible on the project overview.
+
+## Acceptance criteria
+
+- A website enquiry with a valid Turnstile token appears in the inbox and notifies `enquiries.manage` holders; an
+  invalid token or a rate-limited request is rejected without creating a row.
+- Converting an enquiry from an existing contact's email links to that client instead of creating a duplicate.
+- Moving a deal to Won without a project is blocked; moving to Lost without a reason is blocked.
+- A deal idle for 7 days with no future follow-up notifies its owner exactly once per idle period.
+- Weighted pipeline value equals the sum of value × probability, verified by test.
+- A rate card item lacking a price in the document currency cannot be added without a manual price.
+- A WhatsApp message to a contact without recorded opt-in is never sent.
+- Contacts marked `left` lose portal access immediately.

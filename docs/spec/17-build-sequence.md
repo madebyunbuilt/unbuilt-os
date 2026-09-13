@@ -1,0 +1,68 @@
+# 17 — Build sequence
+
+Everything ships as one release. This order exists because later work depends on earlier work. Each step is a branch
+and pull request (or several), merged when its definition of done is met.
+
+## Definition of done (every step)
+
+- Acceptance criteria in the module file pass, each covered by a test.
+- Permission tests exist for every new exported function.
+- `pnpm check` and `pnpm test` pass in CI; the preview deploys.
+- UI works at 360 px and in dark mode, and is keyboard-navigable.
+- The spec is updated in the same PR if implementation required a change.
+
+## Order
+
+1. **Foundation**
+   - repo, tooling, CI/CD, environments
+   - Convex schema skeleton
+   - Better Auth (team magic link + TOTP, portal magic link + code)
+   - function wrappers, permission keys and default roles, audit log
+   - files, settings, counters, money library, business time library
+   - app shell for both surfaces (layout, navigation, command palette shell, notifications shell, dark mode, PWA manifest)
+   - seed script
+2. **Team** — members, invites, onboarding checklist, rates, time off, holidays.
+3. **CRM** — enquiries (with the public endpoint), clients, contacts, pipeline and deals, activity timeline, rate card.
+4. **Projects** — templates, projects, members and scope, milestones, deliverables and versions, comments, tasks, time
+   tracking and approval.
+5. **Documents** — templates and clauses, variables, versions, PDF rendering, document chain, sending, view tracking,
+   expiry.
+6. **E-signatures** — signature requests, signing ceremony, certificate, countersignature, verification.
+7. **Billing core** — invoices, totals, VAT, WHT, sending, PDFs, reminders, FX rates, manual payments, receipts, credit
+   notes, write-offs, statements.
+8. **Payments** — Paystack initialise, pay pages, webhook, verification, refunds.
+9. **Billing automation** — billing schedules, change requests, retainers and periods, late fees, expenses, vendors and
+   bills.
+10. **Client portal** — every portal page, portal roles, client admin colleague management, token pages, terms
+    acceptance.
+11. **Support** — SLA policies, tickets, business-time timers, breaches, inbound email, retainer hours, monthly SLA
+    reports.
+12. **Monitoring and renewals** — monitors, incidents, managed assets, renewal reminders and invoices.
+13. **Vault** — encryption, reveal flow, client submissions, rotation, access logs.
+14. **CMS** — works, service pages, insights, legal pages, testimonials, settings, revisions, preview tokens, publishing
+    and deploy hook, site content endpoint, project-to-case-study, website migration import.
+15. **Communications** — Resend templates and webhook, WhatsApp templates, opt-in, status webhook, the full event
+    catalogue, preferences.
+16. **Calendar and intake** — Google Calendar OAuth, meetings, booking pages, intake forms.
+17. **Reports and dashboards** — aggregates, role dashboards, every report, exports.
+18. **Data and compliance** — imports, full export, privacy requests, retention cron, legal holds.
+19. **Hardening** — end-to-end flows from `16-key-flows.md`, security headers, rate limits review, backup and restore test,
+    performance pass, accessibility audit.
+20. **Website PR** — in `madebyunbuilt/unbuilt-studio-web`: build-time content loader, service landing pages, insights,
+    enquiry endpoint, image hosts, fallback snapshot.
+
+## Launch checklist
+
+- Owner account created with 2FA; roles reviewed.
+- Paystack live keys, webhook URL registered and tested with a real ₦100 transaction and refund.
+- Resend domain verified (SPF, DKIM, DMARC); `support@` inbound verified.
+- WhatsApp business verified and templates approved.
+- Google OAuth consent screen verified for calendar scopes.
+- Turnstile keys for the website domain.
+- Vault keys generated and stored; rotation tested.
+- Backup restore test recorded.
+- Lawyer sign-off recorded for contract, NDA, DPA templates and the signature process.
+- Accountant confirmation recorded for VAT, WHT and retention settings.
+- Movable public holidays confirmed for the year.
+- Existing clients, open invoices and website content imported and checked.
+- Website switched to the OS content endpoint and enquiry endpoint, with its privacy page updated.

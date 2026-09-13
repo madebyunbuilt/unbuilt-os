@@ -1,0 +1,359 @@
+# 04 — Data model
+
+Convex tables, grouped by module. Field lists are the contract; add fields when a module needs them, but do not
+rename or repurpose these without updating this file. Every table also has Convex's `_id` and `_creationTime`.
+
+Better Auth's own tables (users, sessions, accounts, verification) are owned by the component and not listed here.
+
+## Shared rules
+
+### Money
+
+- Store amounts as integers in **minor units** (kobo, cents) in fields named `...Minor`, always next to a `currency`
+  field (`'NGN' | 'USD' | 'EUR'`, extensible).
+- Never store or compute money with floats. Percentages are stored as **basis points** (`vatBps: 750` is 7.5%).
+- Rounding: calculate each line in minor units, round half up at each step in the order below, and never re-derive
+  totals from rounded display values.
+  1. line amount = quantity × unit price (quantity stored as thousandths: `quantityMilli`)
+  2. subtotal = sum of lines
+  3. discount (percentage of subtotal, or fixed amount capped at subtotal)
+  4. taxable amount = subtotal − discount
+  5. VAT = taxable amount × VAT rate
+  6. total = taxable amount + VAT
+  7. expected WHT = taxable amount × WHT rate (WHT is on the amount before VAT)
+- One implementation in `convex/lib/money.ts`, used by invoices, quotes, credit notes, the portal and the PDFs.
+
+### Foreign exchange
+
+- Any record with money in a non-NGN currency stores `fxRateToNgnMicro`: NGN per one unit of the currency, times 1,000,000,
+  captured when the record is issued. Reports convert with the stored rate, never today's rate.
+
+### Numbering
+
+- Human-readable numbers come from `counters`, incremented inside the same mutation that creates the record, so Convex's
+  transactions guarantee no duplicates or gaps.
+- Default formats (configurable in settings, zero-padded to 4 digits, never reset):
+
+| Record         | Format          |
+| -------------- | --------------- |
+| Invoice        | `UNB-INV-0001`  |
+| Quote          | `UNB-QUO-0001`  |
+| Proposal       | `UNB-PRO-0001`  |
+| SOW            | `UNB-SOW-0001`  |
+| Contract       | `UNB-CON-0001`  |
+| SLA            | `UNB-SLA-0001`  |
+| Change request | `UNB-CR-0001`   |
+| Credit note    | `UNB-CN-0001`   |
+| Receipt        | `UNB-RCT-0001`  |
+| Ticket         | `UNB-TKT-0001`  |
+| Project code   | `UNB-P-0001`    |
+
+- Drafts get a number only when first sent or issued, so abandoned drafts never burn numbers.
+
+### Time
+
+- Timestamps: UTC epoch milliseconds (`...At`). Calendar dates without time: `YYYY-MM-DD` strings (`...Date`).
+- Durations: minutes as integers.
+
+### Soft delete and archiving
+
+- Business records are never hard-deleted once sent, issued, signed or paid. Use `status` (void, archived) instead.
+- Drafts may be deleted.
+- Privacy deletions follow `15-security-and-compliance.md`.
+
+## Organisation and settings
+
+**orgSettings** (single row)
+`legalName` `tradingName` `addressLines[]` `country` `tin` `vatNumber` `defaultCurrency` `timezone` `logoFileId`
+`bankAccounts[] { label, currency, bankName, accountName, accountNumber, swift?, iban?, sortCode? }` (sensitive)
+`numbering { [recordType]: { prefix, padding } }` `defaultPaymentTermsDays` `defaultVatBps` `lateFeePolicy { enabled,
+monthlyBps, graceDays }` `invoiceFooter` `quoteValidityDays` `retentionYears` `brand { primary, accent }`
+
+**counters** — `key` (e.g. `invoice`), `value`. Index: `by_key`.
+
+**businessHours** — `name` `timezone` `weekly[] { day 0-6, start "09:00", end "17:00" }` `isDefault`.
+
+**holidays** — `date` `name` `country` `recurring` (fixed-date holidays), `source` (seed or manual). Index: `by_date`.
+
+**fxRates** — `currency` `date` `rateToNgnMicro` `source` (manual). Index: `by_currency_date`.
+
+## People
+
+**teamMembers**
+`authUserId` `name` `email` `phone` `whatsapp` `title` `employmentType` (employee, contractor) `roleId` `status`
+(invited, active, suspended, offboarded) `startDate` `endDate` `costRateMinor` `billRateMinor` `rateCurrency`
+(cost and bill rates are sensitive) `capacityMinutesPerWeek` `timezone` `skills[]` `avatarFileId`
+`googleCalendarConnected` `twoFactorEnabled`.
+Indexes: `by_authUser`, `by_email`, `by_status`.
+
+**roles** — `key` `name` `kind` (team, client) `permissions[]` `isSystem` `description`. Index: `by_kind`.
+
+**timeOff** — `memberId` `type` (annual, sick, public, unpaid, other) `startDate` `endDate` `halfDay` `status`
+(requested, approved, declined, cancelled) `note` `decidedBy` `decidedAt`. Index: `by_member_start`.
+
+**teamAgreements** — `memberId` `documentId` (NDA, contractor agreement, employment contract) `type` `signedAt`.
+
+## CRM
+
+**enquiries**
+`source` (website, manual, email, referral) `name` `email` `company` `services[]` `stage` `budget` `timeline` `about`
+`status` (new, reviewed, converted, spam, closed) `dealId?` `ip` `userAgent` `turnstilePassed` `receivedAt`.
+Index: `by_status_received`.
+
+**clients**
+`displayName` `legalName` `kind` (company, individual) `status` (lead, active, past, archived) `industry` `website`
+`country` `addressLines[]` `tin` `vatTreatment` (standard, zero_rated, exempt) `whtApplies` `whtBps`
+`defaultCurrency` `paymentTermsDays` `timezone` `ownerMemberId` `source` `tags[]` `notes`
+`slaPolicyId?` `portalEnabled`.
+Indexes: `by_status`, `by_owner`. Search index on `displayName` and `legalName`.
+
+**contacts**
+`clientId` `name` `email` `phone` `whatsapp` `whatsappOptIn { at, method }?` `jobTitle` `isPrimary` `isBilling`
+`portalAccess` `portalRoleId?` `authUserId?` `status` (active, left).
+Indexes: `by_client`, `by_email`, `by_authUser`. Search index on `name` and `email`.
+
+**pipelineStages** — `name` `order` `probabilityBps` `kind` (open, won, lost).
+
+**deals**
+`title` `clientId` `primaryContactId?` `stageId` `valueMinor` `currency` `probabilityBps` `expectedCloseDate`
+`ownerMemberId` `services[]` `source` `enquiryId?` `lostReason?` `wonAt?` `lostAt?` `nextFollowUpAt?`.
+Indexes: `by_stage`, `by_client`, `by_owner_followup`.
+
+**activities** (timeline entries)
+`subject { table, id }` (client, contact, deal, project, ticket) `clientId?` `type` (note, call, meeting, email_sent,
+email_received, whatsapp_sent, status_change, document_event, payment_event, system) `title` `body?` `actorKind`
+`actorId?` `occurredAt` `meta`.
+Indexes: `by_subject_occurred`, `by_client_occurred`.
+
+**meetings** — `title` `startAt` `endAt` `attendeeContactIds[]` `attendeeMemberIds[]` `dealId?` `clientId?`
+`projectId?` `googleEventId?` `location` `notes`.
+
+**rateCardItems**
+`name` `description` `serviceSlug?` `unit` (fixed, hour, day, week, month) `prices[] { currency, unitPriceMinor }`
+`taxable` `active` `category`.
+
+**intakeForms** — `name` `fields[] { key, label, type, required, options? }` `projectTemplateId?`.
+**intakeResponses** — `formId` `clientId` `projectId?` `answers` `submittedByContactId` `submittedAt`.
+
+## Projects
+
+**projects**
+`code` `name` `clientId` `dealId?` `templateId?` `type` (mobile_app, web_platform, product_design, backend, devops,
+video, dev_tool, retainer, other) `status` (planning, active, on_hold, completed, cancelled, archived) `billingModel`
+(fixed, time_and_materials, retainer) `budgetMinor?` `currency` `startDate` `dueDate` `completedAt?` `managerMemberId`
+`contractDocumentId?` `slaPolicyId?` `links { repo?, staging?, production?, design? }` `description`
+`handoverStatus` (not_started, in_progress, complete).
+Indexes: `by_client`, `by_status`, `by_manager`. Search index on `name` and `code`.
+
+**projectMembers** — `projectId` `memberId` `projectRole` `joinedAt`. Indexes: `by_project`, `by_member`.
+
+**projectTemplates** — `name` `type` `milestones[] { name, offsetDays, billingPercentBps?, deliverables[] }`
+`tasks[] { title, milestoneIndex, estimateMinutes }` `intakeFormId?` `checklists[]`.
+
+**milestones**
+`projectId` `name` `order` `dueDate` `status` (upcoming, in_progress, awaiting_approval, approved, invoiced)
+`billingAmountMinor?` `approvedAt?` `approvedByContactId?`. Index: `by_project_order`.
+
+**deliverables**
+`projectId` `milestoneId?` `title` `description` `status` (draft, in_review, changes_requested, approved)
+`currentVersion` `approvedAt?` `approvedByContactId?`. Index: `by_project`.
+
+**deliverableVersions** — `deliverableId` `version` `fileIds[]` `links[]` `notes` `submittedByMemberId` `submittedAt`.
+
+**comments**
+`target { table, id }` `projectId?` `clientId?` `body` `mentions[]` `visibility` (internal, client) `authorKind`
+`authorId` `editedAt?`. Index: `by_target`.
+
+**tasks**
+`projectId` `milestoneId?` `title` `description` `status` (todo, in_progress, blocked, done) `priority` (low, medium,
+high, urgent) `assigneeMemberIds[]` `dueDate?` `estimateMinutes?` `order` `ticketId?` `changeRequestId?`.
+Indexes: `by_project_status`, `by_assignee_status`.
+
+**timeEntries**
+`memberId` `projectId` `taskId?` `ticketId?` `date` `minutes` `description` `billable` `status` (draft, submitted,
+approved, invoiced) `approvedBy?` `invoiceId?` `costRateMinor` `billRateMinor` `rateCurrency` (rates snapshotted at
+entry time; sensitive). Indexes: `by_member_date`, `by_project_date`, `by_status`.
+
+**changeRequests**
+`number` `projectId` `title` `description` `reason` `impact { amountMinor, currency, days }` `status` (draft, sent,
+approved, declined, withdrawn) `documentId?` `decidedByContactId?` `decidedAt?` `invoiceId?`.
+Index: `by_project_status`.
+
+**statusUpdates** — `projectId` `periodStart` `periodEnd` `summary` `done[]` `next[]` `risks[]` `status` (draft, sent)
+`sentAt?`.
+
+**checklists** — `kind` (onboarding, handover, offboarding_member, custom) `target { table, id }` `items[] { label,
+done, doneBy?, doneAt?, required }`.
+
+## Documents and signatures
+
+**documentTemplates**
+`type` (quote, proposal, sow, contract, sla, nda, dpa, change_request, handover, team_agreement, other) `name`
+`version` `blocks` (see `07-documents-and-esign.md`) `variables[]` `isDefault` `active`.
+
+**clauses** — `key` `title` `body` `category` `version` `active`.
+
+**documents**
+`type` `number?` `title` `clientId` `projectId?` `dealId?` `templateId` `templateVersion` `status` (draft, sent,
+viewed, accepted, declined, expired, awaiting_signature, partially_signed, signed, void) `currency?` `lineItems[]?`
+`totals?` `blocks` (resolved snapshot) `currentVersion` `parentDocumentId?` `chainRootId` `validUntilDate?` `sentAt?`
+`firstViewedAt?` `lastViewedAt?` `viewCount` `acceptedAt?` `declinedReason?` `signedAt?` `pdfFileId?` `pdfSha256?`
+`createdByMemberId`.
+Indexes: `by_client`, `by_project`, `by_status`, `by_chainRoot`. Search index on `title` and `number`.
+
+**documentVersions** — `documentId` `version` `blocks` `lineItems` `totals` `pdfFileId` `pdfSha256` `createdAt`
+`createdBy` `changeNote`. Versions are immutable.
+
+**documentViews** — `documentId` `version` `viewerKind` (contact, token, member) `viewerId?` `ip` `userAgent`
+`viewedAt`.
+
+**signatureRequests**
+`documentId` `documentVersion` `pdfSha256` `order` (sequential, parallel) `status` (pending, completed, declined,
+cancelled, expired) `expiresAt` `signers[] { id, name, email, kind (client_contact, team_member), contactId?, memberId?,
+order, status, tokenHash, otpVerifiedAt?, viewedAt?, signedAt?, declinedAt?, declineReason? }`.
+
+**signatures**
+`signatureRequestId` `signerId` `method` (typed, drawn) `typedName?` `imageFileId?` `consentText` `consentVersion`
+`ip` `userAgent` `otpVerifiedAt` `signedAt` `documentSha256`. Immutable.
+
+## Billing and finance
+
+**invoices**
+`number?` `clientId` `projectId?` `contractDocumentId?` `type` (standard, deposit, milestone, retainer, time_and_materials,
+renewal, late_fee, change_request) `status` (draft, scheduled, sent, viewed, partially_paid, paid, overdue, void,
+written_off) `issueDate?` `dueDate?` `currency` `fxRateToNgnMicro` `lineItems[] { description, quantityMilli,
+unitPriceMinor, amountMinor, rateCardItemId?, timeEntryIds?[], taxable }` `discount { kind (none, percent, fixed),
+bps?, amountMinor? }` `vat { applies, bps }` `wht { applies, bps }` `totals { subtotalMinor, discountMinor,
+taxableMinor, vatMinor, totalMinor, whtExpectedMinor }` `paidMinor` `whtCreditedMinor` `creditedMinor`
+`balanceMinor` `payToken` (hash) `paystack { reference?, accessCode?, authorizationUrl?, linkExpiresAt? }`
+`reminders[] { kind, sentAt }` `lateFeeParentInvoiceId?` `notes` `terms` `pdfFileId?` `pdfSha256?` `sentAt?`
+`firstViewedAt?` `paidAt?` `voidReason?` `writtenOffAt?`.
+Indexes: `by_client_status`, `by_status_due`, `by_project`. Search index on `number`.
+
+**payments**
+`invoiceId` `clientId` `amountMinor` `currency` `method` (paystack, bank_transfer, cash, other) `status` (pending,
+succeeded, failed, refunded, partially_refunded) `receivedAt` `reference` `paystackTransactionId?` `feesMinor?`
+`proofFileId?` `recordedByMemberId?` `receiptId?` `notes`.
+Indexes: `by_invoice`, `by_reference`.
+
+**whtCredits**
+`invoiceId` `clientId` `amountMinor` `currency` `status` (expected, certificate_received, disputed) `certificateFileId?`
+`certificateNumber?` `receivedAt?`. Index: `by_status`.
+
+**receipts** — `number` `paymentId` `invoiceId` `pdfFileId` `sentAt?`.
+
+**creditNotes**
+`number` `invoiceId` `clientId` `amountMinor` `currency` `reason` `lineItems[]` `status` (issued, applied, refunded)
+`pdfFileId`.
+
+**refunds** — `paymentId` `amountMinor` `reason` `method` `paystackRefundId?` `status` `processedAt?`.
+
+**billingSchedules**
+`projectId` `contractDocumentId?` `currency` `items[] { label, kind (percent, fixed), bps?, amountMinor?, trigger
+(on_signature, on_date, on_milestone_approved), date?, milestoneId?, invoiceId?, status (pending, invoiced, skipped) }`
+`autoSend`.
+
+**retainers**
+`clientId` `projectId` `slaPolicyId?` `currency` `monthlyFeeMinor` `includedMinutes` `overageRateMinor`
+`invoiceDayOfMonth` `startDate` `endDate?` `status` (active, paused, ended) `autoSend` `rolloverUnusedMinutes`.
+
+**retainerPeriods** — `retainerId` `periodStart` `periodEnd` `includedMinutes` `usedMinutes` `rolloverMinutes`
+`invoiceId?` `overageInvoiceId?` `alerts80SentAt?` `alerts100SentAt?`.
+
+**expenses**
+`projectId?` `category` `description` `amountMinor` `currency` `fxRateToNgnMicro` `date` `receiptFileId?` `billable`
+`status` (logged, approved, rejected, reimbursed, invoiced) `loggedByMemberId` `approvedBy?` `invoiceId?`.
+
+**vendors** — `name` `kind` (contractor, supplier) `memberId?` `email` `bankDetails` (sensitive) `tin?` `whtBps?`
+`notes`.
+
+**bills**
+`vendorId` `projectId?` `reference` `description` `amountMinor` `currency` `fxRateToNgnMicro` `issueDate` `dueDate`
+`status` (draft, approved, scheduled, paid, void) `fileId?` `paidAt?` `paymentReference?`.
+
+## Support and SLAs
+
+**slaPolicies**
+`name` `businessHoursId` `targets[] { priority (p1, p2, p3, p4), firstResponseMinutes, resolutionMinutes }`
+`includedMinutesPerMonth?` `uptimeTargetBps?` `active`.
+
+**tickets**
+`number` `clientId` `projectId?` `slaPolicyId?` `subject` `description` `priority` `status` (open, pending_client,
+in_progress, resolved, closed) `channel` (portal, email, team, monitor) `requesterContactId?` `assigneeMemberId?`
+`firstResponseDueAt?` `resolutionDueAt?` `firstRespondedAt?` `resolvedAt?` `pausedMinutes` `pausedAt?`
+`breaches { firstResponse, resolution }` `incidentId?`.
+Indexes: `by_client_status`, `by_assignee_status`, `by_status_resolutionDue`.
+
+**ticketMessages** — `ticketId` `body` `authorKind` `authorId` `visibility` (public, internal) `fileIds[]`
+`viaEmail`.
+
+**monitors** — `clientId` `projectId?` `name` `url` `method` `expectedStatus` `intervalMinutes` `timeoutMs`
+`status` (up, down, paused) `lastCheckedAt` `lastStatusCode` `consecutiveFailures`.
+
+**monitorChecks** — `monitorId` `checkedAt` `ok` `statusCode?` `latencyMs?` `error?`. Retain 90 days.
+
+**incidents** — `monitorId` `startedAt` `resolvedAt?` `ticketId?` `summary`.
+
+**managedAssets**
+`clientId` `projectId?` `type` (domain, hosting, ssl, app_store_account, subscription, other) `name` `provider`
+`renewsOnDate` `costMinor` `costCurrency` `billPriceMinor` `billCurrency` `autoInvoice` `remindersSent[]`
+`status` (active, cancelled, transferred).
+
+## Vault
+
+**vaultItems**
+`clientId` `projectId?` `label` `kind` (login, api_key, ssh_key, env_file, note) `url?` `usernameCiphertext?`
+`secretCiphertext` `notesCiphertext?` `iv` `keyVersion` `submittedByKind` `submittedById` `lastRevealedAt?`
+`rotateByDate?`. Plaintext never stored.
+
+**vaultAccessLogs** — `vaultItemId` `memberId` `action` (reveal, copy, update, delete) `at` `ip` `userAgent`.
+
+## CMS
+
+**works** — mirrors the website's `Project` type: `slug` `name` `art` (glossup, qravit, orrery, commit, pr, extensible)
+`listLine` `listDetail` `seo { title, description }` `summary` `meta { client, year, role, status }` `stack[]`
+`link? { href, label }` `brief[]` `hardPart[]` `built[]` `results[]?` `shots[] { fileId?, alt, caption, frame (phone,
+desktop, wide) }` `order` `status` (draft, published) `projectId?` `publishedAt?`.
+
+**servicePages** — `slug` `name` `short` `long` `stack[]` `deliverables[]` `seo { title, description }` `body`
+(rich text blocks) `order` `status`.
+
+**posts** — `slug` `title` `excerpt` `body` `coverFileId?` `authorMemberId` `tags[]` `seo { title, description }`
+`status` (draft, scheduled, published) `publishAt?` `publishedAt?`.
+
+**legalPages** — mirrors the website's `LegalDoc`: `slug` `title` `intro` `sheet` `updatedDate` `sections[] { heading,
+body[], list?[] }` `status`.
+
+**testimonials** — `quote` `authorName` `authorRole` `clientId?` `workId?` `approvedByClientAt?` `status`.
+
+**siteSettings** (single row) — `name` `url` `email` `phone` `socials[] { name, handle, href }` `timeZone`
+`statusText` (e.g. "Taking new work") `seoDefaults`.
+
+**contentRevisions** — `target { table, id }` `snapshot` `editedBy` `editedAt`.
+
+**publishes** — `requestedBy` `requestedAt` `deployHookCalledAt?` `status` `changes[]`.
+
+## Platform
+
+**notifications** — `recipientKind` `recipientId` `event` `title` `body` `link` `readAt?` `channels { inApp, email?,
+whatsapp? }` `createdAt`. Index: `by_recipient_read`.
+
+**notificationPreferences** — `principalKind` `principalId` `event` `inApp` `email` `whatsapp`.
+
+**messageLog** — `channel` (email, whatsapp) `to` `template` `subject?` `clientId?` `relatedTo { table, id }?`
+`providerMessageId` `status` (queued, sent, delivered, opened, bounced, failed) `events[]` `sentAt`.
+
+**files** — `storageId` `name` `mimeType` `sizeBytes` `sha256` `owner { table, id }` `clientId?` `projectId?`
+`visibility` (internal, client) `uploadedByKind` `uploadedById`.
+
+**auditLog** — see `03-auth-and-permissions.md`. Indexes: `by_target`, `by_actor_at`, `by_at`.
+
+**webhookEvents** — `provider` (paystack, resend, whatsapp) `eventId` `type` `receivedAt` `processedAt?` `status`
+`error?` `payload`. Unique index `by_provider_event` for idempotency.
+
+**importJobs** — `kind` `fileId` `status` `mapping` `rowsTotal` `rowsImported` `errors[]` `startedBy`.
+
+**privacyRequests** — `kind` (access, deletion, correction, restriction) `subjectEmail` `receivedAt` `dueDate`
+`status` `handledBy` `exportFileId?` `notes`.
+
+**integrations** — `provider` `memberId?` `status` `encryptedTokens` `scopes[]` `connectedAt`.

@@ -1,0 +1,59 @@
+# 11 — Team
+
+## Members and contractors
+
+- `team.manage` invites people by email with a role. The invite email leads to sign-in and mandatory 2FA setup.
+- Profile: name, title, employment type (employee or contractor), phone, WhatsApp, timezone, skills, start date,
+  capacity per week, avatar.
+- **Rates** (sensitive, `team.rates.sensitive`): cost rate and bill rate with currency. Rate changes apply to new time
+  entries only.
+- Contractors can be linked to a vendor record so their invoices are handled as bills.
+- **Agreements**: each member has documents from the documents module (NDA, contractor agreement, employment contract),
+  signed through the same e-signature flow. The profile shows missing or expired agreements.
+
+## Onboarding and offboarding
+
+- **Onboarding checklist** on invite (defaults, editable):
+  - NDA signed
+  - Agreement signed
+  - 2FA enabled
+  - Added to projects
+  - Tools access granted
+- **Offboarding** (`team.manage`) sets the status to offboarded and does the following, in one mutation plus follow-ups:
+  - revokes sessions
+  - removes project memberships
+  - reassigns open tasks and tickets (prompt for the new assignee)
+  - lists vault items the member revealed in the last 90 days for rotation
+  - keeps all history attributed to them
+
+## Time off
+
+- Members request time off (`timeoff.request`): type, dates, half day, note.
+- `timeoff.approve` holders approve or decline; the member is notified.
+- Approved time off reduces capacity and shows on the team calendar and project timelines.
+- Public holidays from `holidays` apply to everyone automatically.
+
+## Capacity planning
+
+`capacity.view` shows, per member and per week for the next 12 weeks:
+
+- **Available** = capacity − approved time off − public holidays.
+- **Planned** = task estimates due that week, and retainer commitments.
+- **Tentative** = weighted demand from open deals with expected close dates (value converted to hours using the
+  average bill rate, times probability), shown separately.
+- Over-allocation is highlighted when planned exceeds available.
+
+## Utilisation
+
+With `reports.delivery.view`, per member and period:
+- billable hours
+- non-billable hours
+- utilisation = billable / available
+
+## Acceptance criteria
+
+- An invited member cannot use the team app until 2FA is enabled.
+- A rate change does not alter existing time entries.
+- Offboarding revokes sessions and memberships immediately and leaves no open task or ticket unassigned without a prompt.
+- Available capacity excludes approved time off and public holidays, verified with fixtures.
+- Members without `team.rates.sensitive` never receive rate fields.
