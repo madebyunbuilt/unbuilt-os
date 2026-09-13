@@ -5,16 +5,17 @@ these.
 
 ## For the accountant
 
-| Question                                                                                          | Default in the build                         |
-| ------------------------------------------------------------------------------------------------- | -------------------------------------------- |
-| VAT rate and which clients are zero-rated (for example foreign clients buying services) or exempt | 7.5% standard; treatment set per client      |
-| WHT rates that clients deduct for the studio's services, by client type                           | Per-client rate, suggested 5%, confirm       |
-| Is WHT calculated on the amount before VAT                                                        | Yes                                          |
-| WHT the studio must deduct when paying contractors and suppliers                                  | Per-vendor rate, empty until set             |
-| Whether late fees of 5% per month are appropriate and enforceable                                 | Late fees disabled until confirmed           |
-| Retention periods for financial records                                                           | 7 years                                      |
-| Which exports the accountant needs and in what format                                             | CSV pack described in `08`                   |
-| Treatment of Paystack fees in the books                                                           | Studio absorbs fees; fees stored per payment |
+| Question                                                                                                                           | Default in the build                            |
+| ---------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------- |
+| VAT rate and which clients are zero-rated (for example foreign clients buying services) or exempt                                  | 7.5% standard; treatment set per client         |
+| WHT rates that clients deduct for the studio's services, by client type                                                            | Per-client rate, suggested 5%, confirm          |
+| Is WHT calculated on the amount before VAT                                                                                         | Yes                                             |
+| On invoices mixing taxable and non-taxable lines, is VAT charged only on the taxable lines, with the discount shared in proportion | Yes (decided by the studio 2026-09-13; confirm) |
+| WHT the studio must deduct when paying contractors and suppliers                                                                   | Per-vendor rate, empty until set                |
+| Whether late fees of 5% per month are appropriate and enforceable                                                                  | Late fees disabled until confirmed              |
+| Retention periods for financial records                                                                                            | 7 years                                         |
+| Which exports the accountant needs and in what format                                                                              | CSV pack described in `08`                      |
+| Treatment of Paystack fees in the books                                                                                            | Studio absorbs fees; fees stored per payment    |
 
 ## For the lawyer
 

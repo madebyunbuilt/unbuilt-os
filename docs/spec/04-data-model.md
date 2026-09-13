@@ -17,10 +17,14 @@ Better Auth's own tables (users, sessions, accounts, verification) are owned by 
   1. line amount = quantity × unit price (quantity stored as thousandths: `quantityMilli`)
   2. subtotal = sum of lines
   3. discount (percentage of subtotal, or fixed amount capped at subtotal)
-  4. taxable amount = subtotal − discount
-  5. VAT = taxable amount × VAT rate
-  6. total = taxable amount + VAT
-  7. expected WHT = taxable amount × WHT rate (WHT is on the amount before VAT)
+  4. net amount = subtotal − discount
+  5. taxable amount (`totals.taxableMinor`) = taxable lines − their share of the discount, where the share is
+     discount × taxable lines ÷ subtotal
+  6. VAT = taxable amount × VAT rate
+  7. total = net amount + VAT
+  8. expected WHT = net amount × WHT rate (WHT is on the amount before VAT, including non-taxable lines)
+- Only lines with `taxable = true` carry VAT. When every line is taxable, the taxable amount equals the net amount.
+- Quantities, unit prices, discounts and rates are never negative. Reductions use the discount or a credit note.
 - One implementation in `convex/lib/money.ts`, used by invoices, quotes, credit notes, the portal and the PDFs.
 
 ### Foreign exchange
