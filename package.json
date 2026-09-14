@@ -16,13 +16,19 @@
     "test:watch": "vitest",
     "test:e2e": "playwright test",
     "check": "pnpm typecheck && pnpm lint && pnpm format:check",
-    "prepare": "husky"
+    "prepare": "husky",
+    "auth:schema": "tsx scripts/generate-auth-schema.ts && prettier --write convex/betterAuth/schema.ts"
   },
   "dependencies": {
+    "@better-auth/utils": "^0.4.2",
+    "@convex-dev/better-auth": "^0.12.5",
+    "better-auth": "^1.6.31",
     "convex": "^1.45.0",
+    "convex-helpers": "^0.1.124",
     "next": "16.3.5",
     "react": "19.3.0",
-    "react-dom": "19.3.0"
+    "react-dom": "19.3.0",
+    "resend": "^6.28.0"
   },
   "devDependencies": {
     "@commitlint/cli": "^21.2.2",
@@ -47,6 +53,7 @@
     "lint-staged": "^17.5.1",
     "prettier": "^3.9.6",
     "tailwindcss": "^4.3.3",
+    "tsx": "^4.23.13",
     "typescript": "^5.9.3",
     "vite": "8.3.0",
     "vitest": "^5.0.0"

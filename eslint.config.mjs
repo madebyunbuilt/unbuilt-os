@@ -54,7 +54,7 @@ export default defineConfig([
     'node_modules/**',
     'next-env.d.ts',
     'public/**',
-    'convex/_generated/**',
+    '**/_generated/**',
     'test-results/**',
     'playwright-report/**',
   ]),
