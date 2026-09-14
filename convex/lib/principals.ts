@@ -148,7 +148,13 @@ export async function principalForEmail(
       .withIndex('by_email', (q) => q.eq('email', normalized))
       .collect()
   ).filter((contact) => contact.portalAccess && contact.status === 'active');
-  const eligibleMembers = members.filter((member) => member.status === 'invited' || member.status === 'active');
+  const now = Date.now();
+  // An invite that has expired no longer lets anyone create an account; resending renews it.
+  const eligibleMembers = members.filter(
+    (member) =>
+      member.status === 'active' ||
+      (member.status === 'invited' && (member.inviteExpiresAt === undefined || member.inviteExpiresAt > now)),
+  );
 
   // One person, one principal. An address on both sides, or on two clients, signs in to neither.
   if (eligibleMembers.length + contacts.length !== 1) return null;

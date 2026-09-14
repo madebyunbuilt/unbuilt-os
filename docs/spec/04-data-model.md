@@ -94,7 +94,8 @@ with `recurring = false`.
 `authUserId` `name` `email` `phone` `whatsapp` `title` `employmentType` (employee, contractor) `roleId` `status`
 (invited, active, suspended, offboarded) `startDate` `endDate` `costRateMinor` `billRateMinor` `rateCurrency`
 (cost and bill rates are sensitive) `capacityMinutesPerWeek` `timezone` `skills[]` `avatarFileId`
-`googleCalendarConnected` `twoFactorEnabled`.
+`googleCalendarConnected` `twoFactorEnabled` `invitedByMemberId?` `inviteExpiresAt?` `inviteLastSentAt?` `acceptedAt?`
+`offboardedAt?`. Two-factor status is read from the Better Auth user rather than stored here.
 Indexes: `by_authUser`, `by_email`, `by_status`, `by_role`. Emails are stored lowercase.
 
 **roles** — `key` `name` `kind` (team, client) `permissions[]` `isSystem` `description`. Indexes: `by_kind`, `by_key`.
@@ -195,7 +196,8 @@ Index: `by_project_status`.
 `sentAt?`.
 
 **checklists** — `kind` (onboarding, handover, offboarding_member, custom) `target { table, id }` `items[] { label,
-done, doneBy?, doneAt?, required }`.
+key?, done, doneBy?, doneAt?, required }`. Items with a `key` are ticked by the system. Index: `by_target` (table, id,
+kind).
 
 ## Documents and signatures
 

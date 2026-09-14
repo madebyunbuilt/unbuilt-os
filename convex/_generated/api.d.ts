@@ -19,17 +19,22 @@ import type * as lib_authPlugins from "../lib/authPlugins.js";
 import type * as lib_businessTime from "../lib/businessTime.js";
 import type * as lib_files from "../lib/files.js";
 import type * as lib_functions from "../lib/functions.js";
+import type * as lib_hosts from "../lib/hosts.js";
 import type * as lib_money from "../lib/money.js";
 import type * as lib_numbering from "../lib/numbering.js";
 import type * as lib_permissions from "../lib/permissions.js";
 import type * as lib_principals from "../lib/principals.js";
 import type * as lib_seedData from "../lib/seedData.js";
 import type * as lib_settings from "../lib/settings.js";
+import type * as lib_team from "../lib/team.js";
+import type * as lib_validation from "../lib/validation.js";
 import type * as notifications from "../notifications.js";
 import type * as principals from "../principals.js";
 import type * as roles from "../roles.js";
 import type * as seed from "../seed.js";
 import type * as settings from "../settings.js";
+import type * as team from "../team.js";
+import type * as teamInvites from "../teamInvites.js";
 
 import type {
   ApiFromModules,
@@ -49,17 +54,22 @@ declare const fullApi: ApiFromModules<{
   "lib/businessTime": typeof lib_businessTime;
   "lib/files": typeof lib_files;
   "lib/functions": typeof lib_functions;
+  "lib/hosts": typeof lib_hosts;
   "lib/money": typeof lib_money;
   "lib/numbering": typeof lib_numbering;
   "lib/permissions": typeof lib_permissions;
   "lib/principals": typeof lib_principals;
   "lib/seedData": typeof lib_seedData;
   "lib/settings": typeof lib_settings;
+  "lib/team": typeof lib_team;
+  "lib/validation": typeof lib_validation;
   notifications: typeof notifications;
   principals: typeof principals;
   roles: typeof roles;
   seed: typeof seed;
   settings: typeof settings;
+  team: typeof team;
+  teamInvites: typeof teamInvites;
 }>;
 
 /**

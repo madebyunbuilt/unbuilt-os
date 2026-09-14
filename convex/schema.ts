@@ -129,6 +129,14 @@ export default defineSchema({
     capacityMinutesPerWeek: v.optional(v.number()),
     timezone: v.string(),
     skills: v.array(v.string()),
+    avatarFileId: v.optional(v.id('files')),
+    // Invitations (11-team.md): an invite stops working at inviteExpiresAt; resending renews it. The seeded Owner invite
+    // has no expiry.
+    invitedByMemberId: v.optional(v.id('teamMembers')),
+    inviteExpiresAt: v.optional(v.number()),
+    inviteLastSentAt: v.optional(v.number()),
+    acceptedAt: v.optional(v.number()),
+    offboardedAt: v.optional(v.number()),
   })
     .index('by_authUser', ['authUserId'])
     .index('by_email', ['email'])
@@ -183,6 +191,22 @@ export default defineSchema({
   })
     .index('by_recipient_read', ['recipientKind', 'recipientId', 'readAt', 'createdAt'])
     .index('by_recipient_created', ['recipientKind', 'recipientId', 'createdAt']),
+
+  checklists: defineTable({
+    kind: v.union(v.literal('onboarding'), v.literal('handover'), v.literal('offboarding_member'), v.literal('custom')),
+    target: v.object({ table: v.string(), id: v.string() }),
+    items: v.array(
+      v.object({
+        label: v.string(),
+        // Items with a key are ticked by the system (for example twoFactor); the rest by people.
+        key: v.optional(v.string()),
+        done: v.boolean(),
+        doneBy: v.optional(v.id('teamMembers')),
+        doneAt: v.optional(v.number()),
+        required: v.boolean(),
+      }),
+    ),
+  }).index('by_target', ['target.table', 'target.id', 'kind']),
 
   // Append-only. Written only by convex/lib/audit.ts; no function updates or deletes an entry.
   auditLog: defineTable({

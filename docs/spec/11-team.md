@@ -11,6 +11,25 @@
 - **Agreements**: each member has documents from the documents module (NDA, contractor agreement, employment contract),
   signed through the same e-signature flow. The profile shows missing or expired agreements.
 
+### Decisions and rules (studio, 2026-09-14)
+
+- **Invitations** expire 14 days after they are sent; resending renews them for another 14 days. An expired invitation
+  cannot create an account. The seeded Owner invitation does not expire. The email ("Accept invitation") links to
+  `/sign-in` with the address filled in; the link itself grants nothing. Invitations nobody accepted can be cancelled,
+  which removes the record.
+- An address can belong to one principal only: inviting an address that is already a team member or a client contact is
+  refused. Re-inviting an offboarded member is not supported yet.
+- **Nobody grants more than they hold**: inviting someone, or changing, suspending or offboarding them, needs every
+  permission of the role involved (the same rule as saving roles).
+- Nobody changes their own role or status. The Owner's role changes only through **ownership transfer**
+  (`owner.transfer`), which needs an active member with 2FA as the new Owner and makes the previous Owner an Admin in the
+  same mutation.
+- Members edit their own phone, WhatsApp (E.164), timezone, skills and photo; `team.manage` edits the rest.
+- Suspending and offboarding revoke sessions at once. Offboarding keeps the record and its history. The project, task,
+  ticket and vault steps of offboarding are added by those modules.
+- The "2FA enabled" onboarding item is ticked automatically and cannot be edited; other items record who ticked them.
+- Time off: nobody approves their own request, except the Owner.
+
 ## Onboarding and offboarding
 
 - **Onboarding checklist** on invite (defaults, editable):
