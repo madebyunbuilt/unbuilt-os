@@ -15,14 +15,10 @@ import {
   DropdownMenuShortcut,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { initials } from '@/lib/team-display';
 import { isThemePreference } from '@/lib/theme';
 
 export type ShellUser = { name: string; email: string; roleName: string };
-
-function initials(name: string): string {
-  const parts = name.split(/[\s@.]+/).filter(Boolean);
-  return ((parts[0]?.[0] ?? '') + (parts[1]?.[0] ?? '')).toUpperCase() || '?';
-}
 
 export function UserMenu({ user, onShowShortcuts }: { user: ShellUser; onShowShortcuts: () => void }) {
   const { preference, setPreference } = useTheme();

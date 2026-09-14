@@ -14,12 +14,14 @@ export function SignInForm({
   surface,
   callbackURL,
   initialError,
+  initialEmail = '',
 }: {
   surface: Surface;
   callbackURL: string;
   initialError: string | null;
+  initialEmail?: string;
 }) {
-  const [email, setEmail] = useState('');
+  const [email, setEmail] = useState(initialEmail);
   const [status, setStatus] = useState<Status>(
     initialError ? { kind: 'error', message: initialError } : { kind: 'idle' },
   );

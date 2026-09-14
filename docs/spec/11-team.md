@@ -30,6 +30,17 @@
 - The "2FA enabled" onboarding item is ticked automatically and cannot be edited; other items record who ticked them.
 - Time off: nobody approves their own request, except the Owner.
 
+### Screens
+
+- `/team` lists members (search, include offboarded, invite) for `team.view`; people without it go to `/team/me`.
+- `/team/[id]` shows the profile. `team.manage` edits it, resends or cancels an invitation, changes the role, suspends,
+  reactivates and offboards (with a confirmation and the last day). Rates appear only when the query returns them. The
+  Owner sees "Transfer ownership", confirmed by typing the member's name; it is offered only for active members with 2FA.
+- `/team/me` lets anyone update their photo, phone, WhatsApp, timezone and skills, and shows their onboarding checklist.
+- The role list offers only roles the viewer may give (`team.assignableRoles`). A member whose role holds more than the
+  viewer has their role shown but not editable.
+- Invitation emails open `/sign-in` with the invited address filled in.
+
 ## Onboarding and offboarding
 
 - **Onboarding checklist** on invite (defaults, editable):
