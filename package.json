@@ -22,6 +22,7 @@
   "dependencies": {
     "@better-auth/utils": "^0.4.2",
     "@convex-dev/better-auth": "^0.12.5",
+    "@hookform/resolvers": "^5.9.1",
     "@react-email/render": "^2.1.0",
     "better-auth": "^1.6.31",
     "class-variance-authority": "^0.7.1",
@@ -37,8 +38,10 @@
     "react": "19.3.0",
     "react-dom": "19.3.0",
     "react-email": "^6.9.5",
+    "react-hook-form": "^7.88.0",
     "resend": "^6.28.0",
-    "server-only": "^0.0.1"
+    "server-only": "^0.0.1",
+    "zod": "^4.6.4"
   },
   "devDependencies": {
     "@commitlint/cli": "^21.2.2",

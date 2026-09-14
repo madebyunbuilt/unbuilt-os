@@ -5,6 +5,7 @@ import {
   type TaxSetting,
   type Totals,
   calculateTotals,
+  formatBpsAsPercent,
   formatMoney,
   invoiceBalance,
   lineAmountMinor,
@@ -12,6 +13,7 @@ import {
   MoneyError,
   mulDivRoundHalfUp,
   parseMoneyInput,
+  parsePercentToBps,
   toNgnMinor,
 } from './money';
 
@@ -325,5 +327,26 @@ describe('parseMoneyInput', () => {
 
   it.each(['-1', '1.234', 'abc', '', '.5'])('rejects %j', (input) => {
     expect(() => parseMoneyInput(input, 'NGN')).toThrow(MoneyError);
+  });
+});
+
+describe('percentages', () => {
+  it.each([
+    ['7.5', 750],
+    ['7.50', 750],
+    [' 12.25 %', 1_225],
+    ['0', 0],
+    ['100', 10_000],
+    ['5.', 500],
+  ])('parses %j as %i bps', (input, bps) => {
+    expect(parsePercentToBps(input)).toBe(bps);
+  });
+
+  it.each(['-1', '7.555', '100.01', 'abc', '', '1,5'])('rejects %j', (input) => {
+    expect(() => parsePercentToBps(input)).toThrow(MoneyError);
+  });
+
+  it('formats basis points without trailing zeros', () => {
+    expect([750, 1_000, 1_225, 5, 0].map(formatBpsAsPercent)).toEqual(['7.5', '10', '12.25', '0.05', '0']);
   });
 });

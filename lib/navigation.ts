@@ -108,7 +108,7 @@ export const TEAM_NAVIGATION: readonly NavSection[] = [
         href: '/settings',
         icon: 'settings',
         anyOf: ['settings.manage', 'settings.billing.sensitive', 'roles.manage', 'integrations.manage', 'audit.view'],
-        built: false,
+        built: true,
       },
     ],
   },
