@@ -143,6 +143,28 @@ export default defineSchema({
     .index('by_status', ['status'])
     .index('by_role', ['roleId']),
 
+  timeOff: defineTable({
+    memberId: v.id('teamMembers'),
+    type: v.union(v.literal('annual'), v.literal('sick'), v.literal('public'), v.literal('unpaid'), v.literal('other')),
+    // YYYY-MM-DD in the studio's timezone, inclusive
+    startDate: v.string(),
+    endDate: v.string(),
+    // Only for a single day
+    halfDay: v.boolean(),
+    status: v.union(v.literal('requested'), v.literal('approved'), v.literal('declined'), v.literal('cancelled')),
+    // The type, note and decision note are private to the member and approvers (sick leave is health information).
+    note: v.optional(v.string()),
+    // Who entered it: the member, or an approver logging it for them
+    requestedBy: v.id('teamMembers'),
+    decidedBy: v.optional(v.id('teamMembers')),
+    decidedAt: v.optional(v.number()),
+    decisionNote: v.optional(v.string()),
+    cancelledBy: v.optional(v.id('teamMembers')),
+    cancelledAt: v.optional(v.number()),
+  })
+    .index('by_member_start', ['memberId', 'startDate'])
+    .index('by_status_end', ['status', 'endDate']),
+
   clients: defineTable({
     displayName: v.string(),
     legalName: v.optional(v.string()),

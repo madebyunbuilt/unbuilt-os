@@ -205,6 +205,18 @@ export function businessMinutesBetween(
   return Math.floor(totalMs / MINUTE_MS);
 }
 
+/** Throws BusinessTimeError when the calendar or holidays are unusable: bad timezone, times, overlaps or no hours. */
+export function assertValidCalendar(calendar: BusinessCalendar, holidays: Holiday[] = []): void {
+  prepare(calendar, holidays);
+}
+
+/** The calendar date (YYYY-MM-DD) of an instant in `timeZone`. */
+export function localDateString(instant: number, timeZone: string): string {
+  assertInstant(instant, 'instant');
+  const { year, month, day } = localDateOf(instant, timeZone);
+  return `${year}-${pad(month)}-${pad(day)}`;
+}
+
 /** Monday to Friday, 09:00 to 17:00, Africa/Lagos: the default calendar from 09-support-and-sla.md. */
 export const DEFAULT_BUSINESS_CALENDAR: BusinessCalendar = {
   timezone: 'Africa/Lagos',

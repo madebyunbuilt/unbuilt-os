@@ -3,6 +3,7 @@ import { type Id } from './_generated/dataModel';
 import { type MutationCtx } from './_generated/server';
 import { auditedDatabase } from './lib/audit';
 import { internalMutation } from './lib/functions';
+import { ensureSeededHolidays } from './lib/holidays';
 import { DEFAULT_ROLES, OWNER_ROLE_KEY } from './lib/permissions';
 import { normalizeEmail } from './lib/principals';
 import { DEFAULT_ORG_SETTINGS } from './lib/settings';
@@ -10,8 +11,6 @@ import {
   DEFAULT_BUSINESS_HOURS,
   DEFAULT_SLA_POLICY_NAMES,
   DEFAULT_SLA_TARGETS,
-  FIXED_HOLIDAYS,
-  MOVABLE_HOLIDAY_ESTIMATES,
   SAMPLE_CLIENTS,
   SAMPLE_TEAM,
 } from './lib/seedData';
@@ -65,29 +64,6 @@ async function seedBusinessHours(db: Db) {
 /** The calendar year in Lagos, which decides "current and next year". */
 export function lagosYear(now: number): number {
   return Number(new Intl.DateTimeFormat('en-GB', { timeZone: 'Africa/Lagos', year: 'numeric' }).format(now));
-}
-
-async function seedHolidays(db: Db, years: number[]) {
-  let created = 0;
-  const yearsWithoutEstimates: number[] = [];
-  for (const year of years) {
-    const movable = MOVABLE_HOLIDAY_ESTIMATES[year];
-    if (!movable) yearsWithoutEstimates.push(year);
-    const rows = [
-      ...FIXED_HOLIDAYS.map((h) => ({ date: `${year}-${h.monthDay}`, name: h.name, needsConfirmation: false })),
-      ...(movable ?? []).map((h) => ({ ...h, needsConfirmation: true })),
-    ];
-    for (const row of rows) {
-      const sameDay = await db
-        .query('holidays')
-        .withIndex('by_date', (q) => q.eq('date', row.date))
-        .collect();
-      if (sameDay.some((holiday) => holiday.name === row.name)) continue;
-      await db.insert('holidays', { ...row, country: 'NG', recurring: false, source: 'seed' });
-      created++;
-    }
-  }
-  return { created, yearsWithoutEstimates };
 }
 
 async function seedSlaPolicies(db: Db, businessHoursId: Id<'businessHours'>) {
@@ -215,7 +191,7 @@ export const run = internalMutation({
     const roles = await seedRoles(db);
     const orgSettings = await seedOrgSettings(db);
     const businessHours = await seedBusinessHours(db);
-    const holidays = await seedHolidays(db, [year, year + 1]);
+    const holidays = await ensureSeededHolidays(db, [year, year + 1]);
     const slaPolicies = await seedSlaPolicies(db, businessHours.id);
     const owner = await seedOwnerInvite(
       db,

@@ -34,7 +34,12 @@
 - Government-declared holidays are added manually.
 - `convex/lib/businessTime.ts` provides `addBusinessMinutes(start, minutes, calendar, holidays)` and
   `businessMinutesBetween(a, b, calendar, holidays)`. All SLA timers use these.
-- A cron in January notifies admins to confirm the movable holidays for the year.
+- A cron on 2 January adds the standard holidays for the year and the next, then notifies `settings.manage` holders to
+  confirm the movable holidays (or to add them when there are no estimates for the year).
+- `settings.manage` and `sla.manage` can see business hours and holidays; only `settings.manage` changes them (decided by
+  the studio on 2026-09-14). Saving a holiday's date confirms it, and the date stays within its year. A year has one
+  holiday per name, so the seed recognises a movable holiday after its date moves; extra declared days get their own
+  name, such as "Eid al-Fitr (second day)". Holidays added by hand can be removed; standard ones can only be re-dated.
 
 ## Tickets
 
