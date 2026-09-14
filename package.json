@@ -20,7 +20,7 @@
     "auth:schema": "tsx scripts/generate-auth-schema.ts && prettier --write convex/betterAuth/schema.ts"
   },
   "dependencies": {
-    "@better-auth/utils": "^0.4.2",
+    "@better-auth/utils": "^0.5.0",
     "@convex-dev/better-auth": "^0.12.5",
     "@react-email/render": "^2.1.0",
     "better-auth": "^1.6.31",
