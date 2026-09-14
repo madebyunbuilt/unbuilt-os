@@ -163,6 +163,40 @@ export function secondFactorRules(resolvePrincipalKind: ResolvePrincipalKind): B
 }
 
 /**
+ * Team sessions end after a period of inactivity. Every authenticated request refreshes the session, so the check has
+ * to run first: an idle team session is deleted before Better Auth can refresh it. The session is read straight from
+ * the cookie because getSessionFromCtx caches its result for the endpoint, which would stop the normal refresh.
+ */
+export function expireIdleTeamSessions(resolvePrincipalKind: ResolvePrincipalKind, idleMs: number): BetterAuthPlugin {
+  return {
+    id: 'unbuilt-expire-idle-team-sessions',
+    hooks: {
+      before: [
+        {
+          matcher: (context) => !!context.path,
+          handler: createAuthMiddleware(async (ctx) => {
+            const cookieName = ctx.context.authCookies.sessionToken.name;
+            const token = await ctx.getSignedCookie(cookieName, ctx.context.secret);
+            if (!token) return;
+            const found = await ctx.context.internalAdapter.findSession(token);
+            if (!found || Date.now() - new Date(found.session.updatedAt).getTime() <= idleMs) return;
+            if ((await resolvePrincipalKind(found.user)) !== 'team') return;
+
+            await ctx.context.internalAdapter.deleteSession(token);
+            deleteSessionCookie(ctx);
+            // Returned rather than thrown: a thrown error would drop the cookies deleteSessionCookie just expired.
+            return ctx.json(
+              { code: 'SESSION_IDLE', message: 'Your session ended after 12 hours of inactivity' },
+              { status: 401 },
+            );
+          }),
+        },
+      ],
+    },
+  };
+}
+
+/**
  * Better Auth checks emailed codes against a twoFactor record, where it also counts failures and locks accounts. Client
  * users never enrol an authenticator, so they get a record whose secret is random and never revealed.
  */

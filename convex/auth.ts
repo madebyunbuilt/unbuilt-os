@@ -12,13 +12,14 @@ import authSchema from './betterAuth/schema';
 import { sendAuthEmail } from './lib/authEmails';
 import {
   createEmailCodeRecord,
+  expireIdleTeamSessions,
   magicLinkTwoFactor,
   type PrincipalKind,
   secondFactorRules,
   TRUST_DEVICE_MAX_AGE_SECONDS,
 } from './lib/authPlugins';
 import { sessionQuery } from './lib/functions';
-import { PORTAL_SESSION_MAX_AGE_SECONDS } from './lib/principals';
+import { PORTAL_SESSION_MAX_AGE_SECONDS, TEAM_SESSION_IDLE_MS } from './lib/principals';
 
 // Better Auth inside Convex (03-auth-and-permissions.md). One instance serves os.* and portal.*; cookies stay on the
 // host that set them, and every Convex function checks the principal itself.
@@ -77,7 +78,7 @@ export const createAuthOptions = (ctx: GenericCtx<DataModel>) => {
     trustedOrigins: trustedOrigins(hosts),
     database: authComponent.adapter(ctx),
     session: {
-      // Portal sessions last 7 days. Team sessions also end after 12 idle hours, enforced by the function wrappers.
+      // Portal sessions last 7 days. Team sessions also end after 12 idle hours (expireIdleTeamSessions and the wrappers).
       expiresIn: PORTAL_SESSION_MAX_AGE_SECONDS,
       updateAge: SESSION_UPDATE_AGE_SECONDS,
     },
@@ -126,6 +127,7 @@ export const createAuthOptions = (ctx: GenericCtx<DataModel>) => {
           },
         },
       }),
+      expireIdleTeamSessions(principalKind, TEAM_SESSION_IDLE_MS),
       magicLinkTwoFactor(principalKind),
       secondFactorRules(principalKind),
       convex({ authConfig, jwt: { expirationSeconds: JWT_EXPIRATION_SECONDS } }),
