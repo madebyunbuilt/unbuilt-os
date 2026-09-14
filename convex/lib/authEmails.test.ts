@@ -37,4 +37,19 @@ describe('sign-in emails', () => {
     expect(email.text).toContain('28 September 2026');
     expect(email.html).toContain('Accept invitation');
   });
+
+  it('render the portal invitation with the client name and the portal link', async () => {
+    const url = 'https://portal.unbuilt.studio/sign-in?email=ada%40glossup.com';
+    const email = await renderAuthEmail({
+      kind: 'portalInvitation',
+      to: 'ada@glossup.com',
+      url,
+      inviterName: 'Kemi Bello',
+      clientName: 'Glossup',
+    });
+    expect(email.subject).toBe('Kemi Bello invited you to the Unbuilt client portal');
+    expect(email.text).toContain(url);
+    expect(email.text).toContain('client portal for Glossup');
+    expect(email.html).toContain('Open the portal');
+  });
 });

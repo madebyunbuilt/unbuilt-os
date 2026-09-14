@@ -25,3 +25,11 @@ export function teamAppOrigin(): string | undefined {
   const host = primaryAppHost();
   return host ? originOf(host) : undefined;
 }
+
+/** Where links in client emails point. PORTAL_URL wins; otherwise the first exact portal host. */
+export function portalAppOrigin(): string | undefined {
+  const configured = process.env.PORTAL_URL?.trim().replace(/\/+$/, '');
+  if (configured) return configured;
+  const host = allowedHosts().find((candidate) => !candidate.includes('*') && candidate.startsWith('portal.'));
+  return host ? originOf(host) : undefined;
+}

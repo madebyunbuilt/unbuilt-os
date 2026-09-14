@@ -170,33 +170,114 @@ export default defineSchema({
     legalName: v.optional(v.string()),
     kind: v.union(v.literal('company'), v.literal('individual')),
     status: v.union(v.literal('lead'), v.literal('active'), v.literal('past'), v.literal('archived')),
+    industry: v.optional(v.string()),
+    website: v.optional(v.string()),
     country: v.optional(v.string()),
+    // Optional so rows created before CRM stay valid; read absent as empty.
+    addressLines: v.optional(v.array(v.string())),
+    tin: v.optional(v.string()),
+    // Absent means standard. Edited with invoices.update (billing details).
+    vatTreatment: v.optional(v.union(v.literal('standard'), v.literal('zero_rated'), v.literal('exempt'))),
+    whtApplies: v.optional(v.boolean()),
+    whtBps: v.optional(v.number()),
     defaultCurrency: currency,
+    paymentTermsDays: v.optional(v.number()),
     timezone: v.string(),
+    ownerMemberId: v.optional(v.id('teamMembers')),
+    source: v.optional(v.string()),
+    tags: v.optional(v.array(v.string())),
+    notes: v.optional(v.string()),
+    slaPolicyId: v.optional(v.id('slaPolicies')),
     portalEnabled: v.boolean(),
   })
     .index('by_status', ['status'])
-    .searchIndex('search_displayName', { searchField: 'displayName' }),
+    .index('by_owner', ['ownerMemberId'])
+    .searchIndex('search_displayName', { searchField: 'displayName', filterFields: ['status'] }),
 
   contacts: defineTable({
     clientId: v.id('clients'),
     name: v.string(),
+    // Lowercase
     email: v.string(),
     phone: v.optional(v.string()),
     whatsapp: v.optional(v.string()),
+    // No WhatsApp message is sent without this (14-platform.md).
+    whatsappOptIn: v.optional(
+      v.object({
+        at: v.number(),
+        method: v.union(v.literal('portal_checkbox'), v.literal('written_consent'), v.literal('form')),
+        recordedBy: v.optional(v.id('teamMembers')),
+      }),
+    ),
     jobTitle: v.optional(v.string()),
     isPrimary: v.boolean(),
     isBilling: v.boolean(),
     portalAccess: v.boolean(),
     portalRoleId: v.optional(v.id('roles')),
+    portalInvitedAt: v.optional(v.number()),
+    portalInviteLastSentAt: v.optional(v.number()),
     authUserId: v.optional(v.string()),
     status: v.union(v.literal('active'), v.literal('left')),
+    leftAt: v.optional(v.number()),
   })
     .index('by_client', ['clientId'])
     .index('by_email', ['email'])
     .index('by_authUser', ['authUserId'])
     .index('by_portalRole', ['portalRoleId'])
-    .searchIndex('search_name', { searchField: 'name', filterFields: ['clientId'] }),
+    .searchIndex('search_name', { searchField: 'name', filterFields: ['clientId'] })
+    .searchIndex('search_email', { searchField: 'email', filterFields: ['clientId'] }),
+
+  activities: defineTable({
+    subject: v.object({
+      table: v.union(
+        v.literal('clients'),
+        v.literal('contacts'),
+        v.literal('deals'),
+        v.literal('projects'),
+        v.literal('tickets'),
+      ),
+      id: v.string(),
+    }),
+    // The client the subject belongs to, so a client's timeline includes its contacts, deals, projects and tickets.
+    clientId: v.optional(v.id('clients')),
+    type: v.union(
+      v.literal('note'),
+      v.literal('call'),
+      v.literal('meeting'),
+      v.literal('email_sent'),
+      v.literal('email_received'),
+      v.literal('whatsapp_sent'),
+      v.literal('status_change'),
+      v.literal('document_event'),
+      v.literal('payment_event'),
+      v.literal('system'),
+    ),
+    title: v.string(),
+    body: v.optional(v.string()),
+    actorKind: v.union(v.literal('team'), v.literal('client'), v.literal('system')),
+    actorId: v.optional(v.string()),
+    occurredAt: v.number(),
+    // Members @mentioned in a note, call or meeting
+    mentions: v.optional(v.array(v.id('teamMembers'))),
+    editedAt: v.optional(v.number()),
+    meta: v.optional(v.record(v.string(), v.union(v.string(), v.number(), v.boolean(), v.null()))),
+  })
+    .index('by_subject_occurred', ['subject.table', 'subject.id', 'occurredAt'])
+    .index('by_client_occurred', ['clientId', 'occurredAt']),
+
+  rateCardItems: defineTable({
+    name: v.string(),
+    description: v.optional(v.string()),
+    serviceSlug: v.optional(v.string()),
+    unit: v.union(v.literal('fixed'), v.literal('hour'), v.literal('day'), v.literal('week'), v.literal('month')),
+    // At most one price per currency; never converted between currencies.
+    prices: v.array(v.object({ currency, unitPriceMinor: v.number() })),
+    taxable: v.boolean(),
+    active: v.boolean(),
+    category: v.optional(v.string()),
+  })
+    .index('by_active_name', ['active', 'name'])
+    .index('by_name', ['name']),
 
   notifications: defineTable({
     recipientKind: v.union(v.literal('team'), v.literal('client')),
