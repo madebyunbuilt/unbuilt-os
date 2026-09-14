@@ -98,7 +98,7 @@ export function MemberProfile({ memberId, permissions }: { memberId: Id<'teamMem
         </Section>
       )}
 
-      {canChangeAccess && member.status !== 'invited' && member.status !== 'offboarded' && (
+      {canChangeAccess && member.status !== 'offboarded' && (
         <Section id="access-heading" title="Access">
           <AccessActions member={member} />
         </Section>
@@ -189,6 +189,7 @@ function AccessActions({
   const [endDate, setEndDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
   const roleAssignable = roles?.some((role) => role.id === member.role?.id) ?? false;
+  const invited = member.status === 'invited';
 
   return (
     <div className="space-y-6">
@@ -215,7 +216,12 @@ function AccessActions({
           onClick={async () => {
             try {
               await changeRole({ memberId: member.id, roleId: roleId as Id<'roles'> });
-              setMessage({ ok: true, text: 'Role changed.' });
+              setMessage({
+                ok: true,
+                text: invited
+                  ? 'Role changed. The email they already have names the old role; resend the invitation to update it.'
+                  : 'Role changed.',
+              });
             } catch (error) {
               setMessage({ ok: false, text: errorMessage(error) });
             }
@@ -237,39 +243,45 @@ function AccessActions({
         {message?.text}
       </p>
 
-      <div className="flex flex-wrap gap-2">
-        {member.status === 'active' ? (
-          <ConfirmDialog
-            trigger={<Button variant="outline">Suspend</Button>}
-            title={`Suspend ${member.name}?`}
-            description="They are signed out everywhere at once and cannot sign in until reactivated. Nothing is deleted."
-            confirmLabel="Suspend"
-            onConfirm={() => suspend({ memberId: member.id })}
-          />
-        ) : (
-          <Button variant="outline" onClick={() => void reactivate({ memberId: member.id })}>
-            Reactivate
-          </Button>
-        )}
-        <ConfirmDialog
-          trigger={<Button variant="destructive">Offboard</Button>}
-          title={`Offboard ${member.name}?`}
-          description="They are signed out everywhere at once and lose access for good. Their history stays attributed to them."
-          confirmLabel="Offboard"
-          canConfirm={/^\d{4}-\d{2}-\d{2}$/.test(endDate)}
-          onConfirm={() => offboard({ memberId: member.id, endDate })}
-        >
-          <div className="space-y-2">
-            <Label htmlFor="offboard-end-date">Last day</Label>
-            <Input
-              id="offboard-end-date"
-              type="date"
-              value={endDate}
-              onChange={(event) => setEndDate(event.target.value)}
+      {invited ? (
+        <p className="text-sm text-muted-foreground">
+          Suspending and offboarding are available once they accept. To stop them joining, cancel the invitation.
+        </p>
+      ) : (
+        <div className="flex flex-wrap gap-2">
+          {member.status === 'active' ? (
+            <ConfirmDialog
+              trigger={<Button variant="outline">Suspend</Button>}
+              title={`Suspend ${member.name}?`}
+              description="They are signed out everywhere at once and cannot sign in until reactivated. Nothing is deleted."
+              confirmLabel="Suspend"
+              onConfirm={() => suspend({ memberId: member.id })}
             />
-          </div>
-        </ConfirmDialog>
-      </div>
+          ) : (
+            <Button variant="outline" onClick={() => void reactivate({ memberId: member.id })}>
+              Reactivate
+            </Button>
+          )}
+          <ConfirmDialog
+            trigger={<Button variant="destructive">Offboard</Button>}
+            title={`Offboard ${member.name}?`}
+            description="They are signed out everywhere at once and lose access for good. Their history stays attributed to them."
+            confirmLabel="Offboard"
+            canConfirm={/^\d{4}-\d{2}-\d{2}$/.test(endDate)}
+            onConfirm={() => offboard({ memberId: member.id, endDate })}
+          >
+            <div className="space-y-2">
+              <Label htmlFor="offboard-end-date">Last day</Label>
+              <Input
+                id="offboard-end-date"
+                type="date"
+                value={endDate}
+                onChange={(event) => setEndDate(event.target.value)}
+              />
+            </div>
+          </ConfirmDialog>
+        </div>
+      )}
     </div>
   );
 }

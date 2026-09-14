@@ -252,6 +252,19 @@ describe('MemberProfile', () => {
     expect(state.mutations.resendInvite).toHaveBeenCalledWith({ memberId: 'm_dayo' });
     expect(await screen.findByText(/valid for 14 days/)).toBeInTheDocument();
   });
+
+  it('lets an admin fix the role of a pending invitation, without suspend or offboard', async () => {
+    state.queries.get = member({ status: 'invited', invite: 'pending', twoFactorEnabled: false, onboarding: null });
+    render(<MemberProfile memberId={'m_dayo' as never} permissions={['team.view', 'team.manage']} />);
+    expect(screen.getByRole('heading', { name: 'Access' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Suspend' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Offboard' })).not.toBeInTheDocument();
+
+    await userEvent.selectOptions(screen.getByLabelText('Role'), 'r_admin');
+    await userEvent.click(screen.getByRole('button', { name: 'Change role' }));
+    expect(state.mutations.changeRole).toHaveBeenCalledWith({ memberId: 'm_dayo', roleId: 'r_admin' });
+    expect(await screen.findByText(/resend the invitation to update it/)).toBeInTheDocument();
+  });
 });
 
 describe('OnboardingChecklist', () => {

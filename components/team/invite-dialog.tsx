@@ -109,7 +109,7 @@ export function InviteDialog({ onInvited }: { onInvited?: (memberId: Id<'teamMem
           <FormField
             id="invite-role"
             label="Role"
-            help={roles?.find((role) => role.id === chosenRoleId)?.description}
+            help={roles?.find((role) => role.id === chosenRoleId)?.description ?? 'What they can see and do.'}
             error={errors.roleId?.message}
           >
             {(field) => (
@@ -124,7 +124,12 @@ export function InviteDialog({ onInvited }: { onInvited?: (memberId: Id<'teamMem
             )}
           </FormField>
           <div className="grid gap-4 sm:grid-cols-2">
-            <FormField id="invite-employment" label="Employment" error={errors.employmentType?.message}>
+            <FormField
+              id="invite-employment"
+              label="Employment"
+              help="How they work with the studio. Access comes from the role."
+              error={errors.employmentType?.message}
+            >
               {(field) => (
                 <NativeSelect {...field} {...form.register('employmentType')}>
                   <option value="employee">Employee</option>

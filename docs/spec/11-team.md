@@ -39,6 +39,10 @@
 - `/team/me` lets anyone update their photo, phone, WhatsApp, timezone and skills, and shows their onboarding checklist.
 - The role list offers only roles the viewer may give (`team.assignableRoles`). A member whose role holds more than the
   viewer has their role shown but not editable.
+- The role of a pending invitation can be changed before they accept; suspend and offboard appear only after they
+  accept. The email they already have names the old role until the invitation is resent.
+- Employment type (employee or contractor) describes how someone works with the studio. It does not limit which roles
+  they can have; access comes only from the role.
 - Invitation emails open `/sign-in` with the invited address filled in.
 
 ## Onboarding and offboarding

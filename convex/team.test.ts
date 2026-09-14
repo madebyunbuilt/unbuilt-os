@@ -300,6 +300,19 @@ describe('roles and access', () => {
     await admin.as.mutation(api.team.changeRole, { memberId: finance.memberId, roleId: roles.project_manager });
     expect((await t.run((ctx) => ctx.db.get('teamMembers', finance.memberId)))?.roleId).toBe(roles.project_manager);
 
+    // A wrong role picked at invite time can be fixed before they accept.
+    const invitedId = await admin.as.mutation(api.team.invite, {
+      email: 'new@unbuilt.studio',
+      name: 'New Person',
+      roleId: roles.member,
+      employmentType: 'contractor',
+      timezone: 'Africa/Lagos',
+      skills: [],
+    });
+    await admin.as.mutation(api.team.changeRole, { memberId: invitedId, roleId: roles.project_manager });
+    const invited = await t.run((ctx) => ctx.db.get('teamMembers', invitedId));
+    expect(invited).toMatchObject({ status: 'invited', roleId: roles.project_manager });
+
     await expectCode(
       admin.as.mutation(api.team.changeRole, { memberId: admin.memberId, roleId: roles.member }),
       'team.self',
