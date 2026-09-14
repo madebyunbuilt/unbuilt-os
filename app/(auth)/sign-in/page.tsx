@@ -13,5 +13,9 @@ export default async function SignInPage({ searchParams }: PageProps<'/sign-in'>
 
   if (!error && (await getViewer())?.principal) redirect(callbackURL);
 
-  return <SignInForm surface={await currentSurface()} callbackURL={callbackURL} initialError={error} />;
+  // Invitation emails link here with the invited address filled in.
+  const email = typeof params.email === 'string' ? params.email.slice(0, 254) : '';
+  return (
+    <SignInForm surface={await currentSurface()} callbackURL={callbackURL} initialError={error} initialEmail={email} />
+  );
 }

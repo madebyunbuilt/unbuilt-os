@@ -61,4 +61,9 @@ describe('SignInForm', () => {
     render(<SignInForm surface="team" callbackURL="/" initialError={null} />);
     expect(screen.getByText(/studio email address/)).toBeInTheDocument();
   });
+
+  it('fills in the address from an invitation link', () => {
+    render(<SignInForm surface="team" callbackURL="/" initialError={null} initialEmail="dayo@unbuilt.studio" />);
+    expect(screen.getByLabelText('Email')).toHaveValue('dayo@unbuilt.studio');
+  });
 });

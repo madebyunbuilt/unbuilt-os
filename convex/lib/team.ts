@@ -20,7 +20,10 @@ export function teamError(code: `team.${string}`, message: string): ConvexError<
   return new ConvexError({ code, message });
 }
 
-export function inviteState(member: Pick<Doc<'teamMembers'>, 'status' | 'inviteExpiresAt'>, now: number) {
+export function inviteState(
+  member: Pick<Doc<'teamMembers'>, 'status' | 'inviteExpiresAt'>,
+  now: number,
+): 'pending' | 'expired' | null {
   if (member.status !== 'invited') return null;
   return member.inviteExpiresAt !== undefined && member.inviteExpiresAt <= now ? 'expired' : 'pending';
 }

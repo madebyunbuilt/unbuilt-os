@@ -94,7 +94,7 @@ export const TEAM_NAVIGATION: readonly NavSection[] = [
   {
     label: 'Studio',
     items: [
-      { label: 'Team', href: '/team', icon: 'users', anyOf: ['team.view', 'timeoff.request'], built: false },
+      { label: 'Team', href: '/team', icon: 'users', anyOf: ['team.view', 'timeoff.request'], built: true },
       { label: 'Website', href: '/cms', icon: 'globe', anyOf: ['cms.view'], built: false },
       {
         label: 'Reports',
