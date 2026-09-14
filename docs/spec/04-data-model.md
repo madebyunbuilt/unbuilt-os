@@ -88,9 +88,9 @@ monthlyBps, graceDays }` `invoiceFooter` `quoteValidityDays` `retentionYears` `b
 (invited, active, suspended, offboarded) `startDate` `endDate` `costRateMinor` `billRateMinor` `rateCurrency`
 (cost and bill rates are sensitive) `capacityMinutesPerWeek` `timezone` `skills[]` `avatarFileId`
 `googleCalendarConnected` `twoFactorEnabled`.
-Indexes: `by_authUser`, `by_email`, `by_status`.
+Indexes: `by_authUser`, `by_email`, `by_status`, `by_role`. Emails are stored lowercase.
 
-**roles** — `key` `name` `kind` (team, client) `permissions[]` `isSystem` `description`. Index: `by_kind`.
+**roles** — `key` `name` `kind` (team, client) `permissions[]` `isSystem` `description`. Indexes: `by_kind`, `by_key`.
 
 **timeOff** — `memberId` `type` (annual, sick, public, unpaid, other) `startDate` `endDate` `halfDay` `status`
 (requested, approved, declined, cancelled) `note` `decidedBy` `decidedAt`. Index: `by_member_start`.
@@ -114,7 +114,8 @@ Indexes: `by_status`, `by_owner`. Search index on `displayName` and `legalName`.
 **contacts**
 `clientId` `name` `email` `phone` `whatsapp` `whatsappOptIn { at, method }?` `jobTitle` `isPrimary` `isBilling`
 `portalAccess` `portalRoleId?` `authUserId?` `status` (active, left).
-Indexes: `by_client`, `by_email`, `by_authUser`. Search index on `name` and `email`.
+Indexes: `by_client`, `by_email`, `by_authUser`, `by_portalRole`. Search index on `name` and `email`. Emails are stored
+lowercase.
 
 **pipelineStages** — `name` `order` `probabilityBps` `kind` (open, won, lost).
 
@@ -350,7 +351,9 @@ whatsapp? }` `createdAt`. Index: `by_recipient_read`.
 **files** — `storageId` `name` `mimeType` `sizeBytes` `sha256` `owner { table, id }` `clientId?` `projectId?`
 `visibility` (internal, client) `uploadedByKind` `uploadedById`.
 
-**auditLog** — see `03-auth-and-permissions.md`. Indexes: `by_target`, `by_actor_at`, `by_at`.
+**auditLog** — `actorKind` (team, client, system) `actorId?` `authUserId?` `permission?` `action` (insert, update,
+delete, read) `table` `recordId` `diff { before?, after? }` (changed fields only, sensitive fields redacted) `ip?`
+`userAgent?` `at`. See `03-auth-and-permissions.md`. Indexes: `by_target` (table, recordId, at), `by_actor_at`, `by_at`.
 
 **webhookEvents** — `provider` (paystack, resend, whatsapp) `eventId` `type` `receivedAt` `processedAt?` `status`
 `error?` `payload`. Unique index `by_provider_event` for idempotency.

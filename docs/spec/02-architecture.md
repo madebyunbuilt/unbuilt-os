@@ -2,24 +2,24 @@
 
 ## Stack
 
-| Layer           | Choice                                                                                                                                                                                     |
-| --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Runtime         | Node 24, pnpm 11                                                                                                                                                                           |
-| Frontend        | Next.js 16 (App Router), React 19, TypeScript strict, Tailwind v4, shadcn/ui, lucide icons                                                                                                 |
-| Forms           | react-hook-form with Zod schemas shared between client and Convex argument validation where practical                                                                                      |
-| Tables          | TanStack Table                                                                                                                                                                             |
-| Backend         | Convex: queries, mutations, actions, HTTP actions, scheduler, crons, file storage, search indexes                                                                                          |
-| Convex packages | `convex-helpers` (custom functions, relationships), `@convex-dev/better-auth`, `@convex-dev/aggregate`, `@convex-dev/rate-limiter`, `@convex-dev/workpool` for outbound email and WhatsApp |
-| Auth            | Better Auth: magic link, organization, two-factor, admin plugins                                                                                                                           |
-| PDF             | `@react-pdf/renderer` in `"use node"` actions                                                                                                                                              |
-| Email           | Resend + React Email                                                                                                                                                                       |
-| Payments        | Paystack REST API and webhooks                                                                                                                                                             |
-| Messaging       | Meta WhatsApp Cloud API                                                                                                                                                                    |
-| Calendar        | Google Calendar API (OAuth per team member)                                                                                                                                                |
-| Bot protection  | Cloudflare Turnstile on public forms                                                                                                                                                       |
-| Monitoring      | Sentry for Next.js; Convex log streams or exception reporting as the Convex plan allows                                                                                                    |
-| Testing         | Vitest + `convex-test` for backend, Vitest + Testing Library for components, Playwright end to end                                                                                         |
-| Hosting         | Vercel (Next.js), Convex cloud                                                                                                                                                             |
+| Layer           | Choice                                                                                                                                                                                       |
+| --------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Runtime         | Node 24, pnpm 11                                                                                                                                                                             |
+| Frontend        | Next.js 16 (App Router), React 19, TypeScript strict, Tailwind v4, shadcn/ui, lucide icons                                                                                                   |
+| Forms           | react-hook-form with Zod schemas shared between client and Convex argument validation where practical                                                                                        |
+| Tables          | TanStack Table                                                                                                                                                                               |
+| Backend         | Convex: queries, mutations, actions, HTTP actions, scheduler, crons, file storage, search indexes                                                                                            |
+| Convex packages | `convex-helpers` (custom functions, relationships), `@convex-dev/better-auth`, `@convex-dev/aggregate`, `@convex-dev/rate-limiter`, `@convex-dev/workpool` for outbound email and WhatsApp   |
+| Auth            | Better Auth with the magic link and two-factor plugins, installed locally as a Convex component. Roles and principals live in app tables, so the organization and admin plugins are not used |
+| PDF             | `@react-pdf/renderer` in `"use node"` actions                                                                                                                                                |
+| Email           | Resend + React Email                                                                                                                                                                         |
+| Payments        | Paystack REST API and webhooks                                                                                                                                                               |
+| Messaging       | Meta WhatsApp Cloud API                                                                                                                                                                      |
+| Calendar        | Google Calendar API (OAuth per team member)                                                                                                                                                  |
+| Bot protection  | Cloudflare Turnstile on public forms                                                                                                                                                         |
+| Monitoring      | Sentry for Next.js; Convex log streams or exception reporting as the Convex plan allows                                                                                                      |
+| Testing         | Vitest + `convex-test` for backend, Vitest + Testing Library for components, Playwright end to end                                                                                           |
+| Hosting         | Vercel (Next.js), Convex cloud                                                                                                                                                               |
 
 ## Repo layout
 
@@ -37,13 +37,22 @@ unbuilt-os/
     <module>/          module-specific components
   convex/
     schema.ts
-    auth.ts            Better Auth setup
+    convex.config.ts   components
+    auth.config.ts     JWT provider for Better Auth
+    auth.ts            Better Auth options and createAuth
+    authFlows.ts       internal functions the sign-in hooks call
+    principals.ts      principal lookup for teamAction
+    roles.ts           role management
+    betterAuth/        Better Auth component: generated schema (`pnpm auth:schema`) and adapter
     http.ts            HTTP router: webhooks and public endpoints
     crons.ts
     lib/
-      functions.ts     teamQuery, teamMutation, portalQuery, portalMutation, publicQuery, internal helpers
+      functions.ts     teamQuery, teamMutation, teamAction, portalQuery, portalMutation, sessionQuery, internal helpers
       permissions.ts   permission keys, default roles, checks
-      audit.ts
+      principals.ts    session and principal resolution, session revocation
+      audit.ts         audited database writer, sensitive-field redaction
+      authPlugins.ts   two-factor after magic link, second-factor rules per surface
+      authEmails.ts    sign-in emails
       money.ts         minor units, rounding, currency formatting, totals
       numbering.ts     document number counters
       businessTime.ts  business hours and holiday arithmetic
@@ -79,6 +88,18 @@ permissions itself (see `03-auth-and-permissions.md`).
 | Development | Personal dev deployment per developer                                                           | `pnpm dev`                                   | Paystack test keys, Resend test domain, WhatsApp test number |
 | Preview     | Convex preview deployment per PR if the plan supports it, otherwise a shared staging deployment | Vercel preview per PR                        | Test keys only                                               |
 | Production  | Production deployment                                                                           | `os.unbuilt.studio`, `portal.unbuilt.studio` | Live keys                                                    |
+
+Convex environment variables, set per deployment and never committed:
+
+| Variable             | Purpose                                                                                   |
+| -------------------- | ----------------------------------------------------------------------------------------- |
+| `BETTER_AUTH_SECRET` | Signs cookies and encrypts two-factor secrets. Different on every deployment              |
+| `AUTH_ALLOWED_HOSTS` | Hostnames the app is served on, comma-separated, wildcards allowed. Defaults to localhost |
+| `RESEND_API_KEY`     | Sending-only Resend key. Separate keys per environment                                    |
+| `AUTH_EMAIL_FROM`    | Sender for sign-in emails. Defaults to Resend's test sender until the domain is verified  |
+
+Staging allows `unbuilt-os-pr-*.vercel.app`; production allows `os.unbuilt.studio`, `portal.unbuilt.studio` and
+`unbuilt-os.vercel.app`.
 
 Seed script (`convex/seed.ts`, internal mutation) creates default roles, permission sets, an owner invite, Nigerian
 public holidays for the current and next year, default SLA policies, document templates, and sample data in

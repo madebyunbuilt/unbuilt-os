@@ -22,10 +22,20 @@ two email addresses. Never let one session act on both surfaces.
 | Signing | Token link from the signature request email, then a 6-digit email code before signing (see `07-documents-and-esign.md`)                    |
 | Paying  | Token link from the invoice email opens the invoice and Paystack checkout without an account                                               |
 
-- Magic links expire in 15 minutes and work once.
-- Team sessions expire after 12 hours of inactivity; portal sessions after 7 days.
+- Magic links expire in 15 minutes and work once. Links and codes are stored hashed.
+- Better Auth applies its two-factor challenge only after password sign-in, so `convex/lib/authPlugins.ts` applies the
+  same challenge after `/magic-link/verify`: the magic-link session is discarded and the two-factor verify endpoint
+  creates the real one. A magic link alone never yields a session for an account with two-factor on.
+- Team members enrol TOTP (with backup codes) on first sign-in and cannot disable or replace it themselves; an admin
+  resets it. Team members cannot use emailed codes.
+- Client users have two-factor on from account creation and only use emailed codes. "New device" means a device
+  without a trusted-device cookie, which lasts 30 days after a successful code.
+- Team sessions expire after 12 hours of inactivity; portal sessions after 7 days. Inactivity is measured from the last
+  session refresh, which Better Auth records at most every 15 minutes while the app is open.
 - Invitations only. There is no public sign-up on either surface. Team members are invited by `team.manage`; client
-  users by `contacts.manage` (team) or `portal.colleagues.manage` (client admin).
+  users by `contacts.manage` (team) or `portal.colleagues.manage` (client admin). An account can be created only for
+  an email address that belongs to exactly one invited team member or one contact with portal access. Sign-in requests
+  for any other address return the same response and send nothing.
 - Offboarding a team member revokes all sessions immediately and removes project membership.
 - All auth emails go through Resend with the templates in `emails/auth/`.
 
@@ -45,7 +55,15 @@ two email addresses. Never let one session act on both surfaces.
 | `internalQuery` / `internalMutation` / `internalAction` | Scheduler, crons, other functions | Not callable from clients                                                                                              |
 
 The builders put `ctx.principal`, `ctx.permissions`, `ctx.clientId` (portal only) and `ctx.can(permission)` on the
-context.
+context. Portal builders also add `ctx.ownedByClient(doc)`, which returns a document only when it belongs to
+`ctx.clientId`.
+
+`sessionQuery` accepts any signed-in session, with or without a principal or 2FA. It exists only for reading the
+caller's own sign-in state (`auth.viewer`) and must never return business data. `tokenQuery`, `tokenMutation` and
+`publicHttp` are added with the first module that needs them (documents, billing, CRM enquiries).
+
+Every refusal uses a `ConvexError` code: `auth.unauthenticated`, `auth.sessionExpired`, `auth.twoFactorRequired` or
+`auth.forbidden`. A missing permission and a missing principal both return `auth.forbidden`.
 
 ### Record-level rules
 
@@ -78,8 +96,8 @@ typed constant; roles store arrays of these keys.
 `time.log.own` `time.view.all` `time.approve` `time.edit.all`
 
 **Documents**
-`documents.view` `documents.create` `documents.update` `documents.send` `documents.void` `documents.countersign`
-`templates.documents.manage`
+`documents.view` `documents.view.assigned` `documents.create` `documents.update` `documents.send` `documents.void`
+`documents.countersign` `templates.documents.manage`
 
 **Billing and finance**
 `invoices.view` `invoices.create` `invoices.update` `invoices.send` `invoices.void` `invoices.writeoff`
@@ -115,6 +133,18 @@ are saved.
 ## Default roles
 
 System roles are seeded, cannot be deleted, and only the Owner can edit them. `roles.manage` can create custom roles.
+A role that anyone still holds cannot be deleted, and a role cannot change kind. Saving a team role never grants a key
+the caller does not hold, so `roles.manage` cannot be used to reach `owner.transfer`.
+
+The exact keys per role are `DEFAULT_ROLES` in `convex/lib/permissions.ts`. Where the table below names no key, the
+studio approved these on 2026-09-13:
+
+- Every team role: `timeoff.request`.
+- Finance: `fx.manage`, `schedules.manage`, `retainers.manage` (part of "Invoices: All"), `team.view`, `capacity.view`.
+- Project manager: `invoices.view` (to create drafts), `handover.manage`, `templates.documents.manage`,
+  `reports.delivery.view`, `calendar.use`, `time.log.own`, `clients.export` (part of "All except delete").
+- Member: `documents.view.assigned`, a scoped key like the other `.assigned` keys, for "Documents: View assigned".
+- Content editor: `cms.view`; not `cms.settings.manage`.
 
 | Area                                        | Owner | Admin |     Finance      |   Project manager    |      Member      | Content editor |
 | ------------------------------------------- | :---: | :---: | :--------------: | :------------------: | :--------------: | :------------: |
