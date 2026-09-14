@@ -1,5 +1,6 @@
 import { ConvexError } from 'convex/values';
 import { type MutationCtx } from '../_generated/server';
+import { getOrgSettings, numberFormatFor } from './settings';
 
 // Human-readable numbers from `counters` (04-data-model.md, Numbering). Call nextNumber inside the mutation that sends
 // or issues the record: Convex runs that mutation as one serializable transaction, so numbers never repeat or skip.
@@ -35,12 +36,11 @@ async function counterFor(ctx: MutationCtx, record: NumberedRecord) {
     .unique();
 }
 
-/** Increments the counter for `record` and returns the formatted number. Counters never reset. */
-export async function nextNumber(
-  ctx: MutationCtx,
-  record: NumberedRecord,
-  format: NumberFormat = DEFAULT_NUMBERING[record],
-): Promise<string> {
+/**
+ * Increments the counter for `record` and returns the formatted number, in the studio's configured format unless one is
+ * passed. Counters never reset, even when the format changes.
+ */
+export async function nextNumber(ctx: MutationCtx, record: NumberedRecord, format?: NumberFormat): Promise<string> {
   const counter = await counterFor(ctx, record);
   const value = (counter?.value ?? 0) + 1;
   if (counter) {
@@ -48,7 +48,7 @@ export async function nextNumber(
   } else {
     await ctx.db.insert('counters', { key: record, value });
   }
-  return formatNumber(value, format);
+  return formatNumber(value, format ?? numberFormatFor(await getOrgSettings(ctx), record));
 }
 
 /** Raises a counter to at least `value`, so imported records keep their numbers and new ones never collide. */

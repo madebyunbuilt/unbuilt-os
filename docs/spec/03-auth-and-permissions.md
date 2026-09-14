@@ -67,8 +67,11 @@ surface. Use it only for the caller's own records that every principal has, such
 check still applies.
 
 `sessionQuery` accepts any signed-in session, with or without a principal or 2FA. It exists only for reading the
-caller's own sign-in state (`auth.viewer`) and must never return business data. `tokenQuery`, `tokenMutation` and
-`publicHttp` are added with the first module that needs them (documents, billing, CRM enquiries).
+caller's own sign-in state (`auth.viewer`) and must never return business data. `tokenQuery` and `tokenMutation` are
+added with the first module that needs them (documents, billing). `publicHttp` wraps an HTTP action: the handler
+verifies its own signature, token or Turnstile response first; the wrapper adds `X-Content-Type-Options: nosniff` and
+`Referrer-Policy: no-referrer` and returns a bare 500 for unexpected errors, logging only the error name. Rate limiting
+joins it with the first public form (CRM enquiries).
 
 Every refusal uses a `ConvexError` code: `auth.unauthenticated`, `auth.sessionExpired`, `auth.twoFactorRequired` or
 `auth.forbidden`. A missing permission and a missing principal both return `auth.forbidden`.

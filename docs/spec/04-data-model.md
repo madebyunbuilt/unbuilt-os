@@ -73,6 +73,11 @@ Better Auth's own tables (users, sessions, accounts, verification) are owned by 
 `numbering { [recordType]: { prefix, padding } }` `defaultPaymentTermsDays` `defaultVatBps` `lateFeePolicy { enabled,
 monthlyBps, graceDays }` `invoiceFooter` `quoteValidityDays` `retentionYears` `brand { primary, accent }`
 
+The seed creates the row with `country` NG, `defaultCurrency` NGN, `timezone` Africa/Lagos, `defaultVatBps` 750, late
+fees disabled at 500 bps, `retentionYears` 7, and no bank accounts. `legalName`, `tradingName`, `tin`, `vatNumber`,
+`logoFileId`, `defaultPaymentTermsDays`, `invoiceFooter`, `quoteValidityDays` and `lateFeePolicy.graceDays` stay empty
+until the studio sets them. `numbering` holds only overrides of the defaults below.
+
 **counters** — `key` (e.g. `invoice`), `value`. Index: `by_key`.
 
 **businessHours** — `name` `timezone` `weekly[] { day 0-6, start "09:00", end "17:00" }` `isDefault`. Index: `by_default`.
@@ -351,8 +356,9 @@ body[], list?[] }` `status`.
 **messageLog** — `channel` (email, whatsapp) `to` `template` `subject?` `clientId?` `relatedTo { table, id }?`
 `providerMessageId` `status` (queued, sent, delivered, opened, bounced, failed) `events[]` `sentAt`.
 
-**files** — `storageId` `name` `mimeType` `sizeBytes` `sha256` `owner { table, id }` `clientId?` `projectId?`
-`visibility` (internal, client) `uploadedByKind` `uploadedById`.
+**files** — `storageId` `name` `mimeType` `sizeBytes` `sha256` (hex) `owner { table, id }` `clientId?` `projectId?`
+`visibility` (internal, client) `uploadedByKind` (team, client, system) `uploadedById`. Indexes: `by_owner`,
+`by_client`, `by_storage`.
 
 **auditLog** — `actorKind` (team, client, system) `actorId?` `authUserId?` `permission?` `action` (insert, update,
 delete, read) `table` `recordId` `diff { before?, after? }` (changed fields only, sensitive fields redacted) `ip?`

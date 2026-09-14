@@ -5,6 +5,7 @@ import { auditedDatabase } from './lib/audit';
 import { internalMutation } from './lib/functions';
 import { DEFAULT_ROLES, OWNER_ROLE_KEY } from './lib/permissions';
 import { normalizeEmail } from './lib/principals';
+import { DEFAULT_ORG_SETTINGS } from './lib/settings';
 import {
   DEFAULT_BUSINESS_HOURS,
   DEFAULT_SLA_POLICY_NAMES,
@@ -39,6 +40,12 @@ async function seedRoles(db: Db) {
     created++;
   }
   return { ids, created };
+}
+
+async function seedOrgSettings(db: Db) {
+  if (await db.query('orgSettings').first()) return { created: 0 };
+  await db.insert('orgSettings', DEFAULT_ORG_SETTINGS);
+  return { created: 1 };
 }
 
 async function seedBusinessHours(db: Db) {
@@ -206,6 +213,7 @@ export const run = internalMutation({
     const year = lagosYear(Date.now());
 
     const roles = await seedRoles(db);
+    const orgSettings = await seedOrgSettings(db);
     const businessHours = await seedBusinessHours(db);
     const holidays = await seedHolidays(db, [year, year + 1]);
     const slaPolicies = await seedSlaPolicies(db, businessHours.id);
@@ -219,6 +227,7 @@ export const run = internalMutation({
     return {
       created: {
         roles: roles.created,
+        orgSettings: orgSettings.created,
         businessHours: businessHours.created,
         holidays: holidays.created,
         slaPolicies: slaPolicies.created,
@@ -232,6 +241,7 @@ export const run = internalMutation({
           (y) => `No movable holiday estimates for ${y}; add Easter, Eid and Mawlid dates manually.`,
         ),
         'Movable holidays are estimates. Confirm the declared dates in Settings.',
+        ...(orgSettings.created ? ['Fill in the legal name, TIN, bank accounts and payment terms in Settings.'] : []),
       ],
     };
   },
