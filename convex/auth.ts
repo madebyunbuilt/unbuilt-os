@@ -19,6 +19,7 @@ import {
   TRUST_DEVICE_MAX_AGE_SECONDS,
 } from './lib/authPlugins';
 import { sessionQuery } from './lib/functions';
+import { allowedHosts, originOf } from './lib/hosts';
 import { PORTAL_SESSION_MAX_AGE_SECONDS, TEAM_SESSION_IDLE_MS } from './lib/principals';
 
 // Better Auth inside Convex (03-auth-and-permissions.md). One instance serves os.* and portal.*; cookies stay on the
@@ -31,19 +32,6 @@ export const authComponent = createClient<DataModel, typeof authSchema>(componen
 const MAGIC_LINK_EXPIRES_SECONDS = 15 * 60;
 const SESSION_UPDATE_AGE_SECONDS = 15 * 60;
 const JWT_EXPIRATION_SECONDS = 15 * 60;
-
-/** Hostnames this deployment serves, e.g. "os.unbuilt.studio,portal.unbuilt.studio". Wildcards allowed for previews. */
-function allowedHosts(): string[] {
-  const hosts = (process.env.AUTH_ALLOWED_HOSTS ?? 'localhost:3000,portal.localhost:3000')
-    .split(',')
-    .map((host) => host.trim())
-    .filter(Boolean);
-  return hosts;
-}
-
-const isLocalHost = (host: string) =>
-  host === 'localhost' || host.startsWith('localhost:') || /\.localhost(:\d+)?$/.test(host);
-const originOf = (host: string) => `${isLocalHost(host) ? 'http' : 'https'}://${host}`;
 
 function trustedOrigins(hosts: string[]): string[] {
   return hosts.map(originOf);
