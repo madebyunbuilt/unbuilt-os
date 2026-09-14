@@ -208,3 +208,22 @@ export function parseMoneyInput(input: string, currency: Currency): number {
   if (!Number.isSafeInteger(minor)) throw new MoneyError('amount is too large');
   return minor;
 }
+
+/** Parses a percentage typed by a person, such as "7.5", into basis points. At most two decimal places, 0 to 100. */
+export function parsePercentToBps(input: string): number {
+  const match = /^(\d{1,3})(?:\.(\d{0,2}))?$/.exec(input.trim().replace(/%$/, '').trim());
+  if (!match) throw new MoneyError(`"${input}" is not a percentage with at most two decimal places`);
+  const bps = Number(match[1]) * 100 + Number((match[2] ?? '').padEnd(2, '0') || '0');
+  if (bps > BPS_PER_WHOLE) throw new MoneyError('A percentage cannot be more than 100');
+  return bps;
+}
+
+/** Basis points as a percentage for display: 750 → "7.5", 1000 → "10". */
+export function formatBpsAsPercent(bps: number): string {
+  assertBps(bps, 'rate');
+  const whole = Math.floor(bps / 100);
+  const fraction = String(bps % 100)
+    .padStart(2, '0')
+    .replace(/0+$/, '');
+  return fraction ? `${whole}.${fraction}` : String(whole);
+}
