@@ -12,6 +12,7 @@ import {
   isOwner,
   memberView,
   onboardingChecklist,
+  permissionsNotHeld,
   roleByKey,
   teamError,
 } from './lib/team';
@@ -167,6 +168,21 @@ export const me = teamQuery(null)({
       ...memberView(member, ctx.principal.role, { canSeeRates: ctx.can('team.rates.sensitive'), now: Date.now() }),
       onboarding: await checklistView(ctx, member),
     };
+  },
+});
+
+/** Team roles the caller may give someone: never the Owner, never more than the caller holds. */
+export const assignableRoles = teamQuery('team.manage')({
+  args: {},
+  handler: async (ctx) => {
+    const roles = await ctx.db
+      .query('roles')
+      .withIndex('by_kind', (q) => q.eq('kind', 'team'))
+      .collect();
+    return roles
+      .filter((role) => !isOwner(role) && permissionsNotHeld(ctx.principal, role).length === 0)
+      .map((role) => ({ id: role._id, key: role.key, name: role.name, description: role.description }))
+      .sort((a, b) => a.name.localeCompare(b.name));
   },
 });
 

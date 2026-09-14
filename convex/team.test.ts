@@ -145,6 +145,35 @@ describe('team.invite', () => {
   });
 });
 
+describe('team.assignableRoles', () => {
+  it('lists the team roles the caller could give, never the Owner or anything beyond their own role', async () => {
+    const admin = await createTeamMember(t, roles.admin, { email: 'admin@unbuilt.studio' });
+    expect((await admin.as.query(api.team.assignableRoles, {})).map((role) => role.key)).toEqual([
+      'admin',
+      'content_editor',
+      'finance',
+      'member',
+      'project_manager',
+    ]);
+
+    const hrRole = await t.run((ctx) =>
+      ctx.db.insert('roles', {
+        key: 'custom_hr',
+        name: 'HR',
+        kind: 'team',
+        permissions: ['team.view', 'team.manage', 'timeoff.request'],
+        isSystem: false,
+        description: '',
+      }),
+    );
+    const hr = await createTeamMember(t, hrRole, { email: 'hr@unbuilt.studio' });
+    expect((await hr.as.query(api.team.assignableRoles, {})).map((role) => role.key)).toEqual(['custom_hr']);
+
+    const finance = await createTeamMember(t, roles.finance, { email: 'finance@unbuilt.studio' });
+    await expectCode(finance.as.query(api.team.assignableRoles, {}), 'auth.forbidden');
+  });
+});
+
 describe('invitation lifecycle', () => {
   it('stops working after 14 days and resending renews it', async () => {
     const admin = await createTeamMember(t, roles.admin, { email: 'admin@unbuilt.studio' });
