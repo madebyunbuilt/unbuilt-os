@@ -19,6 +19,9 @@ updates:
       # @convex-dev/better-auth supports better-auth 1.6.x only.
       - dependency-name: 'better-auth'
         update-types: ['version-update:semver-major', 'version-update:semver-minor']
+      # Must match the version better-auth depends on; the trusted-device cookie check signs with it.
+      - dependency-name: '@better-auth/utils'
+        update-types: ['version-update:semver-major', 'version-update:semver-minor']
 
   - package-ecosystem: github-actions
     directory: /
