@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from 'next';
 import { Anybody, Instrument_Sans } from 'next/font/google';
 import { ThemeProvider } from '@/components/app/theme-provider';
+import { themeScript } from '@/lib/theme';
 import './globals.css';
 
 const display = Anybody({
@@ -32,6 +33,10 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: LayoutProps<'/'>) {
   return (
     <html lang="en-NG" className={`${display.variable} ${body.variable} h-full`} suppressHydrationWarning>
+      <head>
+        {/* Sets the theme before first paint. A static string, never user input. */}
+        <script dangerouslySetInnerHTML={{ __html: themeScript }} />
+      </head>
       <body className="flex min-h-full flex-col">
         <ThemeProvider>{children}</ThemeProvider>
       </body>
