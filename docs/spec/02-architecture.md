@@ -114,6 +114,18 @@ Seed script (`convex/seed.ts`, internal mutation) creates default roles, permiss
 public holidays for the current and next year, default SLA policies, document templates, and sample data in
 development only. Seeding must be idempotent.
 
+- Run it with `pnpm convex run seed:run '{"ownerEmail":"...","ownerName":"..."}'`, adding `--prod` or `--deployment`
+  for other deployments. It only adds missing rows and never edits or removes existing ones, so it is safe to re-run.
+- The Owner invite is created once. Later runs report the existing Owner and ignore `ownerEmail`.
+- Business hours: Monday to Friday, 09:00 to 17:00, Africa/Lagos. SLA policies Standard, Priority and Retainer all
+  start with the default targets from `09`. One business day is 480 business minutes on that calendar.
+- Holidays: the fixed-date holidays for the current and next Lagos calendar year, plus estimated movable holidays with
+  `needsConfirmation = true` for years listed in `convex/lib/seedData.ts`.
+- Sample data (`includeSampleData: true`) needs `ALLOW_SAMPLE_DATA=true` on the deployment, which only development
+  sets. Sample people use `example.com` addresses.
+- Document templates are seeded with the documents module, which owns their table.
+- Seed writes are audited as the `system` actor with permission `seed`.
+
 ## CI/CD
 
 Mirror the website repo (`madebyunbuilt/unbuilt-studio-web`):

@@ -20,9 +20,11 @@ import type * as lib_money from "../lib/money.js";
 import type * as lib_numbering from "../lib/numbering.js";
 import type * as lib_permissions from "../lib/permissions.js";
 import type * as lib_principals from "../lib/principals.js";
+import type * as lib_seedData from "../lib/seedData.js";
 import type * as notifications from "../notifications.js";
 import type * as principals from "../principals.js";
 import type * as roles from "../roles.js";
+import type * as seed from "../seed.js";
 
 import type {
   ApiFromModules,
@@ -43,9 +45,11 @@ declare const fullApi: ApiFromModules<{
   "lib/numbering": typeof lib_numbering;
   "lib/permissions": typeof lib_permissions;
   "lib/principals": typeof lib_principals;
+  "lib/seedData": typeof lib_seedData;
   notifications: typeof notifications;
   principals: typeof principals;
   roles: typeof roles;
+  seed: typeof seed;
 }>;
 
 /**

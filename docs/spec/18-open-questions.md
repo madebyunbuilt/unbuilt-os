@@ -35,7 +35,7 @@ these.
 | Convex deployment region                                                 | **Decided 2026-09-13:** EU West (Ireland) for dev, staging and production |
 | Is Paystack USD enabled on the business account                          | USD via bank transfer until enabled                                       |
 | Team sign-in: magic link only, or also passkeys                          | Magic link + TOTP, passkeys optional                                      |
-| Final SLA targets per policy                                             | Defaults in `09`                                                          |
+| Final SLA targets per policy                                             | Defaults in `09`; Standard, Priority and Retainer all start with them     |
 | Change request signature threshold                                       | ₦500,000 or equivalent                                                    |
 | Default billing schedule for fixed-price projects                        | 50% on signature, 50% on final approval                                   |
 | Markup on billable expenses                                              | 0%                                                                        |

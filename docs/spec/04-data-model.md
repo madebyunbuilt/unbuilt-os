@@ -75,9 +75,11 @@ monthlyBps, graceDays }` `invoiceFooter` `quoteValidityDays` `retentionYears` `b
 
 **counters** — `key` (e.g. `invoice`), `value`. Index: `by_key`.
 
-**businessHours** — `name` `timezone` `weekly[] { day 0-6, start "09:00", end "17:00" }` `isDefault`.
+**businessHours** — `name` `timezone` `weekly[] { day 0-6, start "09:00", end "17:00" }` `isDefault`. Index: `by_default`.
 
-**holidays** — `date` `name` `country` `recurring` (fixed-date holidays), `source` (seed or manual). Index: `by_date`.
+**holidays** — `date` `name` `country` `recurring` (matches the month and day every year), `source` (seed or manual)
+`needsConfirmation` (movable holidays seeded as estimates). Index: `by_date`. The seed writes dated rows for each year
+with `recurring = false`.
 
 **fxRates** — `currency` `date` `rateToNgnMicro` `source` (manual). Index: `by_currency_date`.
 
@@ -279,8 +281,8 @@ Indexes: `by_invoice`, `by_reference`.
 ## Support and SLAs
 
 **slaPolicies**
-`name` `businessHoursId` `targets[] { priority (p1, p2, p3, p4), firstResponseMinutes, resolutionMinutes }`
-`includedMinutesPerMonth?` `uptimeTargetBps?` `active`.
+`name` `businessHoursId` `targets[] { priority (p1, p2, p3, p4), firstResponseMinutes, resolutionMinutes? }` (absent
+resolution means best effort) `includedMinutesPerMonth?` `uptimeTargetBps?` `active`. Index: `by_name`.
 
 **tickets**
 `number` `clientId` `projectId?` `slaPolicyId?` `subject` `description` `priority` `status` (open, pending_client,
