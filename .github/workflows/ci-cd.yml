@@ -49,8 +49,11 @@ jobs:
 
   preview:
     needs: check
-    # Pull requests from forks don't receive secrets, so they can't deploy.
-    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+    # Pull requests from forks and from Dependabot don't receive secrets, so they can't deploy.
+    if: >-
+      github.event_name == 'pull_request' &&
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      github.actor != 'dependabot[bot]'
     runs-on: ubuntu-latest
     permissions:
       contents: read
