@@ -20,4 +20,21 @@ describe('sign-in emails', () => {
     expect(email.html).toContain('482913');
     expect(email.text).toContain('482913');
   });
+
+  it('render the invitation with who invited them, the role, the link and the expiry date', async () => {
+    const url = 'https://os.unbuilt.studio/sign-in?email=dayo%40unbuilt.studio';
+    const email = await renderAuthEmail({
+      kind: 'invitation',
+      to: 'dayo@unbuilt.studio',
+      url,
+      inviterName: 'Unbuilt Studio',
+      roleName: 'Project manager',
+      expiresAt: Date.parse('2026-09-28T12:00:00Z'),
+    });
+    expect(email.subject).toBe('Unbuilt Studio invited you to Unbuilt OS');
+    expect(email.text).toContain(url);
+    expect(email.text).toContain('as Project manager');
+    expect(email.text).toContain('28 September 2026');
+    expect(email.html).toContain('Accept invitation');
+  });
 });

@@ -1,27 +1,44 @@
 import { render } from '@react-email/render';
 import { createElement } from 'react';
 import { Resend } from 'resend';
+import { InvitationEmail } from '../../emails/auth/invitation';
 import { MagicLinkEmail } from '../../emails/auth/magic-link';
 import { SignInCodeEmail } from '../../emails/auth/sign-in-code';
 
 // Sign-in emails (03-auth-and-permissions.md, Sign-in). Links and codes are secrets: never log them.
 
 export type AuthEmail =
-  { kind: 'magicLink'; to: string; url: string } | { kind: 'signInCode'; to: string; code: string };
+  | { kind: 'magicLink'; to: string; url: string }
+  | { kind: 'signInCode'; to: string; code: string }
+  | { kind: 'invitation'; to: string; url: string; inviterName: string; roleName: string; expiresAt: number };
 
 const DEFAULT_FROM = 'Unbuilt OS <onboarding@resend.dev>';
 
 export async function renderAuthEmail(email: AuthEmail): Promise<{ subject: string; html: string; text: string }> {
-  const element =
-    email.kind === 'magicLink'
-      ? createElement(MagicLinkEmail, { url: email.url })
-      : createElement(SignInCodeEmail, { code: email.code });
-  return {
-    subject:
-      email.kind === 'magicLink' ? 'Your Unbuilt OS sign-in link' : `${email.code} is your Unbuilt OS sign-in code`,
-    html: await render(element),
-    text: await render(element, { plainText: true }),
-  };
+  const { subject, element } = (() => {
+    switch (email.kind) {
+      case 'magicLink':
+        return { subject: 'Your Unbuilt OS sign-in link', element: createElement(MagicLinkEmail, { url: email.url }) };
+      case 'signInCode':
+        return {
+          subject: `${email.code} is your Unbuilt OS sign-in code`,
+          element: createElement(SignInCodeEmail, { code: email.code }),
+        };
+      case 'invitation':
+        return {
+          subject: `${email.inviterName} invited you to Unbuilt OS`,
+          element: createElement(InvitationEmail, {
+            url: email.url,
+            inviterName: email.inviterName,
+            roleName: email.roleName,
+            expiresOn: new Intl.DateTimeFormat('en-GB', { dateStyle: 'long', timeZone: 'Africa/Lagos' }).format(
+              email.expiresAt,
+            ),
+          }),
+        };
+    }
+  })();
+  return { subject, html: await render(element), text: await render(element, { plainText: true }) };
 }
 
 export async function sendAuthEmail(email: AuthEmail): Promise<void> {
