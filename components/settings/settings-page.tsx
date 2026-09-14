@@ -1,7 +1,7 @@
 import { type ReactNode } from 'react';
 import { getViewer } from '@/lib/viewer';
 
-/** A settings section: the heading, and the form only when the role holds the permission the section needs. */
+/** A settings section: the heading, and the form only when the role holds a permission the section needs. */
 export async function SettingsPage({
   title,
   description,
@@ -10,11 +10,13 @@ export async function SettingsPage({
 }: {
   title: string;
   description: string;
-  permission: string;
+  /** Any one of these shows the form; the form itself may be read-only for some of them. */
+  permission: string | readonly string[];
   children: ReactNode;
 }) {
   const viewer = await getViewer();
-  const allowed = viewer?.permissions.includes(permission) ?? false;
+  const needed = typeof permission === 'string' ? [permission] : permission;
+  const allowed = needed.some((key) => viewer?.permissions.includes(key));
   return (
     <section aria-labelledby="settings-section-heading">
       <h2 id="settings-section-heading" className="font-display text-2xl font-bold">

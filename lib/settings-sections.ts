@@ -34,9 +34,9 @@ export const SETTINGS_SECTIONS: readonly SettingsSection[] = [
   {
     label: 'Business hours and holidays',
     href: '/settings/business-hours',
-    description: 'Working hours and public holidays for SLA timers',
+    description: 'Working hours and public holidays for SLA timers and time off',
     anyOf: ['settings.manage', 'sla.manage'],
-    built: false,
+    built: true,
   },
   {
     label: 'SLA policies',

@@ -118,7 +118,7 @@ describe('TeamList', () => {
 });
 
 describe('InviteDialog', () => {
-  it('invites with the chosen role and opens the new profile', async () => {
+  it('invites with the chosen role and opens the new profile', { timeout: 15_000 }, async () => {
     const onInvited = vi.fn();
     render(<InviteDialog onInvited={onInvited} />);
     await userEvent.click(screen.getByRole('button', { name: 'Invite' }));

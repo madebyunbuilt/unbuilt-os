@@ -1,4 +1,4 @@
-import { memberStatus } from '@/lib/team-display';
+import { memberStatus, type StatusTone } from '@/lib/team-display';
 import { cn } from '@/lib/utils';
 
 const TONE_CLASS = {
@@ -8,8 +8,7 @@ const TONE_CLASS = {
   muted: 'bg-muted text-muted-foreground',
 } as const;
 
-export function StatusBadge({ member }: { member: Parameters<typeof memberStatus>[0] }) {
-  const { label, tone } = memberStatus(member);
+export function ToneBadge({ label, tone }: { label: string; tone: StatusTone }) {
   return (
     <span
       className={cn('inline-flex rounded-full px-2 py-0.5 text-xs font-medium whitespace-nowrap', TONE_CLASS[tone])}
@@ -17,4 +16,8 @@ export function StatusBadge({ member }: { member: Parameters<typeof memberStatus
       {label}
     </span>
   );
+}
+
+export function StatusBadge({ member }: { member: Parameters<typeof memberStatus>[0] }) {
+  return <ToneBadge {...memberStatus(member)} />;
 }
