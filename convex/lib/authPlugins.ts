@@ -167,7 +167,11 @@ export function secondFactorRules(resolvePrincipalKind: ResolvePrincipalKind): B
  * to run first: an idle team session is deleted before Better Auth can refresh it. The session is read straight from
  * the cookie because getSessionFromCtx caches its result for the endpoint, which would stop the normal refresh.
  */
-export function expireIdleTeamSessions(resolvePrincipalKind: ResolvePrincipalKind, idleMs: number): BetterAuthPlugin {
+export function expireIdleTeamSessions(
+  resolvePrincipalKind: ResolvePrincipalKind,
+  resolveLastActiveAt: (session: { id: string; createdAt: Date }) => Promise<number>,
+  idleMs: number,
+): BetterAuthPlugin {
   return {
     id: 'unbuilt-expire-idle-team-sessions',
     hooks: {
@@ -179,7 +183,13 @@ export function expireIdleTeamSessions(resolvePrincipalKind: ResolvePrincipalKin
             const token = await ctx.getSignedCookie(cookieName, ctx.context.secret);
             if (!token) return;
             const found = await ctx.context.internalAdapter.findSession(token);
-            if (!found || Date.now() - new Date(found.session.updatedAt).getTime() <= idleMs) return;
+            if (!found) return;
+            // Real use, not Better Auth's updatedAt: token renewals refresh that while a tab sits untouched.
+            const lastActive = await resolveLastActiveAt({
+              id: found.session.id,
+              createdAt: new Date(found.session.createdAt),
+            });
+            if (Date.now() - lastActive <= idleMs) return;
             if ((await resolvePrincipalKind(found.user)) !== 'team') return;
 
             await ctx.context.internalAdapter.deleteSession(token);

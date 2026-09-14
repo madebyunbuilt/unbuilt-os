@@ -38,6 +38,7 @@ import type * as notifications from "../notifications.js";
 import type * as principals from "../principals.js";
 import type * as roles from "../roles.js";
 import type * as seed from "../seed.js";
+import type * as sessionActivity from "../sessionActivity.js";
 import type * as settings from "../settings.js";
 import type * as team from "../team.js";
 import type * as teamInvites from "../teamInvites.js";
@@ -80,6 +81,7 @@ declare const fullApi: ApiFromModules<{
   principals: typeof principals;
   roles: typeof roles;
   seed: typeof seed;
+  sessionActivity: typeof sessionActivity;
   settings: typeof settings;
   team: typeof team;
   teamInvites: typeof teamInvites;

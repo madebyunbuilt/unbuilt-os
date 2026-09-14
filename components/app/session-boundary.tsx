@@ -19,7 +19,7 @@ export function isSessionError(error: unknown): boolean {
 type State = { error: unknown };
 
 /** Shows "Your session has ended" for session errors from Convex; every other error continues to the error page. */
-export class SessionBoundary extends Component<{ children: ReactNode }, State> {
+export class SessionBoundary extends Component<{ children: ReactNode; reload?: () => void }, State> {
   state: State = { error: null };
 
   static getDerivedStateFromError(error: unknown): State {
@@ -34,7 +34,8 @@ export class SessionBoundary extends Component<{ children: ReactNode }, State> {
     const { error } = this.state;
     if (error === null) return this.props.children;
     if (!isSessionError(error)) throw error;
-    return <SessionEnded onRetry={() => this.setState({ error: null })} />;
+    // A reload fetches a fresh sign-in token; re-rendering alone would retry with the one that failed.
+    return <SessionEnded onRetry={this.props.reload ?? (() => window.location.reload())} />;
   }
 }
 

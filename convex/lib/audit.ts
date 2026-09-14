@@ -15,6 +15,11 @@ export const SENSITIVE_FIELDS: Partial<Record<TableNames, readonly string[]>> = 
 export const REDACTED = '[redacted]';
 
 const APPEND_ONLY_TABLES: ReadonlySet<string> = new Set<TableNames>(['auditLog']);
+/**
+ * Operational data that is not a change anyone makes to a record: auditing a heartbeat every few minutes per person
+ * would bury the log. Still refused in append-only tables; nothing else skips the log.
+ */
+const UNAUDITED_TABLES: ReadonlySet<string> = new Set<TableNames>(['sessionActivity']);
 const TABLE_NAMES = Object.keys(schema.tables) as TableNames[];
 
 export type AuditActor = {
@@ -118,6 +123,7 @@ export function auditedDatabase(db: DatabaseWriter, actor: AuditActor): Database
     async insert(table: TableNames, value: Fields) {
       refuseAppendOnly(table);
       const id = await db.insert(table, value as never);
+      if (UNAUDITED_TABLES.has(table)) return id;
       await appendAuditEntry(db, actor, { action: 'insert', table, recordId: id, after: await db.get(table, id) });
       return id;
     },
@@ -127,6 +133,7 @@ export function auditedDatabase(db: DatabaseWriter, actor: AuditActor): Database
       refuseAppendOnly(table);
       const before = await db.get(table, id);
       await db.patch(table, id as never, rest[0] as never);
+      if (UNAUDITED_TABLES.has(table)) return;
       await appendAuditEntry(db, actor, {
         action: 'update',
         table,
@@ -141,6 +148,7 @@ export function auditedDatabase(db: DatabaseWriter, actor: AuditActor): Database
       refuseAppendOnly(table);
       const before = await db.get(table, id);
       await db.replace(table, id as never, rest[0] as never);
+      if (UNAUDITED_TABLES.has(table)) return;
       await appendAuditEntry(db, actor, {
         action: 'update',
         table,
@@ -155,6 +163,7 @@ export function auditedDatabase(db: DatabaseWriter, actor: AuditActor): Database
       refuseAppendOnly(table);
       const before = await db.get(table, id);
       await db.delete(table, id as never);
+      if (UNAUDITED_TABLES.has(table)) return;
       await appendAuditEntry(db, actor, { action: 'delete', table, recordId: id, before });
     },
   };
