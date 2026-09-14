@@ -12,6 +12,13 @@ updates:
     groups:
       minor-and-patch:
         update-types: [minor, patch]
+    ignore:
+      # Types follow the Node major we run (.nvmrc).
+      - dependency-name: '@types/node'
+        update-types: ['version-update:semver-major']
+      # @convex-dev/better-auth supports better-auth 1.6.x only.
+      - dependency-name: 'better-auth'
+        update-types: ['version-update:semver-major', 'version-update:semver-minor']
 
   - package-ecosystem: github-actions
     directory: /
