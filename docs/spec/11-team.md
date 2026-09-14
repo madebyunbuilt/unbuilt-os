@@ -44,6 +44,13 @@
 - Employment type (employee or contractor) describes how someone works with the studio. It does not limit which roles
   they can have; access comes only from the role.
 - Invitation emails open `/sign-in` with the invited address filled in.
+- `/team/time-off` (`timeoff.request` or `timeoff.approve`; linked from `/team` and `/team/me`):
+  - request time off: type, first and last day, half day for a single date, note
+  - approvers see requests waiting for a decision (approve, or decline with a note) and "Record for someone", which lists
+    active members other than themselves (the Owner included)
+  - with `team.view`, a Monday-first month calendar of who is off on each working day, with public holidays, pending
+    requests outlined in the "not built yet" blue, and a list of the month's time off with cancel where allowed
+  - your own time off with status, who decided it and cancel while allowed, and the public holidays in the coming year
 
 ## Onboarding and offboarding
 

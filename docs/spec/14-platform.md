@@ -175,7 +175,7 @@ How it is built (`convex/lib/files.ts`, `convex/files.ts`):
 (`settings.billing.sensitive`, which includes bank accounts, numbering, VAT, late fees, payment terms and the invoice
 footer). Bank accounts are never returned by the organisation view and are redacted in audit diffs.
 
-The screens live at `/settings/organisation` and `/settings/billing`. The settings menu lists every section the role can
+The screens live at `/settings/organisation`, `/settings/billing` and `/settings/business-hours`. The settings menu lists every section the role can
 reach and marks the ones not built yet. Percentages are typed as percentages with at most two decimals and stored as basis
 points (`parsePercentToBps` and `formatBpsAsPercent` in `convex/lib/money.ts`). Changing a number format shows the next
 number it will produce and never resets a counter.
@@ -186,7 +186,9 @@ Sections, each permission-gated:
 - **Billing**: bank accounts, defaults, numbering, late fees, reminders (`settings.billing.sensitive`).
 - **Tax**: VAT and WHT defaults.
 - **Pipeline stages and lost reasons.**
-- **Business hours and holidays.**
+- **Business hours and holidays** (`settings.manage` edits; `sla.manage` sees them read-only): the name, timezone and
+  one window per open day; the public holidays for last, this and next year, where estimated dates are confirmed, declared
+  days added and added days removed.
 - **SLA policies.**
 - **Templates**: documents, projects, intake forms, checklists.
 - **Roles and permissions.**

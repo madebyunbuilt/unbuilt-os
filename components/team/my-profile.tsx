@@ -1,6 +1,7 @@
 'use client';
 
 import { useMutation, useQuery } from 'convex/react';
+import Link from 'next/link';
 import { useMemo, useState } from 'react';
 import { ImageUploadField, uploadToStorage } from '@/components/app/image-upload-field';
 import { SaveStatus } from '@/components/settings/form-field';
@@ -53,9 +54,14 @@ function MyProfileForm({ me }: { me: NonNullable<typeof api.team.me._returnType>
 
   return (
     <div className="space-y-10">
-      <header>
-        <h1 className="font-display text-3xl font-bold">{me.name}</h1>
-        <p className="text-muted-foreground">{[me.title, me.role?.name, me.email].filter(Boolean).join(' · ')}</p>
+      <header className="flex flex-wrap items-start gap-3">
+        <div className="min-w-0">
+          <h1 className="font-display text-3xl font-bold">{me.name}</h1>
+          <p className="text-muted-foreground">{[me.title, me.role?.name, me.email].filter(Boolean).join(' · ')}</p>
+        </div>
+        <Link href="/team/time-off" className="text-sm underline underline-offset-4 sm:ml-auto">
+          Time off
+        </Link>
       </header>
 
       <section aria-labelledby="photo-heading" className="space-y-4">

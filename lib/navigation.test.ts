@@ -25,6 +25,10 @@ describe('navigation', () => {
     expect(labels(navigationFor('team', permissionsOf('content_editor')))).toEqual(['Home', 'Team', 'Website']);
   });
 
+  it('shows project managers Settings, where business hours and holidays are read-only for them', () => {
+    expect(labels(navigationFor('team', permissionsOf('project_manager')))).toContain('Settings');
+  });
+
   it('hides finance from Members and drops empty sections', () => {
     const sections = navigationFor('team', permissionsOf('member'));
     expect(labels(sections)).toEqual(['Home', 'Projects', 'Documents', 'Expenses', 'Tickets', 'Vault', 'Team']);
