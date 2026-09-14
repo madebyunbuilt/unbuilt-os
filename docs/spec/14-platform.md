@@ -202,6 +202,8 @@ Sections, each permission-gated:
   - Each host serves its own manifest (`Unbuilt OS`, `Unbuilt client portal`), so they install as separate apps.
   - The service worker (`public/sw.js`, production only) caches only the offline page and its icons, and answers page
     loads with it when the network is unreachable. It never caches app data.
+- If the session ends while a page is open (signed out elsewhere, revoked, idle, or the sign-in token cannot be renewed),
+  the page shows "Your session has ended" with "Sign in again" and "Try again" instead of an error.
 - Dark mode following the system with a manual toggle (account menu and command palette). The choice is stored in the
   browser and applied by an inline script in the root layout before first paint.
 - Responsive to 360 px wide: a sidebar from 1024 px, a slide-out menu below.
