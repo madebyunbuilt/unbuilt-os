@@ -118,13 +118,15 @@ Index: `by_status_received`.
 `displayName` `legalName` `kind` (company, individual) `status` (lead, active, past, archived) `industry` `website`
 `country` `addressLines[]` `tin` `vatTreatment` (standard, zero_rated, exempt) `whtApplies` `whtBps`
 `defaultCurrency` `paymentTermsDays` `timezone` `ownerMemberId` `source` `tags[]` `notes`
-`slaPolicyId?` `portalEnabled`.
-Indexes: `by_status`, `by_owner`. Search index on `displayName` and `legalName`.
+`slaPolicyId?` `portalEnabled`. Fields added with the CRM are optional so earlier rows stay valid; absent means empty,
+standard VAT and no WHT.
+Indexes: `by_status`, `by_owner`. Search index on `displayName`.
 
 **contacts**
-`clientId` `name` `email` `phone` `whatsapp` `whatsappOptIn { at, method }?` `jobTitle` `isPrimary` `isBilling`
-`portalAccess` `portalRoleId?` `authUserId?` `status` (active, left).
-Indexes: `by_client`, `by_email`, `by_authUser`, `by_portalRole`. Search index on `name` and `email`. Emails are stored
+`clientId` `name` `email` `phone` `whatsapp` `whatsappOptIn { at, method, recordedBy? }?` `jobTitle` `isPrimary`
+`isBilling` `portalAccess` `portalRoleId?` `portalInvitedAt?` `portalInviteLastSentAt?` `authUserId?` `status` (active,
+left) `leftAt?`.
+Indexes: `by_client`, `by_email`, `by_authUser`, `by_portalRole`. Search indexes on `name` and `email`. Emails are stored
 lowercase.
 
 **pipelineStages** — `name` `order` `probabilityBps` `kind` (open, won, lost).
@@ -137,7 +139,7 @@ Indexes: `by_stage`, `by_client`, `by_owner_followup`.
 **activities** (timeline entries)
 `subject { table, id }` (client, contact, deal, project, ticket) `clientId?` `type` (note, call, meeting, email_sent,
 email_received, whatsapp_sent, status_change, document_event, payment_event, system) `title` `body?` `actorKind`
-`actorId?` `occurredAt` `meta`.
+`actorId?` `occurredAt` `mentions[]?` (team members) `editedAt?` `meta`.
 Indexes: `by_subject_occurred`, `by_client_occurred`.
 
 **meetings** — `title` `startAt` `endAt` `attendeeContactIds[]` `attendeeMemberIds[]` `dealId?` `clientId?`
@@ -145,7 +147,7 @@ Indexes: `by_subject_occurred`, `by_client_occurred`.
 
 **rateCardItems**
 `name` `description` `serviceSlug?` `unit` (fixed, hour, day, week, month) `prices[] { currency, unitPriceMinor }`
-`taxable` `active` `category`.
+`taxable` `active` `category`. Indexes: `by_active_name`, `by_name`.
 
 **intakeForms** — `name` `fields[] { key, label, type, required, options? }` `projectTemplateId?`.
 **intakeResponses** — `formId` `clientId` `projectId?` `answers` `submittedByContactId` `submittedAt`.

@@ -3,6 +3,7 @@ import { createElement } from 'react';
 import { Resend } from 'resend';
 import { InvitationEmail } from '../../emails/auth/invitation';
 import { MagicLinkEmail } from '../../emails/auth/magic-link';
+import { PortalInvitationEmail } from '../../emails/auth/portal-invitation';
 import { SignInCodeEmail } from '../../emails/auth/sign-in-code';
 
 // Sign-in emails (03-auth-and-permissions.md, Sign-in). Links and codes are secrets: never log them.
@@ -10,7 +11,8 @@ import { SignInCodeEmail } from '../../emails/auth/sign-in-code';
 export type AuthEmail =
   | { kind: 'magicLink'; to: string; url: string }
   | { kind: 'signInCode'; to: string; code: string }
-  | { kind: 'invitation'; to: string; url: string; inviterName: string; roleName: string; expiresAt: number };
+  | { kind: 'invitation'; to: string; url: string; inviterName: string; roleName: string; expiresAt: number }
+  | { kind: 'portalInvitation'; to: string; url: string; inviterName: string; clientName: string };
 
 const DEFAULT_FROM = 'Unbuilt OS <onboarding@resend.dev>';
 
@@ -34,6 +36,15 @@ export async function renderAuthEmail(email: AuthEmail): Promise<{ subject: stri
             expiresOn: new Intl.DateTimeFormat('en-GB', { dateStyle: 'long', timeZone: 'Africa/Lagos' }).format(
               email.expiresAt,
             ),
+          }),
+        };
+      case 'portalInvitation':
+        return {
+          subject: `${email.inviterName} invited you to the Unbuilt client portal`,
+          element: createElement(PortalInvitationEmail, {
+            url: email.url,
+            inviterName: email.inviterName,
+            clientName: email.clientName,
           }),
         };
     }

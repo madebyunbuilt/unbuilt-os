@@ -92,6 +92,32 @@
   the client's primary contact through the portal.
 - Responses attach to the client and project and are visible on the project overview.
 
+## Decisions and rules (studio, 2026-09-14)
+
+- **Won** needs a project, and projects arrive in step 4, so moving a deal to Won is disabled until then.
+- **Deleting a client** (`clients.delete`) works only while nothing depends on it: no contact has signed in to the
+  portal, and no deals, projects, invoices or documents (each module adds its check). Otherwise the client is archived.
+  Archived clients are hidden from the list unless filtered for. Contacts who never signed in can also be deleted;
+  others are marked left.
+- **Billing details** (legal name, address, TIN, VAT treatment, WHT, default currency, payment terms) are edited with
+  `invoices.update`: the Owner, Admins and Finance. Project managers edit the rest of the client and see billing details
+  read-only.
+- **Timeline**: anyone with `clients.view` adds notes, calls and meetings to a client or its contacts (up to a year
+  before or after today). Authors edit and delete their own; the Owner and Admins (`clients.delete`) can delete anyone's
+  but not edit them. Automatic entries cannot be edited or deleted. A client's timeline includes its contacts' entries.
+  Mentions are stored as `@[Name](member:ID)` and notify active members other than the author, including members newly
+  mentioned when a note is edited.
+- **Enquiry IP address and browser** are shown only to `audit.view` holders (the Owner and Admins).
+- **Portal access**: an address can have portal access at one client only and never when it belongs to a team member
+  who is not offboarded. A contact's email cannot change while they have portal access or have signed in. Giving the
+  first portal access at a client turns the client portal on. Turning a client's portal off, revoking access or marking
+  a contact as left signs them out at once.
+- **WhatsApp opt-in** records how and by whom consent was given. Changing the contact's WhatsApp number or marking them
+  as left withdraws it.
+- The client list search matches any part of the display or legal name.
+- The acknowledgement email to people who send an enquiry is built with the communications step; until then new
+  enquiries notify the team in-app only.
+
 ## Acceptance criteria
 
 - A website enquiry with a valid Turnstile token appears in the inbox and notifies `enquiries.manage` holders; an
