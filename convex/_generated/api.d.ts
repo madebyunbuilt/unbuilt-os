@@ -32,6 +32,7 @@ import type * as lib_seedData from "../lib/seedData.js";
 import type * as lib_settings from "../lib/settings.js";
 import type * as lib_team from "../lib/team.js";
 import type * as lib_timeOff from "../lib/timeOff.js";
+import type * as lib_timeOffFormat from "../lib/timeOffFormat.js";
 import type * as lib_validation from "../lib/validation.js";
 import type * as notifications from "../notifications.js";
 import type * as principals from "../principals.js";
@@ -73,6 +74,7 @@ declare const fullApi: ApiFromModules<{
   "lib/settings": typeof lib_settings;
   "lib/team": typeof lib_team;
   "lib/timeOff": typeof lib_timeOff;
+  "lib/timeOffFormat": typeof lib_timeOffFormat;
   "lib/validation": typeof lib_validation;
   notifications: typeof notifications;
   principals: typeof principals;

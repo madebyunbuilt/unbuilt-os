@@ -16,7 +16,7 @@ const OUTPUT = join(import.meta.dirname, '..', 'convex', 'betterAuth', 'schema.t
 // Indexes the component's adapter queries by, in addition to unique and reference fields.
 const MANUAL_INDEXES: Record<string, (string | string[])[]> = {
   account: ['accountId', ['accountId', 'providerId'], ['providerId', 'userId']],
-  rateLimit: ['key'],
+  rateLimit: ['key', 'lastRequest'],
   session: ['expiresAt', ['expiresAt', 'userId']],
   verification: ['expiresAt', 'identifier'],
   user: [['email', 'name'], 'name', 'userId'],
