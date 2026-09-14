@@ -80,6 +80,22 @@ export default defineSchema({
     .index('by_portalRole', ['portalRoleId'])
     .searchIndex('search_name', { searchField: 'name', filterFields: ['clientId'] }),
 
+  notifications: defineTable({
+    recipientKind: v.union(v.literal('team'), v.literal('client')),
+    // teamMembers or contacts id, depending on recipientKind
+    recipientId: v.string(),
+    event: v.string(),
+    title: v.string(),
+    body: v.string(),
+    // An in-app path, e.g. /billing/invoices/abc
+    link: v.optional(v.string()),
+    readAt: v.optional(v.number()),
+    channels: v.object({ inApp: v.boolean(), email: v.optional(v.boolean()), whatsapp: v.optional(v.boolean()) }),
+    createdAt: v.number(),
+  })
+    .index('by_recipient_read', ['recipientKind', 'recipientId', 'readAt', 'createdAt'])
+    .index('by_recipient_created', ['recipientKind', 'recipientId', 'createdAt']),
+
   // Append-only. Written only by convex/lib/audit.ts; no function updates or deletes an entry.
   auditLog: defineTable({
     actorKind: v.union(v.literal('team'), v.literal('client'), v.literal('system')),

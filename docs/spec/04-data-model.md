@@ -340,8 +340,9 @@ body[], list?[] }` `status`.
 
 ## Platform
 
-**notifications** — `recipientKind` `recipientId` `event` `title` `body` `link` `readAt?` `channels { inApp, email?,
-whatsapp? }` `createdAt`. Index: `by_recipient_read`.
+**notifications** — `recipientKind` (team, client) `recipientId` (team member or contact id) `event` `title` `body`
+`link?` (in-app path) `readAt?` `channels { inApp, email?, whatsapp? }` `createdAt`. Indexes: `by_recipient_read`,
+`by_recipient_created`.
 
 **notificationPreferences** — `principalKind` `principalId` `event` `inApp` `email` `whatsapp`.
 

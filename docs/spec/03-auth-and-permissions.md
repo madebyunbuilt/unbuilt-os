@@ -62,6 +62,10 @@ The builders put `ctx.principal`, `ctx.permissions`, `ctx.clientId` (portal only
 context. Portal builders also add `ctx.ownedByClient(doc)`, which returns a document only when it belongs to
 `ctx.clientId`.
 
+Passing `null` as the permission (`teamQuery(null)`, `portalMutation(null)`) allows any active principal of that
+surface. Use it only for the caller's own records that every principal has, such as their notifications; every other
+check still applies.
+
 `sessionQuery` accepts any signed-in session, with or without a principal or 2FA. It exists only for reading the
 caller's own sign-in state (`auth.viewer`) and must never return business data. `tokenQuery`, `tokenMutation` and
 `publicHttp` are added with the first module that needs them (documents, billing, CRM enquiries).
