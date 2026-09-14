@@ -1,9 +1,13 @@
 import { httpRouter } from 'convex/server';
 import { authComponent, createAuth } from './auth';
+import { download } from './files';
 
 const http = httpRouter();
 
 // Better Auth at /api/auth/*. The Next.js app proxies these routes so cookies stay on its own hostnames.
 authComponent.registerRoutes(http, createAuth);
+
+// Signed, short-lived file downloads (convex/files.ts).
+http.route({ path: '/files/download', method: 'GET', handler: download });
 
 export default http;
