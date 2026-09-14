@@ -13,6 +13,7 @@ import {
   type LucideIcon,
   Receipt,
   Settings,
+  Tag,
   Truck,
   Users,
   Wallet,
@@ -36,6 +37,7 @@ const ICONS: Record<NavIconName, LucideIcon> = {
   globe: Globe,
   chart: ChartColumn,
   settings: Settings,
+  tag: Tag,
 };
 
 export function NavIcon({ name, className }: { name: NavIconName; className?: string }) {

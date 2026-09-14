@@ -9,6 +9,7 @@ export type NavIcon =
   | 'inbox'
   | 'handshake'
   | 'building'
+  | 'tag'
   | 'folder'
   | 'file'
   | 'receipt'
@@ -41,7 +42,8 @@ export const TEAM_NAVIGATION: readonly NavSection[] = [
     items: [
       { label: 'Enquiries', href: '/crm/enquiries', icon: 'inbox', anyOf: ['enquiries.view'], built: false },
       { label: 'Deals', href: '/crm/deals', icon: 'handshake', anyOf: ['deals.view'], built: false },
-      { label: 'Clients', href: '/crm/clients', icon: 'building', anyOf: ['clients.view'], built: false },
+      { label: 'Clients', href: '/crm/clients', icon: 'building', anyOf: ['clients.view'], built: true },
+      { label: 'Rate card', href: '/crm/rate-card', icon: 'tag', anyOf: ['ratecard.view'], built: true },
     ],
   },
   {
