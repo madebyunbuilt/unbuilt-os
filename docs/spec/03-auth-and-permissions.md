@@ -31,7 +31,11 @@ two email addresses. Never let one session act on both surfaces.
 - Client users have two-factor on from account creation and only use emailed codes. "New device" means a device
   without a trusted-device cookie, which lasts 30 days after a successful code.
 - Team sessions expire after 12 hours of inactivity; portal sessions after 7 days. Inactivity is measured from the last
-  session refresh, which Better Auth records at most every 15 minutes while the app is open.
+  session refresh, which Better Auth records at most every 15 minutes while the app is open. Because every request
+  refreshes the session, `expireIdleTeamSessions` checks idleness first and deletes an idle team session instead of
+  refreshing it; the team function wrappers check it again.
+- Team 2FA backup codes are shown once, at setup. The verify screen accepts an authenticator code or a backup code for
+  team members, and an emailed code (with an opt-out "trust this device" checkbox) for client users.
 - Invitations only. There is no public sign-up on either surface. Team members are invited by `team.manage`; client
   users by `contacts.manage` (team) or `portal.colleagues.manage` (client admin). An account can be created only for
   an email address that belongs to exactly one invited team member or one contact with portal access. Sign-in requests
