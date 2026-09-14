@@ -28,7 +28,7 @@
 - Suspending and offboarding revoke sessions at once. Offboarding keeps the record and its history. The project, task,
   ticket and vault steps of offboarding are added by those modules.
 - The "2FA enabled" onboarding item is ticked automatically and cannot be edited; other items record who ticked them.
-- Time off: nobody approves their own request, except the Owner.
+- Time off: nobody approves, declines, records or cancels their own time off as an approver, except the Owner.
 
 ### Screens
 
@@ -66,6 +66,23 @@
 - `timeoff.approve` holders approve or decline; the member is notified.
 - Approved time off reduces capacity and shows on the team calendar and project timelines.
 - Public holidays from `holidays` apply to everyone automatically.
+
+### Decisions and rules (studio, 2026-09-14)
+
+- Dates are whole days in the studio's timezone. A half day covers a single date. Requests count **working days**: days
+  with default business hours that are not public holidays. A request with no working days is refused, and a member's
+  requested or approved time off cannot overlap.
+- Members request annual, sick, unpaid or other leave. `public` is not requested; public holidays come from `holidays`.
+- **Privacy**: the type, note and decision note are visible only to the member and `timeoff.approve` holders. Everyone
+  else with `team.view` sees only that the person is off, and only once approved.
+- **Cancelling**: members withdraw their own pending requests at any time and cancel their approved time off until its
+  first day. After that, an approver cancels it.
+- **Recording for someone**: an approver can enter time off for another active member, such as sick leave phoned in. It
+  is approved at once and records the approver as the person who entered and approved it.
+- Notifications (in-app now; email with the communications step): approvers on a request; the member on a decision,
+  on time off recorded for them, and when an approver cancels theirs; the approver when a member cancels approved time
+  off.
+- Offboarding cancels the member's pending requests and approved time off that starts after their last day.
 
 ## Capacity planning
 

@@ -16,6 +16,7 @@ import {
   roleByKey,
   teamError,
 } from './lib/team';
+import { cancelOpenTimeOff } from './lib/timeOff';
 import { isE164, isEmail, isIsoDate, isTimeZone } from './lib/validation';
 
 // Team members (11-team.md): invitations, profiles, roles, rates, suspension, offboarding, ownership and onboarding.
@@ -369,12 +370,10 @@ export const offboard = teamMutation('team.manage')({
     if (role) assertAssignableRole(ctx.principal, role);
     if (member.status === 'offboarded') throw teamError('team.offboarded', 'This member is already offboarded');
     if (member.status === 'invited') throw teamError('team.notActive', 'Cancel the invitation instead');
-    await ctx.db.patch('teamMembers', memberId, {
-      status: 'offboarded',
-      endDate: date(endDate, 'End date'),
-      offboardedAt: Date.now(),
-    });
+    const lastDay = date(endDate, 'End date')!;
+    await ctx.db.patch('teamMembers', memberId, { status: 'offboarded', endDate: lastDay, offboardedAt: Date.now() });
     if (member.authUserId) await revokeAllSessions(ctx, member.authUserId);
+    await cancelOpenTimeOff(ctx, memberId, lastDay, ctx.principal.member._id);
   },
 });
 

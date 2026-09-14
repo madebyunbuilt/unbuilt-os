@@ -84,7 +84,7 @@ until the studio sets them. `numbering` holds only overrides of the defaults bel
 
 **holidays** — `date` `name` `country` `recurring` (matches the month and day every year), `source` (seed or manual)
 `needsConfirmation` (movable holidays seeded as estimates). Index: `by_date`. The seed writes dated rows for each year
-with `recurring = false`.
+with `recurring = false`. Names are unique within a year.
 
 **fxRates** — `currency` `date` `rateToNgnMicro` `source` (manual). Index: `by_currency_date`.
 
@@ -101,7 +101,9 @@ Indexes: `by_authUser`, `by_email`, `by_status`, `by_role`. Emails are stored lo
 **roles** — `key` `name` `kind` (team, client) `permissions[]` `isSystem` `description`. Indexes: `by_kind`, `by_key`.
 
 **timeOff** — `memberId` `type` (annual, sick, public, unpaid, other) `startDate` `endDate` `halfDay` `status`
-(requested, approved, declined, cancelled) `note` `decidedBy` `decidedAt`. Index: `by_member_start`.
+(requested, approved, declined, cancelled) `note` `requestedBy` (the member, or an approver recording it) `decidedBy`
+`decidedAt` `decisionNote` `cancelledBy` `cancelledAt`. Dates are YYYY-MM-DD in the studio's timezone. Indexes:
+`by_member_start`, `by_status_end`.
 
 **teamAgreements** — `memberId` `documentId` (NDA, contractor agreement, employment contract) `type` `signedAt`.
 

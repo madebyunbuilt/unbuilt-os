@@ -1,11 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import {
   addBusinessMinutes,
+  assertValidCalendar,
   type BusinessCalendar,
   businessMinutesBetween,
   BusinessTimeError,
   DEFAULT_BUSINESS_CALENDAR,
   type Holiday,
+  localDateString,
 } from './businessTime';
 
 const lagos = DEFAULT_BUSINESS_CALENDAR;
@@ -142,5 +144,14 @@ describe('businessMinutesBetween', () => {
       const minutes = Math.floor(random() * 10 * 8 * 60);
       expect(between(start, add(start, minutes, holidays), holidays)).toBe(minutes);
     }
+  });
+});
+
+describe('calendar helpers', () => {
+  it('gives the local date of an instant and validates calendars', () => {
+    // 23:30 UTC on 31 December is already 1 January in Lagos.
+    expect(localDateString(Date.parse('2026-12-31T23:30:00Z'), 'Africa/Lagos')).toBe('2027-01-01');
+    expect(() => assertValidCalendar(DEFAULT_BUSINESS_CALENDAR)).not.toThrow();
+    expect(() => assertValidCalendar({ timezone: 'Africa/Lagos', weekly: [] })).toThrow(/no business hours/);
   });
 });
