@@ -9,6 +9,7 @@ import schema from '../schema';
 /** Fields replaced with REDACTED in audit diffs. One list per table, shared with the sensitive-field serializers. */
 export const SENSITIVE_FIELDS: Partial<Record<TableNames, readonly string[]>> = {
   teamMembers: ['costRateMinor', 'billRateMinor'],
+  orgSettings: ['bankAccounts'],
 };
 
 export const REDACTED = '[redacted]';
@@ -67,10 +68,12 @@ export async function appendAuditEntry(
     after?: Fields | null;
   },
 ): Promise<void> {
-  const diff = fieldDiff(
-    entry.before ? redact(entry.table, entry.before) : null,
-    entry.after ? redact(entry.table, entry.after) : null,
-  );
+  // Diff first, then redact, so a change to a sensitive field is still recorded, without its values.
+  const changed = fieldDiff(entry.before ?? null, entry.after ?? null);
+  const diff = {
+    ...(changed.before ? { before: redact(entry.table, changed.before) } : {}),
+    ...(changed.after ? { after: redact(entry.table, changed.after) } : {}),
+  };
   await db.insert('auditLog', {
     ...actor,
     action: entry.action,
