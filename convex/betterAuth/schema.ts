@@ -75,7 +75,9 @@ export const tables = {
     key: v.string(),
     count: v.number(),
     lastRequest: v.number(),
-  }).index('key', ['key']),
+  })
+    .index('key', ['key'])
+    .index('lastRequest', ['lastRequest']),
 };
 
 export default defineSchema(tables);
