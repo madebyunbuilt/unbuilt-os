@@ -2,7 +2,7 @@
 @import 'tw-animate-css';
 @import 'shadcn/tailwind.css';
 
-/* Dark mode follows the system unless the viewer overrides it (next-themes sets the class). */
+/* Dark mode follows the system unless the viewer overrides it (lib/theme.ts sets the class). */
 @custom-variant dark (&:where(.dark, .dark *));
 
 /*

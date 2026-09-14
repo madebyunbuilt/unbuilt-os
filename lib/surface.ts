@@ -13,8 +13,19 @@ export function surfaceForHost(host: string | null | undefined): Surface {
   return hostname.startsWith('portal.') || PORTAL_PREVIEW_HOST.test(hostname) ? 'portal' : 'team';
 }
 
-/** Routes served identically on both hosts, without a session: sign-in, the auth API, signing and paying links. */
-const SHARED_PUBLIC_PREFIXES = ['/api/auth', '/sign-in', '/sign', '/pay'];
+/**
+ * Routes served identically on both hosts, without a session: sign-in, the auth API, signing and paying links, and what
+ * an installed app needs (manifest, service worker, offline page).
+ */
+const SHARED_PUBLIC_PREFIXES = [
+  '/api/auth',
+  '/sign-in',
+  '/sign',
+  '/pay',
+  '/offline',
+  '/manifest.webmanifest',
+  '/sw.js',
+];
 
 const matchesPrefix = (pathname: string, prefix: string) => pathname === prefix || pathname.startsWith(`${prefix}/`);
 

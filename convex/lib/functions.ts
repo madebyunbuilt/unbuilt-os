@@ -24,24 +24,27 @@ import {
 // any other file imports a raw builder.
 //
 //   export const list = teamQuery('clients.view')({ args: {}, handler: async (ctx) => ... });
+//
+// Pass `null` as the permission only for a caller's own records that every principal of the surface has, such as their
+// notifications; every other check (session, principal, 2FA, idle time, client scope) still applies.
 
-function teamActor(principal: TeamPrincipal, permission: string): AuditActor {
+function teamActor(principal: TeamPrincipal, permission: string | null): AuditActor {
   return {
     actorKind: 'team',
     actorId: principal.member._id,
     authUserId: principal.session.authUserId,
-    permission,
+    permission: permission ?? undefined,
     ip: principal.session.ip,
     userAgent: principal.session.userAgent,
   };
 }
 
-function clientActor(principal: ClientPrincipal, permission: string): AuditActor {
+function clientActor(principal: ClientPrincipal, permission: string | null): AuditActor {
   return {
     actorKind: 'client',
     actorId: principal.contact._id,
     authUserId: principal.session.authUserId,
-    permission,
+    permission: permission ?? undefined,
     ip: principal.session.ip,
     userAgent: principal.session.userAgent,
   };
@@ -69,13 +72,13 @@ function clientContext(principal: ClientPrincipal) {
   };
 }
 
-export const teamQuery = (permission: TeamPermission) =>
+export const teamQuery = (permission: TeamPermission | null) =>
   customQuery(
     query,
     customCtx(async (ctx) => teamContext(await requireTeamPrincipal(ctx, permission))),
   );
 
-export const teamMutation = (permission: TeamPermission) =>
+export const teamMutation = (permission: TeamPermission | null) =>
   customMutation(
     mutation,
     customCtx(async (ctx) => {
@@ -84,13 +87,13 @@ export const teamMutation = (permission: TeamPermission) =>
     }),
   );
 
-export const portalQuery = (permission: PortalPermission) =>
+export const portalQuery = (permission: PortalPermission | null) =>
   customQuery(
     query,
     customCtx(async (ctx) => clientContext(await requireClientPrincipal(ctx, permission))),
   );
 
-export const portalMutation = (permission: PortalPermission) =>
+export const portalMutation = (permission: PortalPermission | null) =>
   customMutation(
     mutation,
     customCtx(async (ctx) => {

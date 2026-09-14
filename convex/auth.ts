@@ -137,7 +137,10 @@ export const createAuthOptions = (ctx: GenericCtx<DataModel>) => {
 
 export const createAuth = (ctx: GenericCtx<DataModel>) => betterAuth(createAuthOptions(ctx));
 
-/** Sign-in state for the current session: what the app needs to route a person to setup, verification or home. */
+/**
+ * Sign-in state for the current session: what the app needs to route a person to setup, verification or home, and the
+ * role's permission keys so navigation can hide what the person cannot open. Functions still check every permission.
+ */
 export const viewer = sessionQuery({
   args: {},
   handler: async (ctx) => {
@@ -153,12 +156,20 @@ export const viewer = sessionQuery({
           .withIndex('by_authUser', (q) => q.eq('authUserId', authUserId))
           .unique();
 
-    const principal =
+    const found =
       member?.status === 'active'
-        ? { kind: 'team' as const, name: member.name }
-        : contact?.status === 'active' && contact.portalAccess
-          ? { kind: 'client' as const, name: contact.name }
+        ? { kind: 'team' as const, name: member.name, roleId: member.roleId }
+        : contact?.status === 'active' && contact.portalAccess && contact.portalRoleId
+          ? { kind: 'client' as const, name: contact.name, roleId: contact.portalRoleId }
           : null;
-    return { email, principal, needsTwoFactorSetup: principal?.kind === 'team' && !twoFactorEnabled };
+    const role = found ? await ctx.db.get('roles', found.roleId) : null;
+    const principal = found && role ? { kind: found.kind, name: found.name, roleName: role.name } : null;
+
+    return {
+      email,
+      principal,
+      permissions: principal && role ? role.permissions : [],
+      needsTwoFactorSetup: principal?.kind === 'team' && !twoFactorEnabled,
+    };
   },
 });

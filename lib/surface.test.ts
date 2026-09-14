@@ -47,7 +47,16 @@ describe('routeRequest', () => {
 
   it('serves sign-in, signing, paying and the auth API on both hosts', () => {
     for (const surface of ['team', 'portal'] as const) {
-      for (const pathname of ['/sign-in', '/sign-in/verify', '/api/auth/get-session', '/sign/abc', '/pay/abc']) {
+      for (const pathname of [
+        '/sign-in',
+        '/sign-in/verify',
+        '/api/auth/get-session',
+        '/sign/abc',
+        '/pay/abc',
+        '/offline',
+        '/manifest.webmanifest',
+        '/sw.js',
+      ]) {
         expect(routeRequest({ surface, pathname, search: '', hasSessionCookie: false })).toEqual({ type: 'next' });
       }
     }

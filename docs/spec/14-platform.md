@@ -174,9 +174,17 @@ Sections, each permission-gated:
 ## App shell
 
 - Installable PWA for both surfaces: manifest, icons from the brand kit, offline page. No offline data editing.
-- Dark mode following the system with a manual toggle.
-- Responsive to 360 px wide.
-- Keyboard shortcuts for common actions, listed under `?`.
+  - Each host serves its own manifest (`Unbuilt OS`, `Unbuilt client portal`), so they install as separate apps.
+  - The service worker (`public/sw.js`, production only) caches only the offline page and its icons, and answers page
+    loads with it when the network is unreachable. It never caches app data.
+- Dark mode following the system with a manual toggle (account menu and command palette). The choice is stored in the
+  browser and applied by an inline script in the root layout before first paint.
+- Responsive to 360 px wide: a sidebar from 1024 px, a slide-out menu below.
+- Keyboard shortcuts for common actions, listed under `?`. `⌘K` / `Ctrl K` opens the command palette.
+- Navigation shows each module the role can use (any of the module's permissions). Modules not built yet stay in the
+  menu in the drawing colour, marked "Not built yet", and cannot be opened.
+- The notifications bell shows the unread count (capped at 99+) in hi-vis, the latest 50 notifications grouped by day in
+  the viewer's timezone, and marks items read when opened. Links in notifications must be in-app paths.
 
 ## Acceptance criteria
 

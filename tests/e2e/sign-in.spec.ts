@@ -55,6 +55,24 @@ test.describe('team host', () => {
     await expect(page.getByRole('button', { name: 'Email me a sign-in link' })).toBeInViewport();
   });
 
+  test('renders without console errors', async ({ page }) => {
+    const errors: string[] = [];
+    page.on('console', (message) => {
+      if (message.type() === 'error') errors.push(message.text());
+    });
+    await page.goto('/sign-in');
+    await expect(page.getByRole('heading', { name: 'Sign in' })).toBeVisible();
+    expect(errors).toEqual([]);
+  });
+
+  test('applies a saved theme over the system setting before the page paints', async ({ page }) => {
+    await page.emulateMedia({ colorScheme: 'light' });
+    await page.addInitScript(() => localStorage.setItem('unbuilt-theme', 'dark'));
+    await page.goto('/sign-in');
+    // Read as soon as the document exists, before React hydrates.
+    expect(await page.evaluate(() => document.documentElement.classList.contains('dark'))).toBe(true);
+  });
+
   test('follows the system dark mode', async ({ page }) => {
     await page.emulateMedia({ colorScheme: 'dark' });
     await page.goto('/sign-in');
