@@ -369,6 +369,12 @@ export const remove = teamMutation('clients.delete')({
 });
 
 /** Records that stop a client being deleted. Each module that links records to clients adds its check here. */
-async function dependents(_ctx: Ctx, _clientId: Id<'clients'>): Promise<string[]> {
-  return [];
+async function dependents(ctx: Ctx, clientId: Id<'clients'>): Promise<string[]> {
+  const blockers: string[] = [];
+  const deal = await ctx.db
+    .query('deals')
+    .withIndex('by_client', (q) => q.eq('clientId', clientId))
+    .first();
+  if (deal) blockers.push('deals');
+  return blockers;
 }

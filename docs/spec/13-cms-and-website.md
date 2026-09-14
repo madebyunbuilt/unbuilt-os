@@ -87,7 +87,7 @@ files) are a separate PR in the website repo, described below.
 
 `POST /public/enquiries` (Convex HTTP action):
 
-- CORS allows only `https://unbuilt.studio` and the website's preview domains.
+- CORS allows only the origins in `ENQUIRY_ALLOWED_ORIGINS`: `https://unbuilt.studio` and the website's preview domains.
 - Body: the enquiry sheet fields plus `turnstileToken`.
 - Verifies Turnstile server-side, rate-limits (5 per hour per IP, 3 per day per email), validates with Zod, stores the
   enquiry, schedules notifications, and returns `{ ok: true }` with no internal ids.

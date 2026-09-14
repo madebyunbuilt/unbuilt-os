@@ -12,4 +12,10 @@ crons.cron('confirm public holidays', '0 8 2 1 *', internal.holidays.januaryRemi
 // 04:00 Lagos: forget activity from sessions that are long idle or gone.
 crons.daily('clear old session activity', { hourUTC: 3, minuteUTC: 0 }, internal.sessionActivity.cleanup, {});
 
+// 17:00 Lagos: remind deal owners of missed follow-ups and deals gone quiet.
+crons.daily('deal follow-up reminders', { hourUTC: 16, minuteUTC: 0 }, internal.deals.sendFollowUpReminders, {});
+
+// 04:30 Lagos: forget old rate-limit windows for public endpoints.
+crons.daily('clear old rate limits', { hourUTC: 3, minuteUTC: 30 }, internal.enquiries.cleanupRateLimits, {});
+
 export default crons;

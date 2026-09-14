@@ -100,14 +100,17 @@ permissions itself (see `03-auth-and-permissions.md`).
 
 Convex environment variables, set per deployment and never committed:
 
-| Variable             | Purpose                                                                                              |
-| -------------------- | ---------------------------------------------------------------------------------------------------- |
-| `BETTER_AUTH_SECRET` | Signs cookies and encrypts two-factor secrets. Different on every deployment                         |
-| `AUTH_ALLOWED_HOSTS` | Hostnames the app is served on, comma-separated, wildcards allowed. Defaults to localhost            |
-| `RESEND_API_KEY`     | Sending-only Resend key. Separate keys per environment                                               |
-| `APP_URL`            | The team app's address for links in emails. Defaults to the first exact host in `AUTH_ALLOWED_HOSTS` |
-| `FILE_URL_SECRET`    | Signs short-lived file download links. At least 32 characters, different on every deployment         |
-| `AUTH_EMAIL_FROM`    | Sender for sign-in emails. Defaults to Resend's test sender until the domain is verified             |
+| Variable                  | Purpose                                                                                                                                               |
+| ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `BETTER_AUTH_SECRET`      | Signs cookies and encrypts two-factor secrets. Different on every deployment                                                                          |
+| `AUTH_ALLOWED_HOSTS`      | Hostnames the app is served on, comma-separated, wildcards allowed. Defaults to localhost                                                             |
+| `RESEND_API_KEY`          | Sending-only Resend key. Separate keys per environment                                                                                                |
+| `APP_URL`                 | The team app's address for links in emails. Defaults to the first exact host in `AUTH_ALLOWED_HOSTS`                                                  |
+| `FILE_URL_SECRET`         | Signs short-lived file download links. At least 32 characters, different on every deployment                                                          |
+| `AUTH_EMAIL_FROM`         | Sender for sign-in emails. Defaults to Resend's test sender until the domain is verified                                                              |
+| `PORTAL_URL`              | The client portal's address for links in emails. Defaults to the first exact `portal.` host                                                           |
+| `TURNSTILE_SECRET_KEY`    | Cloudflare Turnstile secret for the enquiry endpoint. Without it every enquiry is refused (503). Development and staging use Cloudflare's test secret |
+| `ENQUIRY_ALLOWED_ORIGINS` | Origins allowed to post enquiries, comma-separated, `*` within a host label. Defaults to `https://unbuilt.studio`                                     |
 
 Staging allows `unbuilt-os-pr-*.vercel.app`; production allows `os.unbuilt.studio`, `portal.unbuilt.studio` and
 `unbuilt-os.vercel.app`.
