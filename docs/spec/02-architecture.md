@@ -34,7 +34,8 @@ unbuilt-os/
     pay/[token]/       public invoice view and pay page (token-gated)
   components/
     ui/                shadcn/ui primitives
-    app/               shared app components (data table, money input, status badge, command palette)
+    app/               shared app components (data table, money input, status badge)
+    app/shell/         app shell: navigation, command palette, notifications bell, account menu, shortcuts
     <module>/          module-specific components
   convex/
     schema.ts
@@ -63,7 +64,7 @@ unbuilt-os/
     notifications/  search/  reports/  integrations/  imports/  privacy/  settings/
   emails/              React Email templates
   pdf/                 react-pdf document templates
-  lib/                 client-side utilities
+  lib/                 client-side utilities: surface routing, navigation, theme, auth client
   public/brand/        mark and wordmark SVGs from the brand kit
   tests/e2e/           Playwright
   docs/spec/           this specification
