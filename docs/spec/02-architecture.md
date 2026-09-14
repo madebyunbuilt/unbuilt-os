@@ -27,8 +27,9 @@
 unbuilt-os/
   app/
     (team)/            team app routes, served on os.unbuilt.studio
-    (portal)/          client portal routes, served on portal.unbuilt.studio
-    (auth)/            sign-in, magic link landing, 2FA
+    portal/            client portal routes, served on portal.unbuilt.studio through a rewrite
+    (auth)/            sign-in, 2FA verification and team 2FA setup
+    api/auth/          proxy to Better Auth in Convex, so cookies stay on the app's own hosts
     sign/[token]/      public signing ceremony (token-gated, no session required)
     pay/[token]/       public invoice view and pay page (token-gated)
   components/
@@ -74,9 +75,16 @@ unbuilt-os/
 
 `proxy.ts` inspects the host:
 
-- `os.unbuilt.studio` (and `localhost:3000` in dev) serves `(team)` and `(auth)`.
-- `portal.unbuilt.studio` (and `portal.localhost:3000` in dev) rewrites to `(portal)` and `(auth)`; any team path returns 404.
-- `sign/[token]` and `pay/[token]` are reachable on both hosts.
+`lib/surface.ts` holds the rules; `proxy.ts` applies them.
+
+- `os.unbuilt.studio` (and `localhost:3000` in dev, `unbuilt-os-pr-<n>.vercel.app` on previews) serves `(team)` and
+  `(auth)`. `/portal` returns 404 there.
+- `portal.unbuilt.studio` (and `portal.localhost:3000` in dev, `unbuilt-os-portal-pr-<n>.vercel.app` on previews) rewrites
+  every path into `app/portal/`, so team paths resolve to nothing and return 404. Portal pages use a real `portal/`
+  segment rather than a route group because both surfaces need their own `/`.
+- `/sign-in`, `/api/auth`, `sign/[token]` and `pay/[token]` are reachable on both hosts without a session.
+- Other paths without a session cookie redirect to `/sign-in?callbackURL=...`. This is an optimistic check; layouts and
+  Convex functions verify the session.
 
 Hostname routing is a convenience, not a security boundary. Every Convex function enforces identity and
 permissions itself (see `03-auth-and-permissions.md`).
