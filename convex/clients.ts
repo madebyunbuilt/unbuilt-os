@@ -147,6 +147,18 @@ export const get = teamQuery('clients.view')({
   },
 });
 
+/** Active SLA policies a client can be put on. */
+export const slaPolicyOptions = teamQuery('clients.view')({
+  args: {},
+  handler: async (ctx) => {
+    const policies = await ctx.db.query('slaPolicies').collect();
+    return policies
+      .filter((policy) => policy.active)
+      .map((policy) => ({ id: policy._id, name: policy.name }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  },
+});
+
 /** Tags and industries in use, for filters and suggestions. */
 export const facets = teamQuery('clients.view')({
   args: {},

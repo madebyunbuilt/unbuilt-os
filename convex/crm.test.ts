@@ -196,6 +196,34 @@ describe('clients', () => {
   });
 });
 
+describe('client options', () => {
+  it('lists active SLA policies and client portal roles for clients.view only', async () => {
+    await t.run(async (ctx) => {
+      const hoursId = await ctx.db.insert('businessHours', {
+        name: 'Studio',
+        timezone: 'Africa/Lagos',
+        weekly: [{ day: 1, start: '09:00', end: '17:00' }],
+        isDefault: true,
+      });
+      for (const [name, active] of [
+        ['Standard', true],
+        ['Legacy', false],
+      ] as const) {
+        await ctx.db.insert('slaPolicies', { name, businessHoursId: hoursId, targets: [], active });
+      }
+    });
+    expect((await finance.as.query(api.clients.slaPolicyOptions, {})).map((p) => p.name)).toEqual(['Standard']);
+    expect((await finance.as.query(api.contacts.portalRoles, {})).map((r) => r.key).sort()).toEqual([
+      'client_admin',
+      'client_member',
+    ]);
+    await expectCode(member.as.query(api.clients.slaPolicyOptions, {}), 'auth.forbidden');
+    await expectCode(member.as.query(api.contacts.portalRoles, {}), 'auth.forbidden');
+    const portal = await createClientUser(t, roles.client_admin, { clientName: 'Portal Co', email: 'ada@portal.co' });
+    await expectCode(portal.as.query(api.contacts.portalRoles, {}), 'auth.forbidden');
+  });
+});
+
 describe('contacts', () => {
   it('adds contacts with the first as primary, and refuses duplicates on the same client', async () => {
     const clientId = await pm.as.mutation(api.clients.create, newClient());

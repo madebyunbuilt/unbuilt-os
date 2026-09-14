@@ -141,6 +141,27 @@
   `enquiries.manage`, `deals.manage`, and `clients.create` or `contacts.manage` for records it creates.
 - **Manual enquiries** (email, referral, in person) start as reviewed and notify the other `enquiries.manage` holders.
 
+## Screens
+
+- `/crm/clients` (`clients.view`): search on display or legal name, filters for status (archived only when chosen), tag
+  and industry, and "New client" (`clients.create`), which opens the new client.
+- `/crm/clients/[id]` has a header (status, legal name, industry, owner, Edit with `clients.update`) and tabs. Tabs for
+  modules not built yet (deals until the sales screens, projects, documents, invoices, tickets, vault, assets, files)
+  stay visible but inert; Vault shows only with a vault permission.
+  - **Overview**: open deals (`deals.view`) totalled per currency, placeholders for billed, outstanding, projects and
+    tickets, the latest five timeline entries, details, and a status change with a reason (`clients.update`).
+  - **Contacts**: cards with primary, billing, WhatsApp opt-in and portal status. With `contacts.manage`: add and edit,
+    make primary, give portal access (automatic or chosen role), change the portal role, resend the invite, remove
+    access, record or withdraw WhatsApp opt-in with its method, mark as left or as a contact again, and delete someone
+    who never signed in. The email cannot be edited while they have portal access or have signed in.
+  - **Activity**: the full timeline with a composer for notes, calls (with a time) and meetings. "Mention someone"
+    inserts `@Name`; the name becomes mention markup when saved, and removing it from the text drops the mention.
+  - **Settings**: billing details (editable with `invoices.update`, read-only otherwise), SLA policy
+    (`clients.update`), the client portal switch (`contacts.manage`; turning it off asks first), archive or restore
+    (`clients.update`) and delete (`clients.delete`).
+- `/crm/rate-card` (`ratecard.view`, in the CRM menu): items with unit, category, VAT and a price column per currency;
+  add, edit, retire and bring back with `ratecard.manage`. Retired items are hidden unless shown.
+
 ## Acceptance criteria
 
 - A website enquiry with a valid Turnstile token appears in the inbox and notifies `enquiries.manage` holders; an

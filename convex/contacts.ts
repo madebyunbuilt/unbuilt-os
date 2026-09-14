@@ -113,6 +113,20 @@ export const listForClient = teamQuery('clients.view')({
   },
 });
 
+/** Client roles a contact's portal access can use. */
+export const portalRoles = teamQuery('clients.view')({
+  args: {},
+  handler: async (ctx) => {
+    const roles = await ctx.db
+      .query('roles')
+      .withIndex('by_kind', (q) => q.eq('kind', 'client'))
+      .collect();
+    return roles
+      .map((role) => ({ id: role._id, key: role.key, name: role.name, description: role.description }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  },
+});
+
 /** Finds contacts by name or email across clients, for pickers and duplicate checks. */
 export const search = teamQuery('clients.view')({
   args: { query: v.string() },
