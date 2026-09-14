@@ -4,6 +4,7 @@ import { deleteFile, recordUpload } from './lib/files';
 import { teamMutation, teamQuery } from './lib/functions';
 import { DEFAULT_NUMBERING, type NumberedRecord } from './lib/numbering';
 import { billingView, ensureOrgSettings, getOrgSettings, organisationView } from './lib/settings';
+import { isTimeZone } from './lib/validation';
 
 // Organisation and billing settings (14-platform.md, Settings). Organisation details need settings.manage; billing
 // defaults, numbering and bank accounts need settings.billing.sensitive.
@@ -25,15 +26,6 @@ function wholeDays(value: number | undefined, label: string): number | undefined
   if (!Number.isInteger(value) || value < 0 || value > 365)
     invalid(`${label} must be a whole number of days, 0 to 365`);
   return value;
-}
-
-function isTimeZone(value: string): boolean {
-  try {
-    new Intl.DateTimeFormat('en', { timeZone: value });
-    return true;
-  } catch {
-    return false;
-  }
 }
 
 export const getOrganisation = teamQuery('settings.manage')({

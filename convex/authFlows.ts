@@ -50,7 +50,7 @@ export const linkAuthUser = internalMutation({
       const before = principal.member;
       await ctx.db.patch('teamMembers', before._id, {
         authUserId,
-        ...(before.status === 'invited' ? { status: 'active' as const } : {}),
+        ...(before.status === 'invited' ? { status: 'active' as const, acceptedAt: Date.now() } : {}),
       });
       const after = await ctx.db.get('teamMembers', before._id);
       await appendAuditEntry(ctx.db, actor, {

@@ -180,6 +180,8 @@ export type FileAccessRule = {
 export const FILE_ACCESS: Partial<Record<TableNames, FileAccessRule>> = {
   // The studio logo appears on documents; every team member may fetch it.
   orgSettings: { team: () => true },
+  // Avatars appear across the team app.
+  teamMembers: { team: () => true },
 };
 
 export function canReadFile(
