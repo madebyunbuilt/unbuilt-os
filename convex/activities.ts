@@ -11,6 +11,7 @@ import {
   plainMentions,
   requirePermission,
   text,
+  touchDeal,
 } from './lib/crm';
 import { teamMutation, teamQuery } from './lib/functions';
 import { notifyTeamMembers } from './lib/notify';
@@ -31,22 +32,42 @@ const DEFAULT_TITLES: Record<(typeof MANUAL_TYPES)[number], string> = {
   meeting: 'Meeting',
 };
 
-const subject = v.object({ table: v.union(v.literal('clients'), v.literal('contacts')), id: v.string() });
+const subject = v.object({
+  table: v.union(v.literal('clients'), v.literal('contacts'), v.literal('deals')),
+  id: v.string(),
+});
 const manualType = v.union(v.literal('note'), v.literal('call'), v.literal('meeting'));
 
-/** Checks the caller may see the subject and returns the client it belongs to. */
-async function resolveSubject(ctx: Ctx & Principal, target: ActivitySubject): Promise<Id<'clients'>> {
-  requirePermission(ctx.principal, 'clients.view');
+/**
+ * Checks the caller may see the subject and returns the client it belongs to, and where a mention should link. Clients
+ * and contacts need clients.view; deals need deals.view.
+ */
+async function resolveSubject(
+  ctx: Ctx & Principal,
+  target: ActivitySubject,
+): Promise<{ clientId: Id<'clients'>; link: string; label: string }> {
   switch (target.table) {
     case 'clients': {
+      requirePermission(ctx.principal, 'clients.view');
       const id = ctx.db.normalizeId('clients', target.id);
       if (!id) throw crmError('crm.notFound', 'Client not found');
-      return (await getClient(ctx, id))._id;
+      const client = await getClient(ctx, id);
+      return { clientId: client._id, link: `/crm/clients/${client._id}`, label: client.displayName };
     }
     case 'contacts': {
+      requirePermission(ctx.principal, 'clients.view');
       const id = ctx.db.normalizeId('contacts', target.id);
       if (!id) throw crmError('crm.notFound', 'Contact not found');
-      return (await getContact(ctx, id)).clientId;
+      const contact = await getContact(ctx, id);
+      const client = await getClient(ctx, contact.clientId);
+      return { clientId: client._id, link: `/crm/clients/${client._id}`, label: client.displayName };
+    }
+    case 'deals': {
+      requirePermission(ctx.principal, 'deals.view');
+      const id = ctx.db.normalizeId('deals', target.id);
+      const deal = id ? await ctx.db.get('deals', id) : null;
+      if (!deal) throw crmError('crm.notFound', 'Deal not found');
+      return { clientId: deal.clientId, link: `/crm/deals/${deal._id}`, label: deal.title };
     }
     default:
       throw crmError('crm.invalid', 'This timeline is not available yet');
@@ -67,7 +88,7 @@ function canDelete(principal: TeamPrincipal, entry: Doc<'activities'>) {
 export const list = teamQuery(null)({
   args: { subject, paginationOpts: paginationOptsValidator },
   handler: async (ctx, { subject: target, paginationOpts }) => {
-    const clientId = await resolveSubject(ctx, target);
+    const { clientId } = await resolveSubject(ctx, target);
     const query =
       target.table === 'clients'
         ? ctx.db.query('activities').withIndex('by_client_occurred', (q) => q.eq('clientId', clientId))
@@ -140,19 +161,18 @@ async function validMentions(ctx: Ctx, body: string): Promise<Id<'teamMembers'>[
 async function notifyMentions(
   ctx: MutationCtx & Principal,
   memberIds: Id<'teamMembers'>[],
-  clientId: Id<'clients'>,
+  where: { link: string; label: string },
   body: string,
 ) {
   const me = ctx.principal.member;
   const recipients = memberIds.filter((id) => id !== me._id);
   if (recipients.length === 0) return;
-  const client = await getClient(ctx, clientId);
   const plain = plainMentions(body);
   await notifyTeamMembers(ctx, recipients, {
     event: 'mention',
-    title: `${me.name} mentioned you on ${client.displayName}`,
+    title: `${me.name} mentioned you on ${where.label}`,
     body: plain.length > 200 ? `${plain.slice(0, 199)}…` : plain,
-    link: `/crm/clients/${clientId}`,
+    link: where.link,
   });
 }
 
@@ -165,21 +185,23 @@ export const add = teamMutation(null)({
     occurredAt: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
-    const clientId = await resolveSubject(ctx, args.subject);
+    const where = await resolveSubject(ctx, args.subject);
     const body = checkedBody(args.body);
     const mentions = await validMentions(ctx, body);
+    const occurredAt = checkedOccurredAt(args.occurredAt);
     const id = await ctx.db.insert('activities', {
       subject: args.subject,
-      clientId,
+      clientId: where.clientId,
       type: args.type,
       title: text(args.title, 'Title', { max: 120 }) ?? DEFAULT_TITLES[args.type],
       body,
       actorKind: 'team',
       actorId: ctx.principal.member._id,
-      occurredAt: checkedOccurredAt(args.occurredAt),
+      occurredAt,
       mentions,
     });
-    await notifyMentions(ctx, mentions, clientId, body);
+    if (args.subject.table === 'deals') await touchDeal(ctx, args.subject.id, occurredAt);
+    await notifyMentions(ctx, mentions, where, body);
     return id;
   },
 });
@@ -187,8 +209,7 @@ export const add = teamMutation(null)({
 async function getEntry(ctx: Ctx & Principal, activityId: Id<'activities'>) {
   const entry = await ctx.db.get('activities', activityId);
   if (!entry) throw crmError('crm.notFound', 'Timeline entry not found');
-  await resolveSubject(ctx, entry.subject);
-  return entry;
+  return { entry, where: await resolveSubject(ctx, entry.subject) };
 }
 
 /** Authors edit their own notes, calls and meetings. Newly mentioned members are notified. */
@@ -200,7 +221,7 @@ export const update = teamMutation(null)({
     occurredAt: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
-    const entry = await getEntry(ctx, args.activityId);
+    const { entry, where } = await getEntry(ctx, args.activityId);
     if (!canEdit(ctx.principal, entry)) {
       throw crmError(
         'crm.cannotEdit',
@@ -217,14 +238,12 @@ export const update = teamMutation(null)({
       editedAt: Date.now(),
     });
     const before = new Set(entry.mentions ?? []);
-    if (entry.clientId) {
-      await notifyMentions(
-        ctx,
-        mentions.filter((id) => !before.has(id)),
-        entry.clientId,
-        body,
-      );
-    }
+    await notifyMentions(
+      ctx,
+      mentions.filter((id) => !before.has(id)),
+      where,
+      body,
+    );
   },
 });
 
@@ -232,7 +251,7 @@ export const update = teamMutation(null)({
 export const remove = teamMutation(null)({
   args: { activityId: v.id('activities') },
   handler: async (ctx, { activityId }) => {
-    const entry = await getEntry(ctx, activityId);
+    const { entry } = await getEntry(ctx, activityId);
     if (!canDelete(ctx.principal, entry)) {
       throw crmError(
         'crm.cannotDelete',

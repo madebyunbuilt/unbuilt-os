@@ -265,6 +265,94 @@ export default defineSchema({
     .index('by_subject_occurred', ['subject.table', 'subject.id', 'occurredAt'])
     .index('by_client_occurred', ['clientId', 'occurredAt']),
 
+  enquiries: defineTable({
+    source: v.union(v.literal('website'), v.literal('manual'), v.literal('email'), v.literal('referral')),
+    name: v.string(),
+    // Lowercase
+    email: v.string(),
+    company: v.optional(v.string()),
+    // Website service slugs, e.g. web, mobile, design
+    services: v.array(v.string()),
+    // The website form's option ids (convex/lib/enquiries.ts has the labels)
+    stage: v.optional(v.string()),
+    budget: v.optional(v.string()),
+    timeline: v.optional(v.string()),
+    about: v.optional(v.string()),
+    status: v.union(
+      v.literal('new'),
+      v.literal('reviewed'),
+      v.literal('converted'),
+      v.literal('spam'),
+      v.literal('closed'),
+    ),
+    clientId: v.optional(v.id('clients')),
+    dealId: v.optional(v.id('deals')),
+    // Personal data kept for abuse checks; shown only with audit.view.
+    ip: v.optional(v.string()),
+    userAgent: v.optional(v.string()),
+    turnstilePassed: v.boolean(),
+    receivedAt: v.number(),
+    // Team member who entered a manual, email or referral enquiry
+    createdBy: v.optional(v.id('teamMembers')),
+    decidedBy: v.optional(v.id('teamMembers')),
+    decidedAt: v.optional(v.number()),
+  })
+    .index('by_status_received', ['status', 'receivedAt'])
+    .index('by_email', ['email']),
+
+  // Fixed-window counters for public endpoints, e.g. key "enquiry:ip:203.0.113.7".
+  publicRateLimits: defineTable({
+    key: v.string(),
+    windowStart: v.number(),
+    count: v.number(),
+  })
+    .index('by_key', ['key'])
+    .index('by_windowStart', ['windowStart']),
+
+  pipelineStages: defineTable({
+    name: v.string(),
+    order: v.number(),
+    probabilityBps: v.number(),
+    kind: v.union(v.literal('open'), v.literal('won'), v.literal('lost')),
+  }).index('by_order', ['order']),
+
+  lostReasons: defineTable({
+    label: v.string(),
+    order: v.number(),
+    active: v.boolean(),
+  }).index('by_order', ['order']),
+
+  deals: defineTable({
+    title: v.string(),
+    clientId: v.id('clients'),
+    primaryContactId: v.optional(v.id('contacts')),
+    stageId: v.id('pipelineStages'),
+    valueMinor: v.number(),
+    currency,
+    probabilityBps: v.number(),
+    // YYYY-MM-DD
+    expectedCloseDate: v.optional(v.string()),
+    ownerMemberId: v.id('teamMembers'),
+    services: v.array(v.string()),
+    source: v.optional(v.string()),
+    enquiryId: v.optional(v.id('enquiries')),
+    lostReasonId: v.optional(v.id('lostReasons')),
+    lostNote: v.optional(v.string()),
+    wonAt: v.optional(v.number()),
+    lostAt: v.optional(v.number()),
+    // YYYY-MM-DD in the studio's timezone
+    nextFollowUpDate: v.optional(v.string()),
+    // Latest timeline entry on the deal; starts at creation
+    lastActivityAt: v.number(),
+    // Follow-up reminders already sent, so each fires once (05-crm.md, Follow-ups)
+    idleNotifiedAt: v.optional(v.number()),
+    followUpNotifiedFor: v.optional(v.string()),
+  })
+    .index('by_stage', ['stageId'])
+    .index('by_client', ['clientId'])
+    .index('by_owner_followup', ['ownerMemberId', 'nextFollowUpDate'])
+    .index('by_enquiry', ['enquiryId']),
+
   rateCardItems: defineTable({
     name: v.string(),
     description: v.optional(v.string()),

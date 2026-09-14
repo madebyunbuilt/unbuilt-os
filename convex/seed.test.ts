@@ -39,6 +39,7 @@ describe('seed', () => {
       businessHours: 1,
       holidays: 2 * (6 + 5),
       slaPolicies: 3,
+      pipeline: 6 + 7,
       ownerInvite: 1,
       sampleRecords: 0,
     });
@@ -51,6 +52,7 @@ describe('seed', () => {
       businessHours: 0,
       holidays: 0,
       slaPolicies: 0,
+      pipeline: 0,
       ownerInvite: 0,
       sampleRecords: 0,
     });

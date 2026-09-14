@@ -16,10 +16,10 @@ export const REDACTED = '[redacted]';
 
 const APPEND_ONLY_TABLES: ReadonlySet<string> = new Set<TableNames>(['auditLog']);
 /**
- * Operational data that is not a change anyone makes to a record: auditing a heartbeat every few minutes per person
- * would bury the log. Still refused in append-only tables; nothing else skips the log.
+ * Operational data that is not a change anyone makes to a record (the idle-timeout heartbeat, public rate-limit
+ * counters): auditing it would bury the log. Still refused in append-only tables; nothing else skips the log.
  */
-const UNAUDITED_TABLES: ReadonlySet<string> = new Set<TableNames>(['sessionActivity']);
+const UNAUDITED_TABLES: ReadonlySet<string> = new Set<TableNames>(['sessionActivity', 'publicRateLimits']);
 const TABLE_NAMES = Object.keys(schema.tables) as TableNames[];
 
 export type AuditActor = {

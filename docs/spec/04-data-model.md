@@ -111,8 +111,13 @@ Indexes: `by_authUser`, `by_email`, `by_status`, `by_role`. Emails are stored lo
 
 **enquiries**
 `source` (website, manual, email, referral) `name` `email` `company` `services[]` `stage` `budget` `timeline` `about`
-`status` (new, reviewed, converted, spam, closed) `dealId?` `ip` `userAgent` `turnstilePassed` `receivedAt`.
-Index: `by_status_received`.
+`status` (new, reviewed, converted, spam, closed) `clientId?` `dealId?` `ip` `userAgent` `turnstilePassed`
+`receivedAt` `createdBy?` (manual entries) `decidedBy?` `decidedAt?`. `stage`, `budget` and `timeline` are the website
+form's option ids; labels live in `convex/lib/enquiries.ts`. Emails are stored lowercase.
+Indexes: `by_status_received`, `by_email`.
+
+**publicRateLimits** — `key` `windowStart` `count`. Fixed-window counters for public endpoints, cleared daily.
+Indexes: `by_key`, `by_windowStart`.
 
 **clients**
 `displayName` `legalName` `kind` (company, individual) `status` (lead, active, past, archived) `industry` `website`
@@ -129,12 +134,16 @@ left) `leftAt?`.
 Indexes: `by_client`, `by_email`, `by_authUser`, `by_portalRole`. Search indexes on `name` and `email`. Emails are stored
 lowercase.
 
-**pipelineStages** — `name` `order` `probabilityBps` `kind` (open, won, lost).
+**pipelineStages** — `name` `order` `probabilityBps` `kind` (open, won, lost). Exactly one won and one lost stage,
+ordered after the open stages. Index: `by_order`.
+
+**lostReasons** — `label` `order` `active`. Index: `by_order`.
 
 **deals**
 `title` `clientId` `primaryContactId?` `stageId` `valueMinor` `currency` `probabilityBps` `expectedCloseDate`
-`ownerMemberId` `services[]` `source` `enquiryId?` `lostReason?` `wonAt?` `lostAt?` `nextFollowUpAt?`.
-Indexes: `by_stage`, `by_client`, `by_owner_followup`.
+`ownerMemberId` `services[]` `source` `enquiryId?` `lostReasonId?` `lostNote?` `wonAt?` `lostAt?`
+`nextFollowUpDate?` (YYYY-MM-DD in the studio's timezone) `lastActivityAt` `idleNotifiedAt?` `followUpNotifiedFor?`.
+Indexes: `by_stage`, `by_client`, `by_owner_followup`, `by_enquiry`.
 
 **activities** (timeline entries)
 `subject { table, id }` (client, contact, deal, project, ticket) `clientId?` `type` (note, call, meeting, email_sent,

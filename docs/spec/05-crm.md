@@ -117,6 +117,29 @@
 - The client list search matches any part of the display or legal name.
 - The acknowledgement email to people who send an enquiry is built with the communications step; until then new
   enquiries notify the team in-app only.
+- **Pipeline stages and lost reasons** are changed with `deals.manage` (Owner, Admins and project managers) and read
+  with `deals.view`. Only open stages are added, reordered or removed; removing one with deals moves them to another
+  open stage first. Won stays at 100% and Lost at 0%, and both can be renamed. Retired lost reasons stay on deals
+  already lost with them. Changing a stage's probability does not change existing deals.
+- **Moving a deal** to an open stage sets that stage's probability. Lost needs an active reason; the note is optional.
+  Moving a lost deal back to an open stage clears the loss. A won deal stays won. Deleting a deal is `clients.delete`;
+  an enquiry converted into it returns to reviewed.
+- **Follow-up reminders** run daily at 17:00 in Lagos. A follow-up is missed when its date has arrived and nothing was
+  logged on the deal on or after that date; the owner is told once per date. A deal is idle 7 days after its last
+  timeline entry (creation counts) with no follow-up date today or later; the owner is told once until new activity. A
+  missed follow-up is reported instead of idleness on the same day. Timeline entries logged for a past date count from
+  that date.
+- **Pipeline value** is shown per currency. Conversion to NGN for display waits for FX rates in the billing step.
+- **The enquiry endpoint** checks, in order: an allowed origin (`ENQUIRY_ALLOWED_ORIGINS`), a JSON body up to 20 KB
+  matching the form, Turnstile (refused when `TURNSTILE_SECRET_KEY` is missing), then 5 per hour per IP and 3 per day
+  per email. It responds `{ ok: true }`, or `{ ok: false, error }` with 403, 400, 413, 503 or 429. Only enquiries that
+  pass Turnstile count toward the limits; a request refused for its email still uses one of its IP's.
+- **Converting** matches a client by a contact with the same email, then a client website or contact on the same email
+  domain (never a free provider such as gmail.com), then a client whose name equals the company. The person converting
+  confirms or chooses another client, or creates one. The contact is the client's active contact with that email or a
+  new one, and the deal starts in the first open stage with the enquiry's services. Converting needs
+  `enquiries.manage`, `deals.manage`, and `clients.create` or `contacts.manage` for records it creates.
+- **Manual enquiries** (email, referral, in person) start as reviewed and notify the other `enquiries.manage` holders.
 
 ## Acceptance criteria
 

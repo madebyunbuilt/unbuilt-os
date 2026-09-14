@@ -105,6 +105,8 @@ export async function recordActivity(
     meta?: Doc<'activities'>['meta'];
   },
 ): Promise<Id<'activities'>> {
+  const occurredAt = entry.occurredAt ?? Date.now();
+  if (entry.subject.table === 'deals') await touchDeal(ctx, entry.subject.id, occurredAt);
   return await ctx.db.insert('activities', {
     subject: entry.subject,
     clientId: entry.clientId,
@@ -113,9 +115,20 @@ export async function recordActivity(
     body: entry.body,
     actorKind: entry.actor.kind,
     actorId: entry.actor.id,
-    occurredAt: entry.occurredAt ?? Date.now(),
+    occurredAt,
     meta: entry.meta,
   });
+}
+
+/**
+ * A timeline entry on a deal is activity for its follow-up reminders. Entries logged for a past date count from that
+ * date, and never move the deal's last activity backwards or into the future.
+ */
+export async function touchDeal(ctx: { db: MutationCtx['db'] }, dealId: string, occurredAt: number) {
+  const id = ctx.db.normalizeId('deals', dealId);
+  const deal = id ? await ctx.db.get('deals', id) : null;
+  const at = Math.min(occurredAt, Date.now());
+  if (deal && at > deal.lastActivityAt) await ctx.db.patch('deals', deal._id, { lastActivityAt: at });
 }
 
 /**

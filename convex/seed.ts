@@ -3,6 +3,7 @@ import { type Id } from './_generated/dataModel';
 import { type MutationCtx } from './_generated/server';
 import { auditedDatabase } from './lib/audit';
 import { internalMutation } from './lib/functions';
+import { DEFAULT_LOST_REASONS, DEFAULT_PIPELINE_STAGES } from './lib/deals';
 import { ensureSeededHolidays } from './lib/holidays';
 import { DEFAULT_ROLES, OWNER_ROLE_KEY } from './lib/permissions';
 import { normalizeEmail } from './lib/principals';
@@ -64,6 +65,24 @@ async function seedBusinessHours(db: Db) {
 /** The calendar year in Lagos, which decides "current and next year". */
 export function lagosYear(now: number): number {
   return Number(new Intl.DateTimeFormat('en-GB', { timeZone: 'Africa/Lagos', year: 'numeric' }).format(now));
+}
+
+/** The default pipeline and lost reasons (05-crm.md), only when none exist, so edits in the app are kept. */
+async function seedPipeline(db: Db) {
+  let created = 0;
+  if (!(await db.query('pipelineStages').first())) {
+    for (const [order, stage] of DEFAULT_PIPELINE_STAGES.entries()) {
+      await db.insert('pipelineStages', { ...stage, order });
+      created++;
+    }
+  }
+  if (!(await db.query('lostReasons').first())) {
+    for (const [order, label] of DEFAULT_LOST_REASONS.entries()) {
+      await db.insert('lostReasons', { label, order, active: true });
+      created++;
+    }
+  }
+  return { created };
 }
 
 async function seedSlaPolicies(db: Db, businessHoursId: Id<'businessHours'>) {
@@ -193,6 +212,7 @@ export const run = internalMutation({
     const businessHours = await seedBusinessHours(db);
     const holidays = await ensureSeededHolidays(db, [year, year + 1]);
     const slaPolicies = await seedSlaPolicies(db, businessHours.id);
+    const pipeline = await seedPipeline(db);
     const owner = await seedOwnerInvite(
       db,
       roles.ids.get(OWNER_ROLE_KEY)!,
@@ -207,6 +227,7 @@ export const run = internalMutation({
         businessHours: businessHours.created,
         holidays: holidays.created,
         slaPolicies: slaPolicies.created,
+        pipeline: pipeline.created,
         ownerInvite: owner.created,
         sampleRecords: sample.created,
       },

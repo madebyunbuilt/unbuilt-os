@@ -212,8 +212,8 @@ studio approved these on 2026-09-13:
 
 - `teamMutation` and `portalMutation` write an `auditLog` entry for every successful write: actor, principal kind,
   permission used, table, record id, a field-level diff (before and after, with sensitive fields redacted), IP and user
-  agent when available, timestamp. The one exception is `sessionActivity`, the idle-timeout heartbeat, which is
-  operational data rather than a change to a record.
+  agent when available, timestamp. The exceptions are operational data rather than changes to records:
+  `sessionActivity` (the idle-timeout heartbeat) and `publicRateLimits` (counters for public endpoints).
 - Reads are audited only for sensitive data: vault reveals, credential exports, full data exports, and viewing another
   member's cost rate.
 - The audit log is append-only. No mutation updates or deletes it. `audit.view` can search and export it.
