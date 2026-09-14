@@ -35,6 +35,7 @@ describe('seed', () => {
     const first = await t.mutation(internal.seed.run, owner);
     expect(first.created).toEqual({
       roles: DEFAULT_ROLES.length,
+      orgSettings: 1,
       businessHours: 1,
       holidays: 2 * (6 + 5),
       slaPolicies: 3,
@@ -46,6 +47,7 @@ describe('seed', () => {
     const second = await t.mutation(internal.seed.run, owner);
     expect(second.created).toEqual({
       roles: 0,
+      orgSettings: 0,
       businessHours: 0,
       holidays: 0,
       slaPolicies: 0,

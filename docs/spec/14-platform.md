@@ -136,6 +136,21 @@ tables in a query.
   deliverables, 10 MB elsewhere.
 - Client-visible files only appear in the portal when `visibility = client`.
 
+How it is built (`convex/lib/files.ts`, `convex/files.ts`):
+
+- Upload contexts: `image` (PNG, JPEG, WebP, GIF, SVG; 10 MB), `document` (images, PDF, Word, Excel, PowerPoint,
+  OpenDocument, CSV, plain text; 10 MB), `deliverable` (documents plus ZIP; 100 MB).
+- `recordUpload` checks the size and SHA-256 that storage recorded, the declared type against the type storage recorded,
+  and the file extension against the type. A file that fails is deleted from storage and the mutation returns
+  `{ ok: false, code, message }` rather than throwing, because a thrown error would roll the deletion back.
+- File names lose folder parts and control or reserved characters.
+- Who may read a file is decided by `FILE_ACCESS`, keyed by the owner record's table. A table with no rule is readable by
+  nobody; client users additionally need `visibility = client` and their own `clientId`. Refusals return "not found".
+- `teamDownloadUrl` and `portalDownloadUrl` return a link to `GET /files/download` signed with HMAC-SHA256
+  (`FILE_URL_SECRET`) that expires in 5 to 6 minutes. The route serves the bytes as an attachment with
+  `Cache-Control: private, no-store` and a sandboxing CSP.
+- A daily cron deletes uploads more than a day old that were never recorded.
+
 ## Imports and exports
 
 - **Imports** (`imports.run`) from CSV with a column-mapping step, a dry run showing errors per row, then import:
@@ -154,6 +169,11 @@ tables in a query.
   - Owner-only full JSON export of all tables (secrets remain encrypted), logged in the audit log
 
 ## Settings
+
+`convex/settings.ts` covers the organisation and billing sections: `getOrganisation` and `updateOrganisation`
+(`settings.manage`, which also sets and removes the logo), `getBilling` and `updateBilling`
+(`settings.billing.sensitive`, which includes bank accounts, numbering, VAT, late fees, payment terms and the invoice
+footer). Bank accounts are never returned by the organisation view and are redacted in audit diffs.
 
 Sections, each permission-gated:
 

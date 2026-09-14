@@ -100,12 +100,13 @@ permissions itself (see `03-auth-and-permissions.md`).
 
 Convex environment variables, set per deployment and never committed:
 
-| Variable             | Purpose                                                                                   |
-| -------------------- | ----------------------------------------------------------------------------------------- |
-| `BETTER_AUTH_SECRET` | Signs cookies and encrypts two-factor secrets. Different on every deployment              |
-| `AUTH_ALLOWED_HOSTS` | Hostnames the app is served on, comma-separated, wildcards allowed. Defaults to localhost |
-| `RESEND_API_KEY`     | Sending-only Resend key. Separate keys per environment                                    |
-| `AUTH_EMAIL_FROM`    | Sender for sign-in emails. Defaults to Resend's test sender until the domain is verified  |
+| Variable             | Purpose                                                                                      |
+| -------------------- | -------------------------------------------------------------------------------------------- |
+| `BETTER_AUTH_SECRET` | Signs cookies and encrypts two-factor secrets. Different on every deployment                 |
+| `AUTH_ALLOWED_HOSTS` | Hostnames the app is served on, comma-separated, wildcards allowed. Defaults to localhost    |
+| `RESEND_API_KEY`     | Sending-only Resend key. Separate keys per environment                                       |
+| `FILE_URL_SECRET`    | Signs short-lived file download links. At least 32 characters, different on every deployment |
+| `AUTH_EMAIL_FROM`    | Sender for sign-in emails. Defaults to Resend's test sender until the domain is verified     |
 
 Staging allows `unbuilt-os-pr-*.vercel.app`; production allows `os.unbuilt.studio`, `portal.unbuilt.studio` and
 `unbuilt-os.vercel.app`.

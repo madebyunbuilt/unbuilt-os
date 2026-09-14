@@ -6,7 +6,62 @@ import { v } from 'convex/values';
 
 const currency = v.union(v.literal('NGN'), v.literal('USD'), v.literal('EUR'));
 
+const numberFormat = v.object({ prefix: v.string(), padding: v.number() });
+
 export default defineSchema({
+  // Single row. Missing optional values are set by the studio in Settings; see 18-open-questions.md for defaults.
+  orgSettings: defineTable({
+    legalName: v.optional(v.string()),
+    tradingName: v.optional(v.string()),
+    addressLines: v.array(v.string()),
+    country: v.string(),
+    tin: v.optional(v.string()),
+    vatNumber: v.optional(v.string()),
+    defaultCurrency: currency,
+    timezone: v.string(),
+    logoFileId: v.optional(v.id('files')),
+    // Sensitive: only returned with settings.billing.sensitive, redacted in audit diffs.
+    bankAccounts: v.array(
+      v.object({
+        label: v.string(),
+        currency,
+        bankName: v.string(),
+        accountName: v.string(),
+        accountNumber: v.string(),
+        swift: v.optional(v.string()),
+        iban: v.optional(v.string()),
+        sortCode: v.optional(v.string()),
+      }),
+    ),
+    // Overrides of DEFAULT_NUMBERING in convex/lib/numbering.ts, keyed by record type.
+    numbering: v.record(v.string(), numberFormat),
+    defaultPaymentTermsDays: v.optional(v.number()),
+    defaultVatBps: v.number(),
+    lateFeePolicy: v.object({ enabled: v.boolean(), monthlyBps: v.number(), graceDays: v.optional(v.number()) }),
+    invoiceFooter: v.optional(v.string()),
+    quoteValidityDays: v.optional(v.number()),
+    retentionYears: v.number(),
+    brand: v.object({ primary: v.string(), accent: v.string() }),
+  }),
+
+  files: defineTable({
+    storageId: v.id('_storage'),
+    name: v.string(),
+    mimeType: v.string(),
+    sizeBytes: v.number(),
+    // Hex SHA-256 of the stored bytes, from Convex storage.
+    sha256: v.string(),
+    owner: v.object({ table: v.string(), id: v.string() }),
+    clientId: v.optional(v.id('clients')),
+    projectId: v.optional(v.string()),
+    visibility: v.union(v.literal('internal'), v.literal('client')),
+    uploadedByKind: v.union(v.literal('team'), v.literal('client'), v.literal('system')),
+    uploadedById: v.string(),
+  })
+    .index('by_owner', ['owner.table', 'owner.id'])
+    .index('by_client', ['clientId'])
+    .index('by_storage', ['storageId']),
+
   counters: defineTable({
     key: v.string(),
     value: v.number(),

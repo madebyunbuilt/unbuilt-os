@@ -3,6 +3,8 @@ import { internal } from '../_generated/api';
 import { type Id } from '../_generated/dataModel';
 import {
   action,
+  type ActionCtx,
+  httpAction,
   internalAction as rawInternalAction,
   internalMutation as rawInternalMutation,
   internalQuery as rawInternalQuery,
@@ -128,6 +130,25 @@ export const sessionQuery = customQuery(
     return { session };
   }),
 );
+
+/**
+ * Public HTTP endpoints: webhooks, the website's enquiry form, signed download links. The handler verifies its own
+ * signature, token or Turnstile response before doing anything. This wrapper adds safe response headers and turns
+ * unexpected errors into a bare 500, logging only the error's name. Rate limiting joins with the first public form.
+ */
+export const publicHttp = (handler: (ctx: ActionCtx, request: Request) => Promise<Response>) =>
+  httpAction(async (ctx, request) => {
+    let response: Response;
+    try {
+      response = await handler(ctx, request);
+    } catch (error) {
+      console.error('Public HTTP handler failed', error instanceof Error ? error.name : typeof error);
+      response = new Response('Something went wrong', { status: 500 });
+    }
+    response.headers.set('X-Content-Type-Options', 'nosniff');
+    response.headers.set('Referrer-Policy', 'no-referrer');
+    return response;
+  });
 
 /** Scheduler, crons and other functions. Not callable from clients. */
 export const internalQuery = rawInternalQuery;
