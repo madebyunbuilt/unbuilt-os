@@ -27,7 +27,7 @@ test.describe('team host', () => {
 
   test('explains a used or expired link', async ({ page }) => {
     await page.goto('/sign-in?error=INVALID_TOKEN');
-    await expect(page.getByRole('alert')).toContainText('already been used or has expired');
+    await expect(page.getByRole('alert').filter({ hasText: 'already been used or has expired' })).toBeVisible();
   });
 
   test('does not serve portal routes', async ({ page }) => {
