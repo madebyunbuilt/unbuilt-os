@@ -61,6 +61,7 @@ jobs:
       url: ${{ steps.deploy.outputs.alias }}
     outputs:
       alias: ${{ steps.deploy.outputs.alias }}
+      portal-alias: ${{ steps.deploy.outputs.portal-alias }}
     steps:
       - uses: actions/checkout@v7
       - uses: pnpm/action-setup@v6
@@ -89,14 +90,18 @@ jobs:
         run: |
           url=$(pnpm --reporter=silent dlx $VERCEL_CLI deploy --prebuilt --token=${{ secrets.VERCEL_TOKEN }} | grep -Eo "https://[^ ]+" | tail -1)
           alias="unbuilt-os-pr-${{ github.event.pull_request.number }}.vercel.app"
+          portal_alias="unbuilt-os-portal-pr-${{ github.event.pull_request.number }}.vercel.app"
           pnpm --reporter=silent dlx $VERCEL_CLI alias set "$url" "$alias" --token=${{ secrets.VERCEL_TOKEN }}
+          pnpm --reporter=silent dlx $VERCEL_CLI alias set "$url" "$portal_alias" --token=${{ secrets.VERCEL_TOKEN }}
           echo "url=$url" >> "$GITHUB_OUTPUT"
           echo "alias=https://$alias" >> "$GITHUB_OUTPUT"
+          echo "portal-alias=https://$portal_alias" >> "$GITHUB_OUTPUT"
 
       - name: Comment on the pull request
         uses: actions/github-script@v9
         env:
           ALIAS: ${{ steps.deploy.outputs.alias }}
+          PORTAL_ALIAS: ${{ steps.deploy.outputs.portal-alias }}
           URL: ${{ steps.deploy.outputs.url }}
         with:
           script: |
@@ -110,7 +115,8 @@ jobs:
               marker,
               '### 🔗 Preview ready',
               '',
-              `**${process.env.ALIAS}**`,
+              `**Team:** ${process.env.ALIAS}`,
+              `**Portal:** ${process.env.PORTAL_ALIAS}`,
               '',
               `Commit \`${sha}\` · ${subject}`,
               `Deployed ${time} (Lagos) · [this exact build](${process.env.URL})`,
@@ -141,6 +147,7 @@ jobs:
       - run: pnpm test:e2e
         env:
           PLAYWRIGHT_BASE_URL: ${{ needs.preview.outputs.alias }}
+          PLAYWRIGHT_PORTAL_BASE_URL: ${{ needs.preview.outputs.portal-alias }}
           VERCEL_AUTOMATION_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
       - uses: actions/upload-artifact@v7
         if: failure()

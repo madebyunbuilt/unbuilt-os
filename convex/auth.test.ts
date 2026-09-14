@@ -209,6 +209,23 @@ describe('team sign-in: magic link then TOTP', () => {
     const newest = (await sessionsFor(t, email)).sessions.at(-1)!;
     const session = t.withIdentity({ subject: user!._id, sessionId: newest._id });
     expect(await session.query(teamRead, {})).toMatchObject({ memberId: member!._id });
+
+    // An active session gets tokens. After 12 idle hours, the next request ends it instead of refreshing it.
+    expect((await next.request('/api/auth/convex/token')).status).toBe(200);
+    await t.run((ctx) =>
+      ctx.runMutation(components.betterAuth.adapter.updateOne, {
+        input: {
+          model: 'session',
+          where: [{ field: '_id', value: newest._id }],
+          update: { updatedAt: Date.now() - 12 * 60 * 60 * 1000 - 60_000 },
+        },
+      }),
+    );
+    expect((await next.request('/api/auth/convex/token')).status).toBe(401);
+    expect((await sessionsFor(t, email)).sessions.some((session: { _id: string }) => session._id === newest._id)).toBe(
+      false,
+    );
+    expect(next.cookieNames().some((name) => name.endsWith('session_token'))).toBe(false);
   });
 });
 
@@ -267,6 +284,18 @@ describe('client sign-in: magic link then an emailed code on new devices', () =>
 
     // Once signed in, a client user still cannot enrol TOTP.
     expect((await browser.request('/api/auth/two-factor/enable', { method: 'POST', body: {} })).status).toBe(403);
+
+    // Client sessions are not ended by 12 idle hours.
+    await t.run((ctx) =>
+      ctx.runMutation(components.betterAuth.adapter.updateOne, {
+        input: {
+          model: 'session',
+          where: [{ field: '_id', value: sessions[0]._id }],
+          update: { updatedAt: Date.now() - 13 * 60 * 60 * 1000 },
+        },
+      }),
+    );
+    expect((await browser.request('/api/auth/convex/token')).status).toBe(200);
 
     // Same device, later: the magic link signs straight in.
     await browser.request('/api/auth/sign-out', { method: 'POST', body: {} });

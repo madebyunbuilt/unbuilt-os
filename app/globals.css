@@ -1,29 +1,129 @@
 @import 'tailwindcss';
+@import 'tw-animate-css';
+@import 'shadcn/tailwind.css';
 
-/* Brand tokens from 01-product.md. The full theme arrives with the app shell. */
+/* Dark mode follows the system unless the viewer overrides it (next-themes sets the class). */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/*
+ * Brand tokens (docs/spec/01-product.md, Design). Blue means not built yet: prussian marks drafts, pending and
+ * in-progress states, never a primary button. Built, final and paid states are ink on paper. Hi-vis marks what needs
+ * attention, and every focus ring.
+ */
 :root {
   --ink: #000000;
   --paper: #ffffff;
   --prussian: #11297a;
   --line: #bfd0ff;
   --hi-vis: #ffc400;
+
+  --radius: 0.25rem;
   --background: var(--paper);
   --foreground: var(--ink);
+  --card: var(--paper);
+  --card-foreground: var(--ink);
+  --popover: var(--paper);
+  --popover-foreground: var(--ink);
+  --primary: var(--ink);
+  --primary-foreground: var(--paper);
+  --secondary: #f2f2f2;
+  --secondary-foreground: var(--ink);
+  --muted: #f2f2f2;
+  --muted-foreground: #595959;
+  --accent: #f2f2f2;
+  --accent-foreground: var(--ink);
+  --destructive: #b3261e;
+  --border: rgba(0, 0, 0, 0.16);
+  --input: rgba(0, 0, 0, 0.4);
+  --ring: var(--hi-vis);
+  --draft: var(--prussian);
+  --draft-foreground: var(--paper);
+  --attention: var(--hi-vis);
+  --attention-foreground: var(--ink);
+}
+
+.dark {
+  --background: var(--ink);
+  --foreground: var(--paper);
+  --card: #0d0d0d;
+  --card-foreground: var(--paper);
+  --popover: #0d0d0d;
+  --popover-foreground: var(--paper);
+  --primary: var(--paper);
+  --primary-foreground: var(--ink);
+  --secondary: #1f1f1f;
+  --secondary-foreground: var(--paper);
+  --muted: #1f1f1f;
+  --muted-foreground: #b3b3b3;
+  --accent: #1f1f1f;
+  --accent-foreground: var(--paper);
+  --destructive: #ff8a80;
+  --border: rgba(255, 255, 255, 0.16);
+  --input: rgba(255, 255, 255, 0.4);
+  --draft: var(--line);
+  --draft-foreground: var(--ink);
 }
 
 @theme inline {
+  --font-display: var(--font-anybody), ui-sans-serif, system-ui, sans-serif;
+  --font-sans: var(--font-instrument), ui-sans-serif, system-ui, sans-serif;
+
+  --color-ink: var(--ink);
+  --color-paper: var(--paper);
+  --color-prussian: var(--prussian);
+  --color-line: var(--line);
+  --color-hi-vis: var(--hi-vis);
+  --color-draft: var(--draft);
+  --color-draft-foreground: var(--draft-foreground);
+  --color-attention: var(--attention);
+  --color-attention-foreground: var(--attention-foreground);
+
   --color-background: var(--background);
   --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: var(--ink);
-    --foreground: var(--paper);
+@layer base {
+  * {
+    @apply border-border outline-ring;
   }
-}
-
-body {
-  background: var(--background);
-  color: var(--foreground);
+  body {
+    @apply bg-background font-sans text-foreground antialiased;
+  }
+  :focus-visible {
+    outline: 2px solid var(--hi-vis);
+    outline-offset: 2px;
+  }
+  ::selection {
+    background: var(--hi-vis);
+    color: var(--ink);
+  }
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
 }
