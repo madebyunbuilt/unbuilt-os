@@ -141,6 +141,11 @@ are saved.
 ## Default roles
 
 System roles are seeded, cannot be deleted, and only the Owner can edit them. `roles.manage` can create custom roles.
+
+There is exactly one Owner at a time (decided by the studio on 2026-09-14). The Owner role cannot be given to a second
+member; `owner.transfer` moves it, and the previous Owner becomes an Admin in the same mutation. Trusted partners are
+Admins. To guard against losing the Owner account, the Owner keeps their backup codes safe and at least one Admin exists
+who can reset the Owner's 2FA. The Team module enforces this.
 A role that anyone still holds cannot be deleted, and a role cannot change kind. Saving a team role never grants a key
 the caller does not hold, so `roles.manage` cannot be used to reach `owner.transfer`.
 
