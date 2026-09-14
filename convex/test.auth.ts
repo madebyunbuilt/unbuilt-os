@@ -26,14 +26,17 @@ export async function seedRoles(t: TestConvex): Promise<Record<SystemRoleKey, Id
   });
 }
 
-/** A Better Auth user with a live session, as the sign-in flow would leave them. */
+/**
+ * A Better Auth user with a live session, as the sign-in flow would leave them. `signedInAt` backdates the sign-in
+ * with no activity since; the session itself stays freshly refreshed, as token renewals keep it.
+ */
 export async function createAuthSession(
   t: TestConvex,
   {
     email,
     twoFactorEnabled = true,
-    updatedAt = Date.now(),
-  }: { email: string; twoFactorEnabled?: boolean; updatedAt?: number },
+    signedInAt = Date.now(),
+  }: { email: string; twoFactorEnabled?: boolean; signedInAt?: number },
 ) {
   return await t.run(async (ctx) => {
     const now = Date.now();
@@ -50,8 +53,8 @@ export async function createAuthSession(
           userId: user._id,
           token: `token-${user._id}`,
           expiresAt: now + 7 * 24 * 60 * 60 * 1000,
-          createdAt: now,
-          updatedAt,
+          createdAt: signedInAt,
+          updatedAt: now,
           ipAddress: '203.0.113.7',
           userAgent: 'vitest',
         },
@@ -69,7 +72,7 @@ export async function createTeamMember(
   t: TestConvex,
   roleId: Id<'roles'>,
   overrides: Partial<Doc<'teamMembers'>> & { email: string },
-  session: { twoFactorEnabled?: boolean; updatedAt?: number } = {},
+  session: { twoFactorEnabled?: boolean; signedInAt?: number } = {},
 ) {
   const auth = await createAuthSession(t, { email: overrides.email, ...session });
   const memberId = await t.run((ctx) =>

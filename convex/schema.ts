@@ -230,6 +230,16 @@ export default defineSchema({
     ),
   }).index('by_target', ['target.table', 'target.id', 'kind']),
 
+  // When a person last used the app in a session: clicks, typing, scrolling, touches. Token renewals do not count.
+  // Team sessions end after 12 hours without it (03-auth-and-permissions.md). Not audited; cleared daily.
+  sessionActivity: defineTable({
+    sessionId: v.string(),
+    authUserId: v.string(),
+    lastActiveAt: v.number(),
+  })
+    .index('by_session', ['sessionId'])
+    .index('by_lastActive', ['lastActiveAt']),
+
   // Append-only. Written only by convex/lib/audit.ts; no function updates or deletes an entry.
   auditLog: defineTable({
     actorKind: v.union(v.literal('team'), v.literal('client'), v.literal('system')),

@@ -115,7 +115,15 @@ export const createAuthOptions = (ctx: GenericCtx<DataModel>) => {
           },
         },
       }),
-      expireIdleTeamSessions(principalKind, TEAM_SESSION_IDLE_MS),
+      expireIdleTeamSessions(
+        principalKind,
+        async (session) =>
+          await runner(ctx).runQuery(internal.sessionActivity.lastActive, {
+            sessionId: session.id,
+            createdAt: session.createdAt.getTime(),
+          }),
+        TEAM_SESSION_IDLE_MS,
+      ),
       magicLinkTwoFactor(principalKind),
       secondFactorRules(principalKind),
       convex({ authConfig, jwt: { expirationSeconds: JWT_EXPIRATION_SECONDS } }),

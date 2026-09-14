@@ -1,3 +1,4 @@
+import { ActivityHeartbeat } from '@/components/app/activity-heartbeat';
 import { ConvexProvider } from '@/components/app/convex-provider';
 import { NoAccess } from '@/components/app/no-access';
 import { ServiceWorker } from '@/components/app/service-worker';
@@ -24,6 +25,7 @@ export default async function TeamLayout({ children }: LayoutProps<'/'>) {
           {children}
         </AppShell>
       </SessionBoundary>
+      <ActivityHeartbeat />
       <ServiceWorker />
     </ConvexProvider>
   );

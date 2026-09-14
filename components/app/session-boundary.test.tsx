@@ -32,19 +32,19 @@ describe('SessionBoundary', () => {
     expect(isSessionError(new Error('auth.unauthenticated'))).toBe(false);
   });
 
-  it('asks to sign in again when the session ends, and recovers on retry', async () => {
+  it('asks to sign in again when the session ends, and reloads for a fresh token on retry', async () => {
     failure.error = new ConvexError({ code: 'auth.unauthenticated', message: 'Sign in to continue' });
+    const reload = vi.fn();
     render(
-      <SessionBoundary>
+      <SessionBoundary reload={reload}>
         <Query />
       </SessionBoundary>,
     );
     expect(screen.getByRole('heading', { name: 'Your session has ended' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Sign in again' })).toHaveAttribute('href', '/sign-in');
 
-    failure.error = null;
     await userEvent.click(screen.getByRole('button', { name: 'Try again' }));
-    expect(screen.getByText('Notifications')).toBeInTheDocument();
+    expect(reload).toHaveBeenCalledOnce();
   });
 
   it('passes every other error on', () => {

@@ -22,7 +22,7 @@ export type AuthSession = {
   sessionId: string;
   email: string;
   twoFactorEnabled: boolean;
-  /** Last time Better Auth refreshed the session; stands in for activity. */
+  /** Last real use of the app in this session (see lastActiveAt). */
   lastActiveAt: number;
   ip?: string;
   userAgent?: string;
@@ -49,6 +49,18 @@ export type Principal = TeamPrincipal | ClientPrincipal;
 
 type Ctx = QueryCtx | MutationCtx;
 
+/**
+ * When the person last used the app in this session: the latest recorded activity, or signing in. Better Auth's own
+ * `updatedAt` is not used, because token renewals refresh it while a tab sits open untouched.
+ */
+export async function lastActiveAt(ctx: Ctx, session: { _id: string; createdAt: number }): Promise<number> {
+  const activity = await ctx.db
+    .query('sessionActivity')
+    .withIndex('by_session', (q) => q.eq('sessionId', session._id))
+    .unique();
+  return Math.max(activity?.lastActiveAt ?? 0, session.createdAt);
+}
+
 /** The current Better Auth session, or null when signed out, expired or revoked. */
 export async function getAuthSession(ctx: Ctx): Promise<AuthSession | null> {
   const identity = await ctx.auth.getUserIdentity();
@@ -74,7 +86,7 @@ export async function getAuthSession(ctx: Ctx): Promise<AuthSession | null> {
     sessionId: session._id,
     email: user.email,
     twoFactorEnabled: user.twoFactorEnabled === true,
-    lastActiveAt: session.updatedAt,
+    lastActiveAt: await lastActiveAt(ctx, session),
     ip: session.ipAddress ?? undefined,
     userAgent: session.userAgent ?? undefined,
   };

@@ -210,16 +210,31 @@ describe('team sign-in: magic link then TOTP', () => {
     const session = t.withIdentity({ subject: user!._id, sessionId: newest._id });
     expect(await session.query(teamRead, {})).toMatchObject({ memberId: member!._id });
 
-    // An active session gets tokens. After 12 idle hours, the next request ends it instead of refreshing it.
+    // An active session gets tokens. Token renewals do not count as use: after 12 hours without real activity the next
+    // request ends the session instead of refreshing it, however recently tokens were fetched.
     expect((await next.request('/api/auth/convex/token')).status).toBe(200);
     await t.run((ctx) =>
       ctx.runMutation(components.betterAuth.adapter.updateOne, {
         input: {
           model: 'session',
           where: [{ field: '_id', value: newest._id }],
-          update: { updatedAt: Date.now() - 12 * 60 * 60 * 1000 - 60_000 },
+          update: { createdAt: Date.now() - 13 * 60 * 60 * 1000, updatedAt: Date.now() },
         },
       }),
+    );
+    await expect(session.mutation(api.sessionActivity.record, {})).rejects.toThrow(/inactivity/);
+
+    // Activity an hour ago keeps the 13-hour-old session alive; activity 12 hours ago does not.
+    const activityId = await t.run((ctx) =>
+      ctx.db.insert('sessionActivity', {
+        sessionId: newest._id,
+        authUserId: user!._id,
+        lastActiveAt: Date.now() - 60 * 60 * 1000,
+      }),
+    );
+    expect((await next.request('/api/auth/convex/token')).status).toBe(200);
+    await t.run((ctx) =>
+      ctx.db.patch('sessionActivity', activityId, { lastActiveAt: Date.now() - 12 * 60 * 60 * 1000 - 60_000 }),
     );
     expect((await next.request('/api/auth/convex/token')).status).toBe(401);
     expect((await sessionsFor(t, email)).sessions.some((session: { _id: string }) => session._id === newest._id)).toBe(
@@ -291,7 +306,7 @@ describe('client sign-in: magic link then an emailed code on new devices', () =>
         input: {
           model: 'session',
           where: [{ field: '_id', value: sessions[0]._id }],
-          update: { updatedAt: Date.now() - 13 * 60 * 60 * 1000 },
+          update: { createdAt: Date.now() - 13 * 60 * 60 * 1000 },
         },
       }),
     );

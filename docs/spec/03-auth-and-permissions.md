@@ -30,10 +30,15 @@ two email addresses. Never let one session act on both surfaces.
   resets it. Team members cannot use emailed codes.
 - Client users have two-factor on from account creation and only use emailed codes. "New device" means a device
   without a trusted-device cookie, which lasts 30 days after a successful code.
-- Team sessions expire after 12 hours of inactivity; portal sessions after 7 days. Inactivity is measured from the last
-  session refresh, which Better Auth records at most every 15 minutes while the app is open. Because every request
-  refreshes the session, `expireIdleTeamSessions` checks idleness first and deletes an idle team session instead of
-  refreshing it; the team function wrappers check it again.
+- Team sessions expire after 12 hours of inactivity; portal sessions after 7 days. **Inactivity means no real use**
+  (decided by the studio on 2026-09-14): the team app reports clicks, typing, scrolling and touches, and opening a page,
+  at most every 5 minutes to `sessionActivity`. Background token renewals do not count, so a tab left open and
+  untouched still signs out after 12 hours. Idleness is measured from the latest recorded activity, or sign-in when
+  there is none. Because every request refreshes the Better Auth session, `expireIdleTeamSessions` checks idleness first
+  and deletes an idle team session instead of refreshing it; the team function wrappers check it again. Activity older
+  than a day is cleared nightly.
+- A failed token renewal is retried three times (after 1, 2 and 4 seconds) unless the server refuses it with 401 or
+  403, because Convex treats one failed renewal as a sign-out.
 - Team 2FA backup codes are shown once, at setup. The verify screen accepts an authenticator code or a backup code for
   team members, and an emailed code (with an opt-out "trust this device" checkbox) for client users.
 - Invitations only. There is no public sign-up on either surface. Team members are invited by `team.manage`; client
@@ -207,7 +212,8 @@ studio approved these on 2026-09-13:
 
 - `teamMutation` and `portalMutation` write an `auditLog` entry for every successful write: actor, principal kind,
   permission used, table, record id, a field-level diff (before and after, with sensitive fields redacted), IP and user
-  agent when available, timestamp.
+  agent when available, timestamp. The one exception is `sessionActivity`, the idle-timeout heartbeat, which is
+  operational data rather than a change to a record.
 - Reads are audited only for sensitive data: vault reveals, credential exports, full data exports, and viewing another
   member's cost rate.
 - The audit log is append-only. No mutation updates or deletes it. `audit.view` can search and export it.

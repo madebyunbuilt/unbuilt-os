@@ -1,7 +1,7 @@
 import { makeFunctionReference } from 'convex/server';
 import { ConvexError } from 'convex/values';
 import { beforeEach, describe, expect, it } from 'vitest';
-import { components } from '../_generated/api';
+import { api, components } from '../_generated/api';
 import { type Id } from '../_generated/dataModel';
 import { createClientUser, createTeamMember, newTest, seedRoles, type TestConvex } from '../test.auth';
 import { REDACTED } from './audit';
@@ -78,10 +78,24 @@ describe('teamQuery', () => {
     await expectCode(member.as.query(teamRead, {}), 'auth.forbidden');
   });
 
-  it('rejects a team session idle for more than 12 hours', async () => {
+  it('rejects a team session with no real use for 12 hours, even though token renewals kept it refreshed', async () => {
     const idleSince = Date.now() - TEAM_SESSION_IDLE_MS - 60_000;
-    const member = await createTeamMember(t, roles.admin, { email: 'idle@unbuilt.studio' }, { updatedAt: idleSince });
+    const member = await createTeamMember(t, roles.admin, { email: 'idle@unbuilt.studio' }, { signedInAt: idleSince });
     await expectCode(member.as.query(teamRead, {}), 'auth.sessionExpired');
+    await expectCode(member.as.mutation(api.sessionActivity.record, {}), 'auth.sessionExpired');
+  });
+
+  it('keeps a long session alive while the person keeps using the app', async () => {
+    const signedInAt = Date.now() - TEAM_SESSION_IDLE_MS - 60_000;
+    const member = await createTeamMember(t, roles.admin, { email: 'busy@unbuilt.studio' }, { signedInAt });
+    await t.run((ctx) =>
+      ctx.db.insert('sessionActivity', {
+        sessionId: member.sessionId,
+        authUserId: member.authUserId,
+        lastActiveAt: Date.now() - 60 * 60_000,
+      }),
+    );
+    expect(await member.as.query(teamRead, {})).toBeTruthy();
   });
 
   it('rejects a client user', async () => {
