@@ -12,6 +12,39 @@ export default defineSchema({
     value: v.number(),
   }).index('by_key', ['key']),
 
+  businessHours: defineTable({
+    name: v.string(),
+    timezone: v.string(),
+    weekly: v.array(v.object({ day: v.number(), start: v.string(), end: v.string() })),
+    isDefault: v.boolean(),
+  }).index('by_default', ['isDefault']),
+
+  holidays: defineTable({
+    date: v.string(),
+    name: v.string(),
+    country: v.string(),
+    recurring: v.boolean(),
+    source: v.union(v.literal('seed'), v.literal('manual')),
+    // Movable holidays (Easter, Eids, Mawlid) are seeded as estimates until an admin confirms the declared date.
+    needsConfirmation: v.boolean(),
+  }).index('by_date', ['date']),
+
+  slaPolicies: defineTable({
+    name: v.string(),
+    businessHoursId: v.id('businessHours'),
+    targets: v.array(
+      v.object({
+        priority: v.union(v.literal('p1'), v.literal('p2'), v.literal('p3'), v.literal('p4')),
+        firstResponseMinutes: v.number(),
+        // Absent means best effort.
+        resolutionMinutes: v.optional(v.number()),
+      }),
+    ),
+    includedMinutesPerMonth: v.optional(v.number()),
+    uptimeTargetBps: v.optional(v.number()),
+    active: v.boolean(),
+  }).index('by_name', ['name']),
+
   roles: defineTable({
     key: v.string(),
     name: v.string(),
