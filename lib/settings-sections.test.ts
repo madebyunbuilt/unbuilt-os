@@ -21,7 +21,7 @@ describe('settings sections', () => {
   });
 
   it('show Project managers the SLA sections and no organisation or billing', () => {
-    expect(labels('project_manager')).toEqual(['Business hours and holidays', 'SLA policies']);
+    expect(labels('project_manager')).toEqual(['Pipeline', 'Business hours and holidays', 'SLA policies']);
   });
 
   it('show Members nothing', () => {

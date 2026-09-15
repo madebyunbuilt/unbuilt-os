@@ -40,8 +40,8 @@ export const TEAM_NAVIGATION: readonly NavSection[] = [
   {
     label: 'CRM',
     items: [
-      { label: 'Enquiries', href: '/crm/enquiries', icon: 'inbox', anyOf: ['enquiries.view'], built: false },
-      { label: 'Deals', href: '/crm/deals', icon: 'handshake', anyOf: ['deals.view'], built: false },
+      { label: 'Enquiries', href: '/crm/enquiries', icon: 'inbox', anyOf: ['enquiries.view'], built: true },
+      { label: 'Deals', href: '/crm/deals', icon: 'handshake', anyOf: ['deals.view'], built: true },
       { label: 'Clients', href: '/crm/clients', icon: 'building', anyOf: ['clients.view'], built: true },
       { label: 'Rate card', href: '/crm/rate-card', icon: 'tag', anyOf: ['ratecard.view'], built: true },
     ],
@@ -113,6 +113,7 @@ export const TEAM_NAVIGATION: readonly NavSection[] = [
           'settings.manage',
           'settings.billing.sensitive',
           'sla.manage',
+          'deals.manage',
           'roles.manage',
           'integrations.manage',
           'audit.view',

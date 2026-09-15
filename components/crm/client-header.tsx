@@ -18,7 +18,7 @@ type Tab = { label: string; segment: string; built: boolean; anyOf?: string[] };
 export const CLIENT_TABS: Tab[] = [
   { label: 'Overview', segment: '', built: true },
   { label: 'Contacts', segment: 'contacts', built: true },
-  { label: 'Deals', segment: 'deals', built: false, anyOf: ['deals.view'] },
+  { label: 'Deals', segment: 'deals', built: true, anyOf: ['deals.view'] },
   { label: 'Projects', segment: 'projects', built: false },
   { label: 'Documents', segment: 'documents', built: false },
   { label: 'Invoices and payments', segment: 'invoices', built: false },

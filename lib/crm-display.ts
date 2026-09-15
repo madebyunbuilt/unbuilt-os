@@ -1,3 +1,4 @@
+import { formatDateRange } from '@/convex/lib/timeOffFormat';
 import { type StatusTone } from '@/lib/team-display';
 
 // How CRM records are shown: labels in the brand's state colours, and @mentions in notes.
@@ -59,6 +60,46 @@ export function splitTags(value: string): string[] {
     .split(',')
     .map((tag) => tag.trim())
     .filter(Boolean);
+}
+
+export type EnquiryStatus = 'new' | 'reviewed' | 'converted' | 'spam' | 'closed';
+
+export function enquiryStatus(status: EnquiryStatus): { label: string; tone: StatusTone } {
+  switch (status) {
+    // A new enquiry needs someone to look at it.
+    case 'new':
+      return { label: 'New', tone: 'attention' };
+    case 'reviewed':
+      return { label: 'Reviewed', tone: 'draft' };
+    case 'converted':
+      return { label: 'Converted', tone: 'built' };
+    case 'spam':
+      return { label: 'Spam', tone: 'muted' };
+    case 'closed':
+      return { label: 'Closed', tone: 'muted' };
+  }
+}
+
+export const ENQUIRY_SOURCE_LABELS = {
+  website: 'Website',
+  manual: 'In person',
+  email: 'Email',
+  referral: 'Referral',
+} as const;
+
+export function stageTone(kind: 'open' | 'won' | 'lost'): StatusTone {
+  // An open deal is not built yet; won is final; lost is done.
+  return kind === 'open' ? 'draft' : kind === 'won' ? 'built' : 'muted';
+}
+
+/** A date (YYYY-MM-DD) for display: "25 Sep 2026". */
+export function formatDay(date: string): string {
+  return formatDateRange(date, date);
+}
+
+/** Minor units as a plain amount for an input: 150000 → "1500". */
+export function toAmountInput(minor: number | undefined): string {
+  return minor === undefined ? '' : (minor / 100).toFixed(2).replace(/\.00$/, '');
 }
 
 // Mentions --------------------------------------------------------------------------------------------------------------

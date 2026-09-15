@@ -185,7 +185,7 @@ Sections, each permission-gated:
 - **Organisation**: legal name, address, TIN, VAT number, logo.
 - **Billing**: bank accounts, defaults, numbering, late fees, reminders (`settings.billing.sensitive`).
 - **Tax**: VAT and WHT defaults.
-- **Pipeline stages and lost reasons.**
+- **Pipeline stages and lost reasons** (`deals.manage`, at `/settings/pipeline`).
 - **Business hours and holidays** (`settings.manage` edits; `sla.manage` sees them read-only): the name, timezone and
   one window per open day; the public holidays for last, this and next year, where estimated dates are confirmed, declared
   days added and added days removed.

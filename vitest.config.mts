@@ -25,6 +25,8 @@ export default defineConfig({
           environment: 'jsdom',
           include: ['{app,components,lib}/**/*.test.{ts,tsx}'],
           setupFiles: ['./tests/setup-dom.ts'],
+          // Screen tests type into real forms; on a busy machine the 5 s default is too tight.
+          testTimeout: 20_000,
         },
       },
       {

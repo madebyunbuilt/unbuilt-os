@@ -159,6 +159,26 @@
   - **Settings**: billing details (editable with `invoices.update`, read-only otherwise), SLA policy
     (`clients.update`), the client portal switch (`contacts.manage`; turning it off asks first), archive or restore
     (`clients.update`) and delete (`clients.delete`).
+- `/crm/enquiries` (`enquiries.view`): Open (new and reviewed), Converted, Spam and Closed, newest first, each showing
+  its services, budget, source and any existing client with that email. "Add enquiry" (`enquiries.manage`) records one
+  that came by email, referral or in person.
+- `/crm/enquiries/[id]`: the answers with labels, the sender's IP and browser when the query returns them (`audit.view`),
+  contacts already using the email with their open deals, and links to the client and deal once converted. Opening a
+  new enquiry marks it reviewed for `enquiries.manage` holders. Actions: Convert (with `deals.manage`), Close, Mark as
+  spam, Reopen. Convert preselects the suggested client (with the reason) or a new client named after the company,
+  and asks for the deal title and an estimated value; it opens the new deal.
+- `/crm/deals` (`deals.view`): pipeline value and weighted value per currency, Board and Table views, and an Everyone or
+  My deals filter. On the board, `deals.manage` holders drag cards between stages or use each card's stage menu. Won is
+  shown but unavailable until Projects; Lost asks for a reason and an optional note. Cards show the owner and the next
+  follow-up. Won and Lost columns show deals closed in the last 90 days. "New deal" chooses the client.
+- `/crm/deals/[id]`: value, probability and stage (movable with `deals.manage`), the loss reason when lost, next
+  follow-up (set or clear), details with links to the client and the enquiry, the deal's timeline, Edit
+  (`deals.manage`) and Delete (`clients.delete`).
+- The client page's **Deals** tab (`deals.view`) lists the client's open, won, lost or all deals, with "New deal" for
+  that client.
+- `/settings/pipeline` (`deals.manage`): rename stages and set open stages' win percentage, move open stages up and
+  down, add stages, remove a stage (choosing where its deals go), and add, rename, reorder, retire or bring back lost
+  reasons.
 - `/crm/rate-card` (`ratecard.view`, in the CRM menu): items with unit, category, VAT and a price column per currency;
   add, edit, retire and bring back with `ratecard.manage`. Retired items are hidden unless shown.
 

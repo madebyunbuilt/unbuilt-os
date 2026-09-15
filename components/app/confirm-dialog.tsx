@@ -26,16 +26,26 @@ export function ConfirmDialog({
   onConfirm,
   children,
   canConfirm = true,
+  open: controlledOpen,
+  onOpenChange,
 }: {
-  trigger: ReactNode;
+  /** Omit when the dialog is opened by `open` instead of a trigger. */
+  trigger?: ReactNode;
   title: string;
   description: ReactNode;
   confirmLabel: string;
   onConfirm: () => Promise<unknown>;
   children?: ReactNode;
   canConfirm?: boolean;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }) {
-  const [open, setOpen] = useState(false);
+  const [uncontrolledOpen, setUncontrolledOpen] = useState(false);
+  const open = controlledOpen ?? uncontrolledOpen;
+  const setOpen = (next: boolean) => {
+    setUncontrolledOpen(next);
+    onOpenChange?.(next);
+  };
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -60,7 +70,7 @@ export function ConfirmDialog({
         if (!next) setError(null);
       }}
     >
-      <AlertDialogTrigger asChild>{trigger}</AlertDialogTrigger>
+      {trigger && <AlertDialogTrigger asChild>{trigger}</AlertDialogTrigger>}
       <AlertDialogContent>
         <AlertDialogHeader>
           <AlertDialogTitle className="font-display">{title}</AlertDialogTitle>
