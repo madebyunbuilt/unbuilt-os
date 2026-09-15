@@ -242,8 +242,7 @@ describe('LeaveCalendar', () => {
 });
 
 describe('Business hours and holidays settings', () => {
-  // The timezone list has hundreds of options, which makes rendering slow when the whole suite runs in parallel.
-  it('saves one window per open day and is read-only without settings.manage', { timeout: 15_000 }, async () => {
+  it('saves one window per open day and is read-only without settings.manage', async () => {
     state.queries['businessHours.get'] = {
       name: 'Studio hours (Lagos)',
       timezone: 'Africa/Lagos',

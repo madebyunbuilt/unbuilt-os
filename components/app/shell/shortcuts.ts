@@ -15,5 +15,7 @@ export function isTypingTarget(target: EventTarget | null): boolean {
 }
 
 export function isCommandPaletteKey(event: Pick<KeyboardEvent, 'key' | 'metaKey' | 'ctrlKey' | 'altKey'>): boolean {
+  // Browsers send keydown events without a key when autofill fills a field.
+  if (typeof event.key !== 'string') return false;
   return event.key.toLowerCase() === 'k' && (event.metaKey || event.ctrlKey) && !event.altKey;
 }

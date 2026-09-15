@@ -332,6 +332,11 @@ describe('ClientSettings', () => {
       }),
     );
     expect(screen.getByLabelText('SLA policy')).toBeDisabled();
+
+    await userEvent.clear(screen.getByLabelText('Payment terms (days)'));
+    await userEvent.type(screen.getByLabelText('Payment terms (days)'), 'two weeks');
+    await userEvent.click(screen.getByRole('button', { name: 'Save billing details' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('Payment terms must be a whole number of days');
   });
 });
 

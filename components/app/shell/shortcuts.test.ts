@@ -11,6 +11,11 @@ describe('shortcuts', () => {
     expect(key({ ctrlKey: true, altKey: true })).toBe(false);
   });
 
+  it('ignore key events without a key, as browsers send when autofilling a field', () => {
+    const autofill = { key: undefined as unknown as string, metaKey: false, ctrlKey: false, altKey: false };
+    expect(isCommandPaletteKey(autofill)).toBe(false);
+  });
+
   it('treat fields and editable content as typing', () => {
     expect(isTypingTarget(document.createElement('input'))).toBe(true);
     expect(isTypingTarget(document.createElement('textarea'))).toBe(true);

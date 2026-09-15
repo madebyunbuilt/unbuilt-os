@@ -25,6 +25,13 @@ export const SETTINGS_SECTIONS: readonly SettingsSection[] = [
     built: true,
   },
   {
+    label: 'Pipeline',
+    href: '/settings/pipeline',
+    description: 'Deal stages, their win probabilities and lost reasons',
+    anyOf: ['deals.manage'],
+    built: true,
+  },
+  {
     label: 'Roles and permissions',
     href: '/settings/roles',
     description: 'Default and custom roles',
