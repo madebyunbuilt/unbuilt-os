@@ -4,6 +4,7 @@ import { type MutationCtx } from './_generated/server';
 import { auditedDatabase } from './lib/audit';
 import { internalMutation } from './lib/functions';
 import { DEFAULT_LOST_REASONS, DEFAULT_PIPELINE_STAGES } from './lib/deals';
+import { DEFAULT_PROJECT_TEMPLATES, HANDOVER_ITEMS } from './lib/projectTemplates';
 import { ensureSeededHolidays } from './lib/holidays';
 import { DEFAULT_ROLES, OWNER_ROLE_KEY } from './lib/permissions';
 import { normalizeEmail } from './lib/principals';
@@ -65,6 +66,23 @@ async function seedBusinessHours(db: Db) {
 /** The calendar year in Lagos, which decides "current and next year". */
 export function lagosYear(now: number): number {
   return Number(new Intl.DateTimeFormat('en-GB', { timeZone: 'Africa/Lagos', year: 'numeric' }).format(now));
+}
+
+/** The default project templates (06-projects.md), only when none exist. */
+async function seedProjectTemplates(db: Db) {
+  if (await db.query('projectTemplates').first()) return { created: 0 };
+  for (const template of DEFAULT_PROJECT_TEMPLATES) {
+    await db.insert('projectTemplates', {
+      name: template.name,
+      type: template.type,
+      description: template.description,
+      milestones: template.milestones.map((m) => ({ ...m, deliverables: [...m.deliverables] })),
+      tasks: template.tasks.map((t) => ({ ...t })),
+      checklists: template.type === 'retainer' ? [] : [{ kind: 'handover', items: [...HANDOVER_ITEMS] }],
+      active: true,
+    });
+  }
+  return { created: DEFAULT_PROJECT_TEMPLATES.length };
 }
 
 /** The default pipeline and lost reasons (05-crm.md), only when none exist, so edits in the app are kept. */
@@ -213,6 +231,7 @@ export const run = internalMutation({
     const holidays = await ensureSeededHolidays(db, [year, year + 1]);
     const slaPolicies = await seedSlaPolicies(db, businessHours.id);
     const pipeline = await seedPipeline(db);
+    const projectTemplates = await seedProjectTemplates(db);
     const owner = await seedOwnerInvite(
       db,
       roles.ids.get(OWNER_ROLE_KEY)!,
@@ -228,6 +247,7 @@ export const run = internalMutation({
         holidays: holidays.created,
         slaPolicies: slaPolicies.created,
         pipeline: pipeline.created,
+        projectTemplates: projectTemplates.created,
         ownerInvite: owner.created,
         sampleRecords: sample.created,
       },

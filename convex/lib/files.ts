@@ -1,7 +1,8 @@
 import { ConvexError } from 'convex/values';
 import { type Doc, type Id, type TableNames } from '../_generated/dataModel';
-import { type MutationCtx } from '../_generated/server';
+import { type MutationCtx, type QueryCtx } from '../_generated/server';
 import { type ClientPrincipal, type TeamPrincipal } from './principals';
+import { inProjectScope } from './projects';
 
 // Files (14-platform.md, Files; 15-security-and-compliance.md). Uploads go to Convex storage through an upload URL that
 // a module hands out after its own permission check; recordUpload then validates what was actually stored. Downloads
@@ -173,8 +174,8 @@ export async function deleteFile(ctx: MutationCtx, fileId: Id<'files'>): Promise
  * scope, tickets follow client scope, and so on). A table that is not listed is readable by nobody.
  */
 export type FileAccessRule = {
-  team?: (principal: TeamPrincipal, file: Doc<'files'>) => boolean;
-  portal?: (principal: ClientPrincipal, file: Doc<'files'>) => boolean;
+  team?: (ctx: QueryCtx, principal: TeamPrincipal, file: Doc<'files'>) => boolean | Promise<boolean>;
+  portal?: (ctx: QueryCtx, principal: ClientPrincipal, file: Doc<'files'>) => boolean | Promise<boolean>;
 };
 
 export const FILE_ACCESS: Partial<Record<TableNames, FileAccessRule>> = {
@@ -182,18 +183,26 @@ export const FILE_ACCESS: Partial<Record<TableNames, FileAccessRule>> = {
   orgSettings: { team: () => true },
   // Avatars appear across the team app.
   teamMembers: { team: () => true },
+  // Deliverable versions follow project scope. The portal rule arrives with the client portal.
+  deliverables: {
+    team: async (ctx, principal, file) => {
+      const projectId = file.projectId ? ctx.db.normalizeId('projects', file.projectId) : null;
+      return projectId ? await inProjectScope(ctx, principal, projectId) : false;
+    },
+  },
 };
 
-export function canReadFile(
+export async function canReadFile(
+  ctx: QueryCtx,
   principal: TeamPrincipal | ClientPrincipal,
   file: Doc<'files'>,
   rules: Partial<Record<TableNames, FileAccessRule>> = FILE_ACCESS,
-): boolean {
+): Promise<boolean> {
   const rule = rules[file.owner.table as TableNames];
-  if (principal.kind === 'team') return rule?.team?.(principal, file) ?? false;
+  if (principal.kind === 'team') return (await rule?.team?.(ctx, principal, file)) ?? false;
   // Client users only ever see their own client's files that the studio marked visible to them.
   if (file.visibility !== 'client' || file.clientId !== principal.clientId) return false;
-  return rule?.portal?.(principal, file) ?? false;
+  return (await rule?.portal?.(ctx, principal, file)) ?? false;
 }
 
 export const DOWNLOAD_URL_TTL_MS = 5 * 60 * 1000;

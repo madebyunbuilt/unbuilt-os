@@ -305,7 +305,7 @@ export const moveToStage = teamMutation('deals.manage')({
     if (from._id === to._id) return;
     if (from.kind === 'won') throw crmError('crm.dealWon', 'A won deal stays won');
     if (to.kind === 'won') {
-      throw crmError('crm.wonNeedsProject', 'Marking a deal won needs its project, which arrives with Projects');
+      throw crmError('crm.wonNeedsProject', 'Mark the deal as won with its project');
     }
 
     const now = Date.now();

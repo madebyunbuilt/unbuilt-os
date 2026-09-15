@@ -40,6 +40,7 @@ describe('seed', () => {
       holidays: 2 * (6 + 5),
       slaPolicies: 3,
       pipeline: 6 + 7,
+      projectTemplates: 6,
       ownerInvite: 1,
       sampleRecords: 0,
     });
@@ -53,6 +54,7 @@ describe('seed', () => {
       holidays: 0,
       slaPolicies: 0,
       pipeline: 0,
+      projectTemplates: 0,
       ownerInvite: 0,
       sampleRecords: 0,
     });

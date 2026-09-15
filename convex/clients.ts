@@ -388,5 +388,10 @@ async function dependents(ctx: Ctx, clientId: Id<'clients'>): Promise<string[]> 
     .withIndex('by_client', (q) => q.eq('clientId', clientId))
     .first();
   if (deal) blockers.push('deals');
+  const project = await ctx.db
+    .query('projects')
+    .withIndex('by_client', (q) => q.eq('clientId', clientId))
+    .first();
+  if (project) blockers.push('projects');
   return blockers;
 }

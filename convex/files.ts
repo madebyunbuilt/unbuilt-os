@@ -20,7 +20,7 @@ export const teamDownloadUrl = teamQuery(null)({
   args: { fileId: v.id('files') },
   handler: async (ctx, { fileId }) => {
     const file = await ctx.db.get('files', fileId);
-    if (!file || !canReadFile(ctx.principal, file)) throw notFound();
+    if (!file || !(await canReadFile(ctx, ctx.principal, file))) throw notFound();
     return { name: file.name, ...(await signedDownloadUrl(fileId, Date.now())) };
   },
 });
@@ -29,7 +29,7 @@ export const portalDownloadUrl = portalQuery(null)({
   args: { fileId: v.id('files') },
   handler: async (ctx, { fileId }) => {
     const file = await ctx.db.get('files', fileId);
-    if (!file || !canReadFile(ctx.principal, file)) throw notFound();
+    if (!file || !(await canReadFile(ctx, ctx.principal, file))) throw notFound();
     return { name: file.name, ...(await signedDownloadUrl(fileId, Date.now())) };
   },
 });

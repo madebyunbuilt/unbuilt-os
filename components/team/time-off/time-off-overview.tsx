@@ -187,7 +187,7 @@ function PendingRequest({ entry }: { entry: TimeOffEntry }) {
 function MyTimeOff({ entries }: { entries: TimeOffEntry[] }) {
   return (
     <div className="overflow-x-auto rounded-lg border">
-      <table className="w-full min-w-[40rem] text-sm">
+      <table className="w-full min-w-160 text-sm">
         <caption className="sr-only">Your time off</caption>
         <thead className="bg-muted text-left">
           <tr>
