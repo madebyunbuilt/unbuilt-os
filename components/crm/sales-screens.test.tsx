@@ -277,6 +277,21 @@ describe('DealDetail', () => {
   });
 });
 
+describe('New deal from the board', () => {
+  it('asks for the client instead of failing silently', async () => {
+    state.queries['deals.board'] = [];
+    state.queries['deals.pipelineSummary'] = {};
+    render(<DealBoard permissions={PM} />);
+    await userEvent.click(screen.getByRole('button', { name: 'New deal' }));
+    const dialog = await screen.findByRole('dialog', { name: 'New deal' });
+    await userEvent.type(within(dialog).getByLabelText('Title'), 'Build website 2');
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Create deal' }));
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent('Choose the client for this deal');
+    expect(within(dialog).getByLabelText('Client')).toHaveAttribute('aria-invalid', 'true');
+    expect(state.mutations['deals.create']).not.toHaveBeenCalled();
+  });
+});
+
 describe('ClientDeals', () => {
   it('lists a client’s deals and creates one for that client', async () => {
     state.queries['deals.list'] = [deal()];

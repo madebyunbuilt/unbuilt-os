@@ -85,10 +85,13 @@ export function DealFormDialog({
   const formId = deal ? `deal-form-${deal.id}` : 'deal-form-new';
 
   async function save() {
+    if (!values.clientId) {
+      setError('Choose the client for this deal');
+      return;
+    }
     setSaving(true);
     setError(null);
     try {
-      if (!values.clientId) throw new Error('Choose the client');
       const common = {
         title: values.title,
         primaryContactId: (values.primaryContactId || undefined) as Id<'contacts'> | undefined,
@@ -151,6 +154,7 @@ export function DealFormDialog({
                 id={`${formId}-client`}
                 value={values.clientId}
                 disabled={!clients}
+                aria-invalid={error !== null && !values.clientId ? true : undefined}
                 onChange={(event) => setValues({ ...values, clientId: event.target.value, primaryContactId: '' })}
               >
                 <option value="">{clients ? 'Choose a client' : 'Loading clients…'}</option>

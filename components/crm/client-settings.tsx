@@ -89,9 +89,12 @@ function BillingForm({ client, editable }: { client: Client; editable: boolean }
   const [state, setState] = useState<SaveState>({ kind: 'idle' });
 
   async function save() {
+    if (terms.trim() && !/^\d+$/.test(terms.trim())) {
+      setState({ kind: 'error', message: 'Payment terms must be a whole number of days' });
+      return;
+    }
     setState({ kind: 'idle' });
     try {
-      if (terms && !/^\d+$/.test(terms.trim())) throw new Error('Payment terms must be a whole number of days');
       await update({
         clientId: client.id,
         legalName: legalName || undefined,

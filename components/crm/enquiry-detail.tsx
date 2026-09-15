@@ -216,10 +216,13 @@ function ConvertDialog({ enquiry, permissions }: { enquiry: Enquiry; permissions
   const [saving, setSaving] = useState(false);
 
   async function save() {
+    if (!choice) {
+      setError('Choose a client');
+      return;
+    }
     setSaving(true);
     setError(null);
     try {
-      if (!choice) throw new Error('Choose a client');
       const result = await convert({
         enquiryId: enquiry.id,
         client:
