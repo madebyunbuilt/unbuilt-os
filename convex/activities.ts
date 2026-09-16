@@ -16,6 +16,7 @@ import {
 import { teamMutation, teamQuery } from './lib/functions';
 import { notifyTeamMembers } from './lib/notify';
 import { type TeamPrincipal } from './lib/principals';
+import { visibleProject } from './lib/projects';
 
 // The activity timeline (05-crm.md, Activity timeline). Anyone who can view a client adds notes, calls and meetings to
 // it and its contacts; authors edit and delete their own, and the Owner and Admins (clients.delete) can delete anyone's.
@@ -33,7 +34,7 @@ const DEFAULT_TITLES: Record<(typeof MANUAL_TYPES)[number], string> = {
 };
 
 const subject = v.object({
-  table: v.union(v.literal('clients'), v.literal('contacts'), v.literal('deals')),
+  table: v.union(v.literal('clients'), v.literal('contacts'), v.literal('deals'), v.literal('projects')),
   id: v.string(),
 });
 const manualType = v.union(v.literal('note'), v.literal('call'), v.literal('meeting'));
@@ -61,6 +62,12 @@ async function resolveSubject(
       const contact = await getContact(ctx, id);
       const client = await getClient(ctx, contact.clientId);
       return { clientId: client._id, link: `/crm/clients/${client._id}`, label: client.displayName };
+    }
+    case 'projects': {
+      const id = ctx.db.normalizeId('projects', target.id);
+      if (!id) throw crmError('crm.notFound', 'Project not found');
+      const project = await visibleProject(ctx, ctx.principal, id);
+      return { clientId: project.clientId, link: `/projects/${project._id}`, label: `${project.code} ${project.name}` };
     }
     case 'deals': {
       requirePermission(ctx.principal, 'deals.view');

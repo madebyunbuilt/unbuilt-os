@@ -353,6 +353,175 @@ export default defineSchema({
     .index('by_owner_followup', ['ownerMemberId', 'nextFollowUpDate'])
     .index('by_enquiry', ['enquiryId']),
 
+  projects: defineTable({
+    code: v.string(),
+    name: v.string(),
+    clientId: v.id('clients'),
+    dealId: v.optional(v.id('deals')),
+    templateId: v.optional(v.id('projectTemplates')),
+    type: v.union(
+      v.literal('mobile_app'),
+      v.literal('web_platform'),
+      v.literal('product_design'),
+      v.literal('backend'),
+      v.literal('devops'),
+      v.literal('video'),
+      v.literal('dev_tool'),
+      v.literal('retainer'),
+      v.literal('other'),
+    ),
+    status: v.union(
+      v.literal('planning'),
+      v.literal('active'),
+      v.literal('on_hold'),
+      v.literal('completed'),
+      v.literal('cancelled'),
+      v.literal('archived'),
+    ),
+    billingModel: v.union(v.literal('fixed'), v.literal('time_and_materials'), v.literal('retainer')),
+    budgetMinor: v.optional(v.number()),
+    currency,
+    // YYYY-MM-DD
+    startDate: v.string(),
+    dueDate: v.optional(v.string()),
+    completedAt: v.optional(v.number()),
+    managerMemberId: v.id('teamMembers'),
+    contractDocumentId: v.optional(v.string()),
+    slaPolicyId: v.optional(v.id('slaPolicies')),
+    links: v.object({
+      repo: v.optional(v.string()),
+      staging: v.optional(v.string()),
+      production: v.optional(v.string()),
+      design: v.optional(v.string()),
+    }),
+    description: v.optional(v.string()),
+    handoverStatus: v.union(v.literal('not_started'), v.literal('in_progress'), v.literal('complete')),
+  })
+    .index('by_client', ['clientId'])
+    .index('by_status', ['status'])
+    .index('by_manager', ['managerMemberId'])
+    .index('by_code', ['code'])
+    .index('by_deal', ['dealId'])
+    .searchIndex('search_name', { searchField: 'name' }),
+
+  projectMembers: defineTable({
+    projectId: v.id('projects'),
+    memberId: v.id('teamMembers'),
+    // A label such as lead developer; it grants nothing.
+    projectRole: v.optional(v.string()),
+    joinedAt: v.number(),
+  })
+    .index('by_project', ['projectId'])
+    .index('by_member', ['memberId'])
+    .index('by_project_member', ['projectId', 'memberId']),
+
+  projectTemplates: defineTable({
+    name: v.string(),
+    type: v.string(),
+    description: v.optional(v.string()),
+    milestones: v.array(
+      v.object({
+        name: v.string(),
+        // Days after the project start
+        offsetDays: v.number(),
+        // Used by billing schedules (billing automation step)
+        billingPercentBps: v.optional(v.number()),
+        deliverables: v.array(v.string()),
+      }),
+    ),
+    tasks: v.array(
+      v.object({ title: v.string(), milestoneIndex: v.optional(v.number()), estimateMinutes: v.optional(v.number()) }),
+    ),
+    intakeFormId: v.optional(v.string()),
+    checklists: v.array(v.object({ kind: v.string(), items: v.array(v.string()) })),
+    active: v.boolean(),
+  }).index('by_name', ['name']),
+
+  milestones: defineTable({
+    projectId: v.id('projects'),
+    name: v.string(),
+    order: v.number(),
+    dueDate: v.optional(v.string()),
+    status: v.union(
+      v.literal('upcoming'),
+      v.literal('in_progress'),
+      v.literal('awaiting_approval'),
+      v.literal('approved'),
+      v.literal('invoiced'),
+      v.literal('skipped'),
+    ),
+    billingAmountMinor: v.optional(v.number()),
+    billingPercentBps: v.optional(v.number()),
+    approvedAt: v.optional(v.number()),
+    approvedByContactId: v.optional(v.id('contacts')),
+  }).index('by_project_order', ['projectId', 'order']),
+
+  deliverables: defineTable({
+    projectId: v.id('projects'),
+    milestoneId: v.optional(v.id('milestones')),
+    title: v.string(),
+    description: v.optional(v.string()),
+    status: v.union(v.literal('draft'), v.literal('in_review'), v.literal('changes_requested'), v.literal('approved')),
+    // 0 until the first version is submitted
+    currentVersion: v.number(),
+    approvedAt: v.optional(v.number()),
+    approvedByContactId: v.optional(v.id('contacts')),
+    approvedVersion: v.optional(v.number()),
+  })
+    .index('by_project', ['projectId'])
+    .index('by_milestone', ['milestoneId']),
+
+  deliverableVersions: defineTable({
+    deliverableId: v.id('deliverables'),
+    projectId: v.id('projects'),
+    version: v.number(),
+    fileIds: v.array(v.id('files')),
+    links: v.array(v.object({ label: v.optional(v.string()), url: v.string() })),
+    notes: v.optional(v.string()),
+    submittedByMemberId: v.id('teamMembers'),
+    submittedAt: v.number(),
+  }).index('by_deliverable_version', ['deliverableId', 'version']),
+
+  comments: defineTable({
+    target: v.object({ table: v.union(v.literal('deliverables'), v.literal('tasks')), id: v.string() }),
+    projectId: v.optional(v.id('projects')),
+    clientId: v.optional(v.id('clients')),
+    body: v.string(),
+    mentions: v.array(v.id('teamMembers')),
+    // Internal comments never reach portal functions.
+    visibility: v.union(v.literal('internal'), v.literal('client')),
+    authorKind: v.union(v.literal('team'), v.literal('client')),
+    authorId: v.string(),
+    editedAt: v.optional(v.number()),
+  }).index('by_target', ['target.table', 'target.id']),
+
+  tasks: defineTable({
+    projectId: v.id('projects'),
+    milestoneId: v.optional(v.id('milestones')),
+    title: v.string(),
+    description: v.optional(v.string()),
+    status: v.union(v.literal('todo'), v.literal('in_progress'), v.literal('blocked'), v.literal('done')),
+    priority: v.union(v.literal('low'), v.literal('medium'), v.literal('high'), v.literal('urgent')),
+    assigneeMemberIds: v.array(v.id('teamMembers')),
+    dueDate: v.optional(v.string()),
+    estimateMinutes: v.optional(v.number()),
+    order: v.number(),
+    ticketId: v.optional(v.string()),
+    changeRequestId: v.optional(v.string()),
+    completedAt: v.optional(v.number()),
+  })
+    .index('by_project_status', ['projectId', 'status', 'order'])
+    .index('by_milestone', ['milestoneId']),
+
+  taskAssignments: defineTable({
+    taskId: v.id('tasks'),
+    memberId: v.id('teamMembers'),
+    status: v.union(v.literal('todo'), v.literal('in_progress'), v.literal('blocked'), v.literal('done')),
+    dueDate: v.optional(v.string()),
+  })
+    .index('by_member_status', ['memberId', 'status'])
+    .index('by_task', ['taskId']),
+
   rateCardItems: defineTable({
     name: v.string(),
     description: v.optional(v.string()),

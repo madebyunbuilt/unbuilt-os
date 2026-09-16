@@ -16,6 +16,7 @@ import {
   roleByKey,
   teamError,
 } from './lib/team';
+import { removeFromProject } from './projects';
 import { cancelOpenTimeOff } from './lib/timeOff';
 import { isE164, isEmail, isIsoDate, isTimeZone } from './lib/validation';
 
@@ -374,6 +375,15 @@ export const offboard = teamMutation('team.manage')({
     await ctx.db.patch('teamMembers', memberId, { status: 'offboarded', endDate: lastDay, offboardedAt: Date.now() });
     if (member.authUserId) await revokeAllSessions(ctx, member.authUserId);
     await cancelOpenTimeOff(ctx, memberId, lastDay, ctx.principal.member._id);
+    // Offboarding removes project membership at once (03-auth-and-permissions.md); managers keep the record until
+    // someone else takes their projects.
+    for (const row of await ctx.db
+      .query('projectMembers')
+      .withIndex('by_member', (q) => q.eq('memberId', memberId))
+      .collect()) {
+      const project = await ctx.db.get('projects', row.projectId);
+      if (project?.managerMemberId !== memberId) await removeFromProject(ctx, row.projectId, memberId);
+    }
   },
 });
 

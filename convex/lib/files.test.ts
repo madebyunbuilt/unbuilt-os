@@ -111,19 +111,23 @@ describe('canReadFile', () => {
   const qravit = { kind: 'client', clientId: 'qravit' } as unknown as ClientPrincipal;
   const rules = { tickets: { team: () => true, portal: () => true } } as never;
 
-  it('denies every table without a rule', () => {
-    expect(canReadFile(team, file({ owner: { table: 'contacts', id: 'c1' } }))).toBe(false);
-    expect(canReadFile(glossup, file({ owner: { table: 'contacts', id: 'c1' } }))).toBe(false);
+  const ctx = {} as never;
+
+  it('denies every table without a rule', async () => {
+    expect(await canReadFile(ctx, team, file({ owner: { table: 'contacts', id: 'c1' } }))).toBe(false);
+    expect(await canReadFile(ctx, glossup, file({ owner: { table: 'contacts', id: 'c1' } }))).toBe(false);
   });
 
-  it('lets team members read the studio logo', () => {
-    expect(canReadFile(team, file({ owner: { table: 'orgSettings', id: 's1' }, visibility: 'internal' }))).toBe(true);
+  it('lets team members read the studio logo', async () => {
+    expect(
+      await canReadFile(ctx, team, file({ owner: { table: 'orgSettings', id: 's1' }, visibility: 'internal' })),
+    ).toBe(true);
   });
 
-  it('keeps client users to their own client’s client-visible files, even when the module allows the portal', () => {
-    expect(canReadFile(glossup, file({}), rules)).toBe(true);
-    expect(canReadFile(qravit, file({}), rules)).toBe(false);
-    expect(canReadFile(glossup, file({ visibility: 'internal' }), rules)).toBe(false);
-    expect(canReadFile(glossup, file({ clientId: undefined }), rules)).toBe(false);
+  it('keeps client users to their own client’s client-visible files, even when the module allows the portal', async () => {
+    expect(await canReadFile(ctx, glossup, file({}), rules)).toBe(true);
+    expect(await canReadFile(ctx, qravit, file({}), rules)).toBe(false);
+    expect(await canReadFile(ctx, glossup, file({ visibility: 'internal' }), rules)).toBe(false);
+    expect(await canReadFile(ctx, glossup, file({ clientId: undefined }), rules)).toBe(false);
   });
 });

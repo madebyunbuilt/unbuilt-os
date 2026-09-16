@@ -169,22 +169,26 @@ video, dev_tool, retainer, other) `status` (planning, active, on_hold, completed
 (fixed, time_and_materials, retainer) `budgetMinor?` `currency` `startDate` `dueDate` `completedAt?` `managerMemberId`
 `contractDocumentId?` `slaPolicyId?` `links { repo?, staging?, production?, design? }` `description`
 `handoverStatus` (not_started, in_progress, complete).
-Indexes: `by_client`, `by_status`, `by_manager`. Search index on `name` and `code`.
+Indexes: `by_client`, `by_status`, `by_manager`, `by_code`, `by_deal`. Search index on `name`.
 
-**projectMembers** — `projectId` `memberId` `projectRole` `joinedAt`. Indexes: `by_project`, `by_member`.
+**projectMembers** — `projectId` `memberId` `projectRole?` `joinedAt`. Indexes: `by_project`, `by_member`,
+`by_project_member`.
 
 **projectTemplates** — `name` `type` `milestones[] { name, offsetDays, billingPercentBps?, deliverables[] }`
-`tasks[] { title, milestoneIndex, estimateMinutes }` `intakeFormId?` `checklists[]`.
+`tasks[] { title, milestoneIndex?, estimateMinutes? }` `intakeFormId?` `checklists[] { kind, items[] }` `description?`
+`active`. Index: `by_name`.
 
 **milestones**
-`projectId` `name` `order` `dueDate` `status` (upcoming, in_progress, awaiting_approval, approved, invoiced)
-`billingAmountMinor?` `approvedAt?` `approvedByContactId?`. Index: `by_project_order`.
+`projectId` `name` `order` `dueDate?` `status` (upcoming, in_progress, awaiting_approval, approved, invoiced, skipped)
+`billingAmountMinor?` `billingPercentBps?` `approvedAt?` `approvedByContactId?`. Index: `by_project_order`.
 
 **deliverables**
 `projectId` `milestoneId?` `title` `description` `status` (draft, in_review, changes_requested, approved)
-`currentVersion` `approvedAt?` `approvedByContactId?`. Index: `by_project`.
+`currentVersion` (0 before the first submission) `approvedVersion?` `approvedAt?` `approvedByContactId?`.
+Indexes: `by_project`, `by_milestone`.
 
-**deliverableVersions** — `deliverableId` `version` `fileIds[]` `links[]` `notes` `submittedByMemberId` `submittedAt`.
+**deliverableVersions** — `deliverableId` `projectId` `version` `fileIds[]` `links[] { label?, url }` `notes?`
+`submittedByMemberId` `submittedAt`. Index: `by_deliverable_version`.
 
 **comments**
 `target { table, id }` `projectId?` `clientId?` `body` `mentions[]` `visibility` (internal, client) `authorKind`
@@ -192,8 +196,11 @@ Indexes: `by_client`, `by_status`, `by_manager`. Search index on `name` and `cod
 
 **tasks**
 `projectId` `milestoneId?` `title` `description` `status` (todo, in_progress, blocked, done) `priority` (low, medium,
-high, urgent) `assigneeMemberIds[]` `dueDate?` `estimateMinutes?` `order` `ticketId?` `changeRequestId?`.
-Indexes: `by_project_status`, `by_assignee_status`.
+high, urgent) `assigneeMemberIds[]` `dueDate?` `estimateMinutes?` `order` `ticketId?` `changeRequestId?`
+`completedAt?`. Indexes: `by_project_status` (with order), `by_milestone`.
+
+**taskAssignments** — `taskId` `memberId` `status` `dueDate?`, mirroring each assignee of a task (Convex cannot index an
+array). Indexes: `by_member_status`, `by_task`.
 
 **timeEntries**
 `memberId` `projectId` `taskId?` `ticketId?` `date` `minutes` `description` `billable` `status` (draft, submitted,

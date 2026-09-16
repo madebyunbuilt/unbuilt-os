@@ -119,6 +119,41 @@
   - creates a draft case study in the CMS, pre-filled from the project (see `13-cms-and-website.md`)
   - sends the client a testimonial request with a portal link
 
+## Decisions and rules (studio, 2026-09-15)
+
+- **Project scope**: a member of a project, or anyone with `projects.view.all`, can see it; `.assigned` permissions
+  (`tasks.manage.assigned`, `deliverables.manage.assigned`) apply wherever the caller can see the project. Out of scope
+  is "not found". Finance sees every project and manages nothing in it.
+- **Managers** are always members of their project and cannot be removed until another manager is chosen. Removing a
+  member also takes them off the project's tasks. Offboarding removes all memberships except projects the person still
+  manages.
+- **Status**: planning → active, on hold or cancelled; active → on hold, completed or cancelled; on hold → active or
+  cancelled; completed → active or archived; cancelled → planning or archived; archived → completed. Archiving and
+  restoring need `projects.archive`. Closed projects (completed, cancelled, archived) take no new tasks, milestones or
+  deliverables. Milestones gain a `skipped` status so completion can proceed without them.
+- **Client status** follows projects: the client becomes active when any project is active, and past when an active
+  client has no open project left and at least one completed one. Retainers join the rule with billing automation.
+- **Won deals** are marked won by creating the project (optionally from a template) or by linking an existing project
+  of the same client that no other deal has won. Moving a deal to Won any other way is refused.
+- **Templates** seeded by default are drafts without billing percentages; percentages, when set, must not add up to
+  more than 100%. Templates are retired, not deleted. Creating from a template dates each milestone from the project
+  start and takes the due date from the last milestone unless one is given.
+- **Deliverables**: submitting a version needs at least one file or link; files are client-visible and follow project
+  scope for the team. Versions go in review and the milestone awaits approval. An approved deliverable takes no more
+  versions; further work is a new deliverable. The client's decision must name the version in review. Deliverables
+  with submitted versions are never deleted. The portal approval function and the invoice draft on milestone approval
+  arrive with the client portal and billing automation steps.
+- **Comments**: anyone who can see the project adds internal comments; client-visible comments need
+  `deliverables.manage.assigned` (deliverables) or task management (tasks). Authors edit and delete their own. Mentions
+  notify only people who can see the project.
+- **Tasks**: `taskAssignments` mirrors assignees, status and due date so each member's open tasks are indexed.
+- **Time approval** (built with time tracking): nobody approves their own time, the Owner excepted; project managers
+  approve time only on projects they manage, while the Owner and Admins approve time on any project. Time logged
+  without rates is recorded and flagged for Finance.
+- **Budget used** waits for billing (expenses, bills and FX rates); until then the overview shows hours against
+  estimates.
+- Change requests, weekly client updates and handover are built in later steps.
+
 ## Acceptance criteria
 
 - Creating a project from a template creates milestones with correct dates, tasks, the intake request and a billing
