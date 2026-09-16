@@ -9,6 +9,7 @@ import schema from '../schema';
 /** Fields replaced with REDACTED in audit diffs. One list per table, shared with the sensitive-field serializers. */
 export const SENSITIVE_FIELDS: Partial<Record<TableNames, readonly string[]>> = {
   teamMembers: ['costRateMinor', 'billRateMinor'],
+  timeEntries: ['costRateMinor', 'billRateMinor'],
   orgSettings: ['bankAccounts'],
 };
 
