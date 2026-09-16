@@ -34,7 +34,7 @@ export function DealBoard({ permissions }: { permissions: string[] }) {
   const summary = useQuery(api.deals.pipelineSummary, owner === 'mine' && !me ? 'skip' : { ownerMemberId });
   const [error, setError] = useState<string | null>(null);
   const [dragging, setDragging] = useState<Id<'deals'> | null>(null);
-  const { request, dialog } = useDealMove({ onError: setError });
+  const { request, dialog } = useDealMove({ permissions, onError: setError });
   const stages: Stage[] = board?.map(({ id, name, kind }) => ({ id, name, kind })) ?? [];
 
   return (

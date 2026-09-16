@@ -3,6 +3,7 @@
 import { useMutation, useQuery } from 'convex/react';
 import { useState } from 'react';
 import { ConfirmDialog } from '@/components/app/confirm-dialog';
+import { WinDealDialog, type WinnableDeal } from '@/components/projects/win-deal-dialog';
 import { Label } from '@/components/ui/label';
 import { NativeSelect } from '@/components/ui/native-select';
 import { Textarea } from '@/components/ui/textarea';
@@ -13,20 +14,27 @@ import { errorMessage } from '@/lib/convex-error';
 export type Stage = { id: Id<'pipelineStages'>; name: string; kind: 'open' | 'won' | 'lost' };
 
 /**
- * Moves a deal to another stage. Won is unavailable until projects exist; Lost asks for a reason. Returns the
- * control and, while a Lost move is pending, its dialog. Other moves happen at once.
+ * Moves a deal to another stage. Won asks for the project the deal becomes; Lost asks for a reason. Returns the
+ * control and, while either is pending, its dialog. Other moves happen at once.
  */
-export function useDealMove({ onError }: { onError: (message: string | null) => void }) {
+export function useDealMove({
+  permissions,
+  onError,
+}: {
+  permissions: string[];
+  onError: (message: string | null) => void;
+}) {
   const move = useMutation(api.deals.moveToStage);
   const reasons = useQuery(api.pipeline.lostReasons, {});
   const [pendingLost, setPendingLost] = useState<{ dealId: Id<'deals'>; title: string; stage: Stage } | null>(null);
+  const [pendingWin, setPendingWin] = useState<WinnableDeal | null>(null);
   const [reasonId, setReasonId] = useState('');
   const [note, setNote] = useState('');
 
-  async function request(deal: { id: Id<'deals'>; title: string }, stage: Stage) {
+  async function request(deal: WinnableDeal, stage: Stage) {
     onError(null);
     if (stage.kind === 'won') {
-      onError('Marking a deal won needs its project, which arrives with Projects.');
+      setPendingWin(deal);
       return;
     }
     if (stage.kind === 'lost') {
@@ -42,7 +50,7 @@ export function useDealMove({ onError }: { onError: (message: string | null) => 
     }
   }
 
-  const dialog = pendingLost && (
+  const lostDialog = pendingLost && (
     <ConfirmDialog
       key={pendingLost.dealId}
       open
@@ -81,7 +89,28 @@ export function useDealMove({ onError }: { onError: (message: string | null) => 
     </ConfirmDialog>
   );
 
-  return { request, dialog };
+  const winDialog = pendingWin && (
+    <WinDealDialog
+      key={pendingWin.id}
+      deal={pendingWin}
+      canCreateProject={permissions.includes('projects.create')}
+      canPickManager={permissions.includes('team.view')}
+      open
+      onOpenChange={(open) => {
+        if (!open) setPendingWin(null);
+      }}
+    />
+  );
+
+  return {
+    request,
+    dialog: (
+      <>
+        {lostDialog}
+        {winDialog}
+      </>
+    ),
+  };
 }
 
 /** A "Move to" select for a deal. Keyboard and screen-reader friendly alternative to dragging on the board. */
@@ -114,8 +143,8 @@ export function StageSelect({
         }}
       >
         {stages.map((stage) => (
-          <option key={stage.id} value={stage.id} disabled={stage.kind === 'won'}>
-            {stage.kind === 'won' ? `${stage.name} (arrives with Projects)` : stage.name}
+          <option key={stage.id} value={stage.id}>
+            {stage.name}
           </option>
         ))}
       </NativeSelect>

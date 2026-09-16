@@ -54,7 +54,7 @@ export const TEAM_NAVIGATION: readonly NavSection[] = [
         href: '/projects',
         icon: 'folder',
         anyOf: ['projects.view.all', 'projects.view.assigned'],
-        built: false,
+        built: true,
       },
       {
         label: 'Documents',

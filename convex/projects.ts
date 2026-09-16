@@ -6,6 +6,7 @@ import { teamMutation, teamQuery } from './lib/functions';
 import { orderedStages } from './lib/deals';
 import { nextNumber } from './lib/numbering';
 import { type TeamPrincipal } from './lib/principals';
+import { PROJECT_STATUS_LABELS as STATUS_LABELS, PROJECT_TRANSITIONS as TRANSITIONS } from './lib/projectStatus';
 import {
   addDaysToDate,
   assertOpen,
@@ -23,7 +24,6 @@ import { isIsoDate } from './lib/validation';
 
 type Ctx = QueryCtx | MutationCtx;
 type Principal = { principal: TeamPrincipal };
-type Status = Doc<'projects'>['status'];
 
 const currency = v.union(v.literal('NGN'), v.literal('USD'), v.literal('EUR'));
 const projectType = v.union(
@@ -46,25 +46,6 @@ const status = v.union(
   v.literal('cancelled'),
   v.literal('archived'),
 );
-
-const STATUS_LABELS: Record<Status, string> = {
-  planning: 'Planning',
-  active: 'Active',
-  on_hold: 'On hold',
-  completed: 'Completed',
-  cancelled: 'Cancelled',
-  archived: 'Archived',
-};
-
-/** Which status changes are allowed. Archiving needs projects.archive; the rest need projects.update. */
-const TRANSITIONS: Record<Status, Status[]> = {
-  planning: ['active', 'on_hold', 'cancelled'],
-  active: ['on_hold', 'completed', 'cancelled'],
-  on_hold: ['active', 'cancelled'],
-  completed: ['active', 'archived'],
-  cancelled: ['planning', 'archived'],
-  archived: ['completed'],
-};
 
 function checkedDate(value: string | undefined, label: string, required = false) {
   if (!value) {
@@ -163,7 +144,7 @@ async function projectSummary(ctx: Ctx, project: Doc<'projects'>) {
 
 export const list = teamQuery(null)({
   args: {
-    status: v.optional(v.union(status, v.literal('open'))),
+    status: v.optional(v.union(status, v.literal('open'), v.literal('all'))),
     clientId: v.optional(v.id('clients')),
     managerMemberId: v.optional(v.id('teamMembers')),
   },
@@ -182,7 +163,11 @@ export const list = teamQuery(null)({
     const filtered = projects.filter(
       (project) =>
         (visible === 'all' || visible.has(project._id)) &&
-        (wanted === 'open' ? !CLOSED_STATUSES.has(project.status) : project.status === wanted) &&
+        (wanted === 'all'
+          ? true
+          : wanted === 'open'
+            ? !CLOSED_STATUSES.has(project.status)
+            : project.status === wanted) &&
         (!managerMemberId || project.managerMemberId === managerMemberId),
     );
     const views = await Promise.all(filtered.map((project) => projectSummary(ctx, project)));

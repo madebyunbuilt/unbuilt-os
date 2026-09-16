@@ -11,3 +11,4 @@ next-env.d.ts
 **/_generated
 test-results
 playwright-report
+.claude

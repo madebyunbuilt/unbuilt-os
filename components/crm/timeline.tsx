@@ -24,7 +24,7 @@ import {
 
 // The activity timeline for a client, contact or deal (05-crm.md, Activity timeline).
 
-export type TimelineSubject = { table: 'clients' | 'contacts' | 'deals'; id: string };
+export type TimelineSubject = { table: 'clients' | 'contacts' | 'deals' | 'projects'; id: string };
 type ManualType = 'note' | 'call' | 'meeting';
 type Entry = (typeof api.activities.list._returnType)['page'][number];
 
@@ -156,7 +156,7 @@ function TimelineEntry({ entry, canMention }: { entry: Entry; canMention: boolea
 }
 
 /** Text with an @mention picker. Chosen people are tracked by id and turned into markup when saved. */
-function MentionField({
+export function MentionField({
   id,
   label,
   value,

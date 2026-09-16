@@ -167,6 +167,32 @@
   estimates.
 - Change requests, weekly client updates and handover are built in later steps.
 
+## Screens
+
+- `/projects` (`projects.view.all` or `projects.view.assigned`): open projects by default, with filters for any single
+  status or all of them, and an "I manage" toggle. Each card shows the code, client, status, milestone progress and
+  next milestone, manager, type and dates. "New project" (`projects.create`) chooses the client, an optional template
+  (showing what it will create), name, type, billing model, budget, currency, dates, manager (`team.view`) and
+  description, then opens the new project.
+- The project page has a header with the status, the client, Edit (`projects.update`) and "Change status", which offers
+  only the moves the project's status allows, asks for an optional reason, and hides archiving without
+  `projects.archive`. Its tabs follow the list above; tabs for modules not built yet stay visible but inert.
+- **Overview**: milestone progress and the next milestone, open and overdue tasks, hours logged against the task
+  estimate (only the viewer's own hours without `time.view.all`), the budget with its billing model, the project
+  timeline with notes, and details with dates, manager, members, the won deal, links and description.
+- **Milestones and deliverables**: milestones in order with their deliverables and the deliverables with no milestone.
+  With `projects.update`: add, edit, reorder, delete and set a milestone to upcoming, in progress or skipped; approved
+  and invoiced milestones offer none of this. With `deliverables.manage.assigned`: add deliverables. A closed project
+  is read-only.
+- The deliverable page shows its status, milestone, description, each version with its notes, files (downloaded through
+  a signed link) and links, and who approved which version. With `deliverables.manage.assigned` and a deliverable that is
+  not approved: submit a version with files, links and notes, and delete a deliverable that has no versions. Comments
+  sit below: anyone who can see the project adds internal ones, and `deliverables.manage.assigned` chooses
+  "The team and the client".
+- **Members**: everyone on the project with their project role and title. With `projects.members.manage`: add an active
+  member with an optional role, rename a role, and remove anyone but the manager.
+- **Settings** (`projects.update`): the repository, staging, production and design links, and the SLA policy.
+
 ## Acceptance criteria
 
 - Creating a project from a template creates milestones with correct dates, tasks, the intake request and a billing
