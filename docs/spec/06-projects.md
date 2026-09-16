@@ -147,9 +147,22 @@
   `deliverables.manage.assigned` (deliverables) or task management (tasks). Authors edit and delete their own. Mentions
   notify only people who can see the project.
 - **Tasks**: `taskAssignments` mirrors assignees, status and due date so each member's open tasks are indexed.
-- **Time approval** (built with time tracking): nobody approves their own time, the Owner excepted; project managers
-  approve time only on projects they manage, while the Owner and Admins approve time on any project. Time logged
-  without rates is recorded and flagged for Finance.
+- **Time approval**: nobody approves their own time; the Owner approves their own. Project managers approve time on
+  the projects they manage; the Owner and Admins approve time on any project. Approvers see only the weeks they may
+  decide.
+- **Logging time**: anyone who can see a project can log time on it (its members, or `projects.view.all`), with
+  `time.log.own`. Entries are 1 minute to 24 hours, never for a future date, and start as drafts carrying the member's
+  rates at that moment. Time logged before Finance sets someone's rates is kept and flagged as missing a rate;
+  `team.rates.sensitive` fills the rate in later on the entry itself, recorded in the audit log with the amounts
+  redacted. Rates appear in results only with `team.rates.sensitive`.
+- **Editing**: members edit and delete their own draft or returned entries; editing a submitted entry returns it to
+  draft. `time.edit.all` covers others' entries, including approved ones. Invoiced time never changes.
+- **Weekly submission**: `submitWeek` sends that week's drafts (Monday to Sunday) for approval. An approver approves or
+  returns entries with a note, which puts them back in the member's hands as drafts.
+- **Timer**: one timer per person, started from the app. Stopping it writes a draft entry rounded up to the minute; a
+  timer left running is capped at 12 hours. Cancelling throws it away.
+- **Project time**: `time.view.all` sees everyone's entries and totals on a project; everyone else sees only their own.
+  The project overview shows hours logged and billable against the total task estimate.
 - **Budget used** waits for billing (expenses, bills and FX rates); until then the overview shows hours against
   estimates.
 - Change requests, weekly client updates and handover are built in later steps.

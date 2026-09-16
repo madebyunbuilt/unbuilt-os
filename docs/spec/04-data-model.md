@@ -203,9 +203,14 @@ high, urgent) `assigneeMemberIds[]` `dueDate?` `estimateMinutes?` `order` `ticke
 array). Indexes: `by_member_status`, `by_task`.
 
 **timeEntries**
-`memberId` `projectId` `taskId?` `ticketId?` `date` `minutes` `description` `billable` `status` (draft, submitted,
-approved, invoiced) `approvedBy?` `invoiceId?` `costRateMinor` `billRateMinor` `rateCurrency` (rates snapshotted at
-entry time; sensitive). Indexes: `by_member_date`, `by_project_date`, `by_status`.
+`memberId` `projectId` `taskId?` `ticketId?` `date` `weekStart` (the Monday of the entry's week) `minutes`
+`description` `billable` `status` (draft, submitted, approved, invoiced) `submittedAt?` `approvedBy?` `approvedAt?`
+`returnedNote?` `invoiceId?` `costRateMinor?` `billRateMinor?` `rateCurrency?` (rates snapshotted at entry time, absent
+when the member had none; sensitive and redacted in audit diffs).
+Indexes: `by_member_date`, `by_member_week` (with status), `by_project_date`, `by_status`, `by_task`.
+
+**timers** — `memberId` `projectId` `taskId?` `description` `startedAt`. At most one per member; stopping it writes a
+draft time entry. Index: `by_member`.
 
 **changeRequests**
 `number` `projectId` `title` `description` `reason` `impact { amountMinor, currency, days }` `status` (draft, sent,

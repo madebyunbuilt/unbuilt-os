@@ -43,6 +43,7 @@ import type * as lib_projects from "../lib/projects.js";
 import type * as lib_seedData from "../lib/seedData.js";
 import type * as lib_settings from "../lib/settings.js";
 import type * as lib_team from "../lib/team.js";
+import type * as lib_time from "../lib/time.js";
 import type * as lib_timeOff from "../lib/timeOff.js";
 import type * as lib_timeOffFormat from "../lib/timeOffFormat.js";
 import type * as lib_validation from "../lib/validation.js";
@@ -61,6 +62,7 @@ import type * as settings from "../settings.js";
 import type * as tasks from "../tasks.js";
 import type * as team from "../team.js";
 import type * as teamInvites from "../teamInvites.js";
+import type * as time from "../time.js";
 import type * as timeOff from "../timeOff.js";
 
 import type {
@@ -105,6 +107,7 @@ declare const fullApi: ApiFromModules<{
   "lib/seedData": typeof lib_seedData;
   "lib/settings": typeof lib_settings;
   "lib/team": typeof lib_team;
+  "lib/time": typeof lib_time;
   "lib/timeOff": typeof lib_timeOff;
   "lib/timeOffFormat": typeof lib_timeOffFormat;
   "lib/validation": typeof lib_validation;
@@ -123,6 +126,7 @@ declare const fullApi: ApiFromModules<{
   tasks: typeof tasks;
   team: typeof team;
   teamInvites: typeof teamInvites;
+  time: typeof time;
   timeOff: typeof timeOff;
 }>;
 

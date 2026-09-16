@@ -482,6 +482,44 @@ export default defineSchema({
     submittedAt: v.number(),
   }).index('by_deliverable_version', ['deliverableId', 'version']),
 
+  timeEntries: defineTable({
+    memberId: v.id('teamMembers'),
+    projectId: v.id('projects'),
+    taskId: v.optional(v.id('tasks')),
+    ticketId: v.optional(v.string()),
+    // YYYY-MM-DD in the studio's timezone, and the Monday of its week
+    date: v.string(),
+    weekStart: v.string(),
+    minutes: v.number(),
+    description: v.string(),
+    billable: v.boolean(),
+    status: v.union(v.literal('draft'), v.literal('submitted'), v.literal('approved'), v.literal('invoiced')),
+    submittedAt: v.optional(v.number()),
+    approvedBy: v.optional(v.id('teamMembers')),
+    approvedAt: v.optional(v.number()),
+    // Why an approver sent the entry back
+    returnedNote: v.optional(v.string()),
+    invoiceId: v.optional(v.string()),
+    // The member's rates when the entry was logged. Absent when Finance had set none; sensitive.
+    costRateMinor: v.optional(v.number()),
+    billRateMinor: v.optional(v.number()),
+    rateCurrency: v.optional(currency),
+  })
+    .index('by_member_date', ['memberId', 'date'])
+    .index('by_member_week', ['memberId', 'weekStart', 'status'])
+    .index('by_project_date', ['projectId', 'date'])
+    .index('by_status', ['status'])
+    .index('by_task', ['taskId']),
+
+  // At most one running timer per member; stopping it writes a draft time entry.
+  timers: defineTable({
+    memberId: v.id('teamMembers'),
+    projectId: v.id('projects'),
+    taskId: v.optional(v.id('tasks')),
+    description: v.string(),
+    startedAt: v.number(),
+  }).index('by_member', ['memberId']),
+
   comments: defineTable({
     target: v.object({ table: v.union(v.literal('deliverables'), v.literal('tasks')), id: v.string() }),
     projectId: v.optional(v.id('projects')),
