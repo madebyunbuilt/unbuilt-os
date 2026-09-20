@@ -35,8 +35,13 @@
 - **Clauses** are versioned. A document snapshots the clause text at creation, so editing a clause never changes sent or
   signed documents.
 - Editing a template creates a new template version; existing documents keep theirs.
-- Seed templates for every type, written in plain language. Contract, NDA and DPA templates are marked
+- Seed templates for every type, written in plain language. Contract, NDA, DPA and team agreement templates are marked
   "Requires legal review" in the UI until a setting records the lawyer's approval.
+- Seeding adds a clause by its key and a template by its name, so a studio that has edited either keeps its wording
+  when the seed runs again.
+- A template of a priced type is refused without a totals block, so a price can never be sent without its total.
+- A clause an active template still names cannot be retired; templates and clauses are retired, never deleted.
+- Editing a clause's wording raises its version; editing only its title or category leaves the version alone.
 
 ## The document chain
 

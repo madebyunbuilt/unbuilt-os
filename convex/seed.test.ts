@@ -2,6 +2,7 @@ import { ConvexError } from 'convex/values';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { internal } from './_generated/api';
 import { addBusinessMinutes } from './lib/businessTime';
+import { DEFAULT_CLAUSES, DEFAULT_DOCUMENT_TEMPLATES } from './lib/documentTemplateSeeds';
 import { DEFAULT_ROLES } from './lib/permissions';
 import { lagosYear } from './seed';
 import { newTest, type TestConvex } from './test.auth';
@@ -41,6 +42,7 @@ describe('seed', () => {
       slaPolicies: 3,
       pipeline: 6 + 7,
       projectTemplates: 6,
+      documentTemplates: DEFAULT_CLAUSES.length + DEFAULT_DOCUMENT_TEMPLATES.length,
       ownerInvite: 1,
       sampleRecords: 0,
     });
@@ -55,6 +57,7 @@ describe('seed', () => {
       slaPolicies: 0,
       pipeline: 0,
       projectTemplates: 0,
+      documentTemplates: 0,
       ownerInvite: 0,
       sampleRecords: 0,
     });
