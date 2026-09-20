@@ -6,6 +6,7 @@ import { MembersPanel } from './members-panel';
 import { MilestonesPanel } from './milestones-panel';
 import { ProjectHeader } from './project-header';
 import { ProjectList } from './project-list';
+import { ProjectOverview } from './project-overview';
 import { ProjectSettings } from './project-settings';
 import { WinDealDialog, type WinnableDeal } from './win-deal-dialog';
 
@@ -220,6 +221,32 @@ describe('ProjectHeader', () => {
     render(<ProjectHeader projectId={'p1' as never} permissions={MEMBER} />);
     expect(screen.queryByRole('button', { name: 'Edit' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Change status' })).not.toBeInTheDocument();
+  });
+
+  it('names the client without a link for a role that cannot open the CRM', () => {
+    const { unmount } = render(<ProjectHeader projectId={'p1' as never} permissions={MEMBER} />);
+    expect(screen.getByText(/UNB-P-0007/)).toHaveTextContent('Glossup');
+    expect(screen.queryByRole('link', { name: 'Glossup' })).not.toBeInTheDocument();
+    unmount();
+
+    render(<ProjectHeader projectId={'p1' as never} permissions={PM} />);
+    expect(screen.getByRole('link', { name: 'Glossup' })).toHaveAttribute('href', '/crm/clients/c1');
+  });
+});
+
+describe('ProjectOverview', () => {
+  it('lets anyone on the project add to its timeline, CRM or no CRM', () => {
+    state.queries['milestones.listForProject'] = { milestones: [], unassigned: [] };
+    state.queries['time.projectSummary'] = {
+      scope: 'own',
+      loggedMinutes: 0,
+      billableMinutes: 0,
+      approvedMinutes: 0,
+      estimateMinutes: 0,
+      missingRates: undefined,
+    };
+    render(<ProjectOverview projectId={'p1' as never} permissions={MEMBER} />);
+    expect(screen.getByRole('form', { name: 'Add to the timeline' })).toBeInTheDocument();
   });
 });
 

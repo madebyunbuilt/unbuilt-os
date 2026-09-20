@@ -77,10 +77,14 @@ export function ProjectHeader({ projectId, permissions }: { projectId: Id<'proje
               <ToneBadge {...projectStatus(project.status)} />
             </div>
             <p className="mt-1 text-muted-foreground">
-              {project.code} ·{' '}
-              <Link href={`/crm/clients/${project.clientId}`} className="underline underline-offset-4">
-                {project.clientName}
-              </Link>{' '}
+              {project.code} · {/* Only roles that can open the client page get a link; everyone else sees the name. */}
+              {permissions.includes('clients.view') ? (
+                <Link href={`/crm/clients/${project.clientId}`} className="underline underline-offset-4">
+                  {project.clientName}
+                </Link>
+              ) : (
+                project.clientName
+              )}{' '}
               · {PROJECT_TYPE_LABELS[project.type]}
             </p>
           </div>
