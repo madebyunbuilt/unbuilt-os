@@ -4,6 +4,8 @@ import { type MutationCtx } from './_generated/server';
 import { auditedDatabase } from './lib/audit';
 import { internalMutation } from './lib/functions';
 import { DEFAULT_LOST_REASONS, DEFAULT_PIPELINE_STAGES } from './lib/deals';
+import { LEGAL_REVIEW_TYPES, variablesInBlocks } from './lib/documentBlocks';
+import { DEFAULT_CLAUSES, DEFAULT_DOCUMENT_TEMPLATES } from './lib/documentTemplateSeeds';
 import { DEFAULT_PROJECT_TEMPLATES, HANDOVER_ITEMS } from './lib/projectTemplates';
 import { ensureSeededHolidays } from './lib/holidays';
 import { DEFAULT_ROLES, OWNER_ROLE_KEY } from './lib/permissions';
@@ -83,6 +85,43 @@ async function seedProjectTemplates(db: Db) {
     });
   }
   return { created: DEFAULT_PROJECT_TEMPLATES.length };
+}
+
+/**
+ * Clauses and document templates (07-documents-and-esign.md). Each is added by key or name, so a studio that has
+ * edited one keeps its wording, and a re-run only fills in what is missing.
+ */
+async function seedDocumentTemplates(db: Db) {
+  let created = 0;
+  for (const clause of DEFAULT_CLAUSES) {
+    const existing = await db
+      .query('clauses')
+      .withIndex('by_key', (q) => q.eq('key', clause.key))
+      .unique();
+    if (existing) continue;
+    await db.insert('clauses', { ...clause, version: 1, active: true });
+    created++;
+  }
+  for (const template of DEFAULT_DOCUMENT_TEMPLATES) {
+    const existing = await db
+      .query('documentTemplates')
+      .withIndex('by_name', (q) => q.eq('name', template.name))
+      .unique();
+    if (existing) continue;
+    await db.insert('documentTemplates', {
+      type: template.type,
+      name: template.name,
+      description: template.description,
+      version: 1,
+      blocks: template.blocks.map((block) => ({ ...block })),
+      variables: variablesInBlocks([...template.blocks]),
+      isDefault: true,
+      requiresLegalReview: LEGAL_REVIEW_TYPES.has(template.type),
+      active: true,
+    });
+    created++;
+  }
+  return { created };
 }
 
 /** The default pipeline and lost reasons (05-crm.md), only when none exist, so edits in the app are kept. */
@@ -232,6 +271,7 @@ export const run = internalMutation({
     const slaPolicies = await seedSlaPolicies(db, businessHours.id);
     const pipeline = await seedPipeline(db);
     const projectTemplates = await seedProjectTemplates(db);
+    const documentTemplates = await seedDocumentTemplates(db);
     const owner = await seedOwnerInvite(
       db,
       roles.ids.get(OWNER_ROLE_KEY)!,
@@ -248,6 +288,7 @@ export const run = internalMutation({
         slaPolicies: slaPolicies.created,
         pipeline: pipeline.created,
         projectTemplates: projectTemplates.created,
+        documentTemplates: documentTemplates.created,
         ownerInvite: owner.created,
         sampleRecords: sample.created,
       },
@@ -258,6 +299,7 @@ export const run = internalMutation({
           (y) => `No movable holiday estimates for ${y}; add Easter, Eid and Mawlid dates manually.`,
         ),
         'Movable holidays are estimates. Confirm the declared dates in Settings.',
+        'Contract, NDA, DPA and contractor templates are drafts. Have your lawyer approve them before sending.',
         ...(orgSettings.created ? ['Fill in the legal name, TIN, bank accounts and payment terms in Settings.'] : []),
       ],
     };

@@ -1,5 +1,6 @@
 import { defineSchema, defineTable } from 'convex/server';
 import { v } from 'convex/values';
+import { blockValidator, documentType } from './lib/documentBlocks';
 
 // Field contract: docs/spec/04-data-model.md. Tables arrive with the pull requests that use them; fields a later module
 // owns are added by that module.
@@ -633,4 +634,32 @@ export default defineSchema({
     .index('by_target', ['table', 'recordId', 'at'])
     .index('by_actor_at', ['actorId', 'at'])
     .index('by_at', ['at']),
+  // Documents and e-signatures (07-documents-and-esign.md). Templates and clauses are versioned, and a document keeps
+  // the text it was created from, so editing either never changes a document that already exists.
+  documentTemplates: defineTable({
+    type: documentType,
+    name: v.string(),
+    description: v.optional(v.string()),
+    version: v.number(),
+    blocks: v.array(blockValidator),
+    // Every variable the blocks use, kept for the template list and for validation on save.
+    variables: v.array(v.string()),
+    isDefault: v.boolean(),
+    // Contract, NDA, DPA and team agreements stay flagged until the studio's lawyer approves the wording.
+    requiresLegalReview: v.boolean(),
+    active: v.boolean(),
+  })
+    .index('by_type', ['type'])
+    .index('by_name', ['name']),
+
+  clauses: defineTable({
+    key: v.string(),
+    title: v.string(),
+    body: v.string(),
+    category: v.string(),
+    version: v.number(),
+    active: v.boolean(),
+  })
+    .index('by_key', ['key'])
+    .index('by_category', ['category']),
 });
