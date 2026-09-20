@@ -33,3 +33,20 @@ export function portalAppOrigin(): string | undefined {
   const host = allowedHosts().find((candidate) => !candidate.includes('*') && candidate.startsWith('portal.'));
   return host ? originOf(host) : undefined;
 }
+
+/**
+ * Moves a sign-in link to the app the account belongs to: clients to the portal, team members to the team app. Better
+ * Auth builds the link from the host that asked for it, so a client who typed their email into the team sign-in page
+ * would otherwise be sent somewhere they cannot use. The token and its query are kept exactly as they were; a
+ * deployment with no address configured for that surface keeps the original link rather than losing the sign-in.
+ */
+export function signInLinkFor(url: string, kind: 'team' | 'client'): string {
+  const origin = kind === 'client' ? portalAppOrigin() : teamAppOrigin();
+  if (!origin) return url;
+  try {
+    const link = new URL(url);
+    return new URL(`${link.pathname}${link.search}${link.hash}`, origin).toString();
+  } catch {
+    return url;
+  }
+}

@@ -4,6 +4,7 @@ import { Menu, Search } from 'lucide-react';
 import Link from 'next/link';
 import { type ReactNode, useEffect, useMemo, useState } from 'react';
 import { CommandPalette } from '@/components/app/shell/command-palette';
+import { HeaderTimer } from '@/components/app/shell/header-timer';
 import { NavList } from '@/components/app/shell/nav-list';
 import { NotificationsBell } from '@/components/app/shell/notifications-bell';
 import { isCommandPaletteKey, isTypingTarget } from '@/components/app/shell/shortcuts';
@@ -114,6 +115,7 @@ export function AppShell({
           </Button>
 
           <div className="flex items-center gap-1 sm:ml-auto">
+            {surface === 'team' && permissions.includes('time.log.own') && <HeaderTimer />}
             <NotificationsBell surface={surface} />
             <UserMenu user={user} onShowShortcuts={() => setShortcutsOpen(true)} />
           </div>

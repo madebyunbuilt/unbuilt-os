@@ -81,7 +81,8 @@ export function ProjectOverview({ projectId, permissions }: { projectId: Id<'pro
           <h2 className="font-display text-xl font-bold">Timeline</h2>
           <Timeline
             subject={{ table: 'projects', id: projectId }}
-            canAdd={permissions.includes('clients.view')}
+            // A project's timeline belongs to the project: anyone who can see it can add to it, as the server allows.
+            canAdd
             canMention={permissions.includes('team.view')}
           />
         </div>

@@ -16,12 +16,17 @@ const portalOwnClient = makeFunctionReference<'query'>('lib/functions.fixtures:p
 
 const HOST = 'localhost:3000';
 const ORIGIN = `http://${HOST}`;
+const PORTAL_HOST = 'portal.localhost:3000';
 
 /** A browser: keeps cookies between requests to the auth routes, as the Next.js proxy would forward them. */
 class Browser {
   private cookies = new Map<string, string>();
 
-  constructor(private readonly t: TestConvex) {}
+  /** `host` is the app the person is on, forwarded to Convex exactly as the Next.js route handler does. */
+  constructor(
+    private readonly t: TestConvex,
+    private readonly host = HOST,
+  ) {}
 
   cookieNames() {
     return [...this.cookies.keys()];
@@ -29,10 +34,10 @@ class Browser {
 
   async request(path: string, { method = 'GET', body }: { method?: 'GET' | 'POST'; body?: unknown } = {}) {
     const headers = new Headers({
-      origin: ORIGIN,
-      'x-forwarded-host': HOST,
+      origin: `http://${this.host}`,
+      'x-forwarded-host': this.host,
       'x-forwarded-proto': 'http',
-      'x-better-auth-forwarded-host': HOST,
+      'x-better-auth-forwarded-host': this.host,
       'x-better-auth-forwarded-proto': 'http',
     });
     if (body !== undefined) headers.set('content-type', 'application/json');
@@ -146,6 +151,11 @@ describe('team sign-in: magic link then TOTP', () => {
         skills: [],
       }),
     );
+  });
+
+  it('keeps a team member on the team app, whichever host asked', async () => {
+    await new Browser(t).request('/api/auth/sign-in/magic-link', { method: 'POST', body: { email, callbackURL: '/' } });
+    expect(new URL(lastEmail('magicLink').url).host).toBe('localhost:3000');
   });
 
   it('enrols TOTP on first sign-in, then requires it on every sign-in', async () => {
@@ -331,5 +341,19 @@ describe('client sign-in: magic link then an emailed code on new devices', () =>
     await signInWithMagicLink(browser, email);
     const reused = await new Browser(t).request(pathOf(lastEmail('magicLink').url));
     expect(new URL(reused.headers.get('location')!).searchParams.get('error')).toBe('INVALID_TOKEN');
+  });
+
+  it('keeps a client on the portal from the link to the emailed code', async () => {
+    const browser = new Browser(t, PORTAL_HOST);
+    const challenged = await signInWithMagicLink(browser, email);
+    expect(challenged.status).toBe(302);
+    // The second-factor page must stay on the portal: the two-factor cookie was set there.
+    expect(new URL(challenged.headers.get('location')!).host).toBe(PORTAL_HOST);
+  });
+
+  it('emails a client the portal link even when the team app asked for it', async () => {
+    // The request comes from the team host, as it would if a contact typed their email into the studio sign-in page.
+    await new Browser(t).request('/api/auth/sign-in/magic-link', { method: 'POST', body: { email, callbackURL: '/' } });
+    expect(new URL(lastEmail('magicLink').url).host).toBe('portal.localhost:3000');
   });
 });

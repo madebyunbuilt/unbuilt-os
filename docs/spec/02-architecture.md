@@ -74,6 +74,10 @@ unbuilt-os/
 
 ## Hostname routing
 
+The `/api/auth` route puts the browser's host back into the request URL before handing it to Better Auth
+(`lib/forwarded-host.ts`): Next.js reports the server's own address there, which would otherwise send a portal sign-in
+to the team app halfway through, where its cookies do not exist.
+
 `proxy.ts` inspects the host:
 
 `lib/surface.ts` holds the rules; `proxy.ts` applies them.

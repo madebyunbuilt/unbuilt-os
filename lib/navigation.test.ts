@@ -31,7 +31,7 @@ describe('navigation', () => {
 
   it('hides finance from Members and drops empty sections', () => {
     const sections = navigationFor('team', permissionsOf('member'));
-    expect(labels(sections)).toEqual(['Home', 'Projects', 'Documents', 'Expenses', 'Tickets', 'Vault', 'Team']);
+    expect(labels(sections)).toEqual(['Home', 'Projects', 'Time', 'Documents', 'Expenses', 'Tickets', 'Vault', 'Team']);
     expect(sections.map((s) => s.label)).not.toContain('CRM');
   });
 

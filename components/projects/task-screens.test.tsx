@@ -122,6 +122,17 @@ describe('TaskBoard', () => {
     );
   });
 
+  it('says so when the estimate is not a number', async () => {
+    render(<TaskBoard projectId={'p1' as never} permissions={PM} />);
+    await userEvent.click(screen.getByRole('button', { name: 'New task' }));
+    const dialog = await screen.findByRole('dialog', { name: 'New task' });
+    await userEvent.type(within(dialog).getByLabelText('Title'), 'Chase the API keys');
+    await userEvent.type(within(dialog).getByLabelText('Estimate in hours (optional)'), 'half a day');
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Add task' }));
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent('Give the hours as a number');
+    expect(state.mutations['tasks.create']).not.toHaveBeenCalled();
+  });
+
   it('opens a task at once and puts it in the address bar', async () => {
     render(<TaskBoard projectId={'p1' as never} permissions={PM} />);
     await userEvent.click(screen.getByRole('button', { name: /Wire up the booking flow/ }));
