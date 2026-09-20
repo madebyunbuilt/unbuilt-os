@@ -19,7 +19,7 @@ import {
   TRUST_DEVICE_MAX_AGE_SECONDS,
 } from './lib/authPlugins';
 import { sessionQuery } from './lib/functions';
-import { allowedHosts, originOf } from './lib/hosts';
+import { allowedHosts, originOf, portalAppOrigin, signInLinkFor, teamAppOrigin } from './lib/hosts';
 import { PORTAL_SESSION_MAX_AGE_SECONDS, TEAM_SESSION_IDLE_MS } from './lib/principals';
 
 // Better Auth inside Convex (03-auth-and-permissions.md). One instance serves os.* and portal.*; cookies stay on the
@@ -96,7 +96,8 @@ export const createAuthOptions = (ctx: GenericCtx<DataModel>) => {
           const kind = await runner(ctx).runQuery(internal.authFlows.principalKindForEmail, { email });
           // Say nothing to addresses without an invitation, so the form cannot be used to probe who is a client.
           if (!kind) return;
-          await sendAuthEmail({ kind: 'magicLink', to: email, url });
+          // The link goes to the account's own app, whichever host asked for it.
+          await sendAuthEmail({ kind: 'magicLink', to: email, url: signInLinkFor(url, kind) });
         },
       }),
       twoFactor({
@@ -166,6 +167,9 @@ export const viewer = sessionQuery({
       principal,
       permissions: principal && role ? role.permissions : [],
       needsTwoFactorSetup: principal?.kind === 'team' && !twoFactorEnabled,
+      // Where this account belongs, so a session on the wrong surface can be pointed at its own app. The deployment
+      // knows its two addresses; the browser's hostname cannot be turned into the other one by guesswork.
+      homeOrigin: principal ? (principal.kind === 'client' ? portalAppOrigin() : teamAppOrigin()) : undefined,
     };
   },
 });

@@ -23,6 +23,9 @@ two email addresses. Never let one session act on both surfaces.
 | Paying  | Token link from the invoice email opens the invoice and Paystack checkout without an account                                               |
 
 - Magic links expire in 15 minutes and work once. Links and codes are stored hashed.
+- A sign-in link points at the app the account belongs to, not at the host that asked for it: a contact who types their
+  email into the studio sign-in page is emailed a portal link, and a team member is always sent to the team app. An
+  account that does reach the wrong surface sees "No access here" with a link to its own app.
 - Better Auth applies its two-factor challenge only after password sign-in, so `convex/lib/authPlugins.ts` applies the
   same challenge after `/magic-link/verify`: the magic-link session is discarded and the two-factor verify endpoint
   creates the real one. A magic link alone never yields a session for an account with two-factor on.

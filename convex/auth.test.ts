@@ -148,6 +148,11 @@ describe('team sign-in: magic link then TOTP', () => {
     );
   });
 
+  it('keeps a team member on the team app, whichever host asked', async () => {
+    await new Browser(t).request('/api/auth/sign-in/magic-link', { method: 'POST', body: { email, callbackURL: '/' } });
+    expect(new URL(lastEmail('magicLink').url).host).toBe('localhost:3000');
+  });
+
   it('enrols TOTP on first sign-in, then requires it on every sign-in', async () => {
     // First sign-in: the invitation is accepted, but team functions stay closed until 2FA is set up.
     const browser = new Browser(t);
@@ -331,5 +336,11 @@ describe('client sign-in: magic link then an emailed code on new devices', () =>
     await signInWithMagicLink(browser, email);
     const reused = await new Browser(t).request(pathOf(lastEmail('magicLink').url));
     expect(new URL(reused.headers.get('location')!).searchParams.get('error')).toBe('INVALID_TOKEN');
+  });
+
+  it('emails a client the portal link even when the team app asked for it', async () => {
+    // The request comes from the team host, as it would if a contact typed their email into the studio sign-in page.
+    await new Browser(t).request('/api/auth/sign-in/magic-link', { method: 'POST', body: { email, callbackURL: '/' } });
+    expect(new URL(lastEmail('magicLink').url).host).toBe('portal.localhost:3000');
   });
 });
