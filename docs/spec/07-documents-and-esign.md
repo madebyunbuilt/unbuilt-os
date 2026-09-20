@@ -143,8 +143,9 @@ and templates. See `18-open-questions.md`.
 - **Void** needs a reason, keeps the number, and is refused on a signed document. A draft that was never sent can be
   deleted instead, unless another document was made from it.
 - **Expiry** runs daily at 06:00 Lagos and covers quotes and proposals only. Whoever drafted it is notified.
-- **Variables** are limited to fields the app actually holds. The studio's email, phone and website are not variables
-  yet because `orgSettings` has no such fields; adding them means adding them to Settings too.
+- **Variables** are limited to fields the app actually holds, so a document can never print a blank where a value was
+  promised. The studio's email, phone and website are part of that set: they are settings, checked the same way a
+  contact's are (a real address, an international number, a resolvable site), and they belong on a letterhead.
 
 ## Acceptance criteria
 

@@ -101,6 +101,50 @@ describe('creating a document', () => {
     expect(text).not.toContain('{{');
   });
 
+  it('writes the studio’s own details into the text', async () => {
+    const { as } = await signedIn('owner');
+    await t.run(async (ctx) => {
+      const settings = await ctx.db.query('orgSettings').first();
+      await ctx.db.patch('orgSettings', settings!._id, {
+        legalName: 'Unbuilt Studio Ltd',
+        addressLines: ['12 Example Street', 'Lagos'],
+        email: 'hello@unbuilt.studio',
+        phone: '+2348012345678',
+        website: 'https://unbuilt.studio',
+      });
+    });
+    const documentId = await as.mutation(api.documents.create, {
+      type: 'other',
+      clientId,
+      title: 'Letterhead check',
+      templateId: await t.run(async (ctx) => {
+        const owner = (await ctx.db.query('teamMembers').first())!;
+        void owner;
+        return await ctx.db.insert('documentTemplates', {
+          type: 'other',
+          name: 'Letterhead check',
+          version: 1,
+          blocks: [
+            {
+              kind: 'paragraph',
+              text: '{{org.legalName}}, {{org.address}}. {{org.email}} · {{org.phone}} · {{org.website}}',
+            },
+          ],
+          variables: ['org.legalName', 'org.address', 'org.email', 'org.phone', 'org.website'],
+          isDefault: false,
+          requiresLegalReview: false,
+          active: true,
+        });
+      }),
+    });
+
+    const document = await as.query(api.documents.get, { documentId });
+    const text = (document?.blocks ?? []).map((block) => ('text' in block ? block.text : '')).join('\n');
+    expect(text).toBe(
+      'Unbuilt Studio Ltd, 12 Example Street, Lagos. hello@unbuilt.studio · +2348012345678 · https://unbuilt.studio',
+    );
+  });
+
   it('keeps its wording when the clause behind it is rewritten', async () => {
     const { as } = await signedIn('owner');
     const documentId = await as.mutation(api.documents.create, { type: 'quote', clientId, lineItems: twoLines });

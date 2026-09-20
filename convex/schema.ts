@@ -18,6 +18,10 @@ export default defineSchema({
     country: v.string(),
     tin: v.optional(v.string()),
     vatNumber: v.optional(v.string()),
+    // On documents and invoices, so a client can reply to a real address.
+    email: v.optional(v.string()),
+    phone: v.optional(v.string()),
+    website: v.optional(v.string()),
     defaultCurrency: currency,
     timezone: v.string(),
     logoFileId: v.optional(v.id('files')),

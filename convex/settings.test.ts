@@ -37,6 +37,9 @@ const organisation = {
   country: 'NG',
   tin: '12345678-0001',
   vatNumber: undefined,
+  email: ' Hello@Unbuilt.Studio ',
+  phone: '+234 801 234 5678',
+  website: 'unbuilt.studio',
   timezone: 'Africa/Lagos',
   retentionYears: 7,
   brand: { primary: '#000000', accent: '#ffc400' },
@@ -81,6 +84,12 @@ describe('organisation settings', () => {
       brand: { primary: '#000000', accent: '#FFC400' },
     });
     expect(saved.vatNumber).toBeUndefined();
+    // The contact details documents and invoices print are normalised on the way in.
+    expect(saved).toMatchObject({
+      email: 'hello@unbuilt.studio',
+      phone: '+2348012345678',
+      website: 'https://unbuilt.studio',
+    });
     const audit = await t.run((ctx) => ctx.db.query('auditLog').collect());
     expect(audit).toEqual([expect.objectContaining({ table: 'orgSettings', permission: 'settings.manage' })]);
   });
@@ -90,6 +99,9 @@ describe('organisation settings', () => {
     ['an unknown timezone', { timezone: 'Lagos/Island' }],
     ['a retention period under a year', { retentionYears: 0 }],
     ['a colour that is not hex', { brand: { primary: 'black', accent: '#FFC400' } }],
+    ['an email address that is not one', { email: 'hello at unbuilt' }],
+    ['a phone number that is not international', { phone: '0801 234 5678' }],
+    ['a website with no domain', { website: 'unbuilt' }],
   ])('rejects %s', async (_, override) => {
     const admin = await createTeamMember(t, roles.admin, { email: 'admin@unbuilt.studio' });
     await expectCode(

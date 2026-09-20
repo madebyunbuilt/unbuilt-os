@@ -28,6 +28,15 @@ export const organisationSchema = z.object({
     .regex(/^[A-Za-z]{2}$/, 'Use the two-letter country code, such as NG'),
   tin: z.string().trim().max(40),
   vatNumber: z.string().trim().max(40),
+  email: z.union([z.literal(''), z.string().trim().email('Use an email address such as hello@unbuilt.studio')]),
+  phone: z.union([
+    z.literal(''),
+    z
+      .string()
+      .trim()
+      .regex(/^\+?[\d\s()-]{7,20}$/, 'Use an international number, such as +234 801 234 5678'),
+  ]),
+  website: z.string().trim().max(200),
   timezone: z.string().min(1, 'Choose a timezone'),
   retentionYears: z
     .string()
@@ -55,6 +64,9 @@ export function toOrganisationArgs(values: OrganisationValues) {
     country: values.country.trim().toUpperCase(),
     tin: blankToUndefined(values.tin),
     vatNumber: blankToUndefined(values.vatNumber),
+    email: blankToUndefined(values.email),
+    phone: blankToUndefined(values.phone),
+    website: blankToUndefined(values.website),
     timezone: values.timezone,
     retentionYears: Number(values.retentionYears),
     brand: { primary: values.brandPrimary, accent: values.brandAccent },
@@ -76,6 +88,9 @@ export function OrganisationForm() {
     country: settings.country,
     tin: settings.tin ?? '',
     vatNumber: settings.vatNumber ?? '',
+    email: settings.email ?? '',
+    phone: settings.phone ?? '',
+    website: settings.website ?? '',
     timezone: settings.timezone,
     retentionYears: String(settings.retentionYears),
     brandPrimary: settings.brand.primary,
@@ -133,6 +148,17 @@ export function OrganisationForm() {
             </FormField>
             <FormField id="vatNumber" label="VAT number" error={errors.vatNumber?.message}>
               {(field) => <Input {...field} {...form.register('vatNumber')} autoComplete="off" />}
+            </FormField>
+          </div>
+          <div className="grid gap-5 sm:grid-cols-3">
+            <FormField id="email" label="Email" help="Shown on documents and invoices" error={errors.email?.message}>
+              {(field) => <Input {...field} {...form.register('email')} type="email" autoComplete="email" />}
+            </FormField>
+            <FormField id="phone" label="Phone" error={errors.phone?.message}>
+              {(field) => <Input {...field} {...form.register('phone')} type="tel" autoComplete="tel" />}
+            </FormField>
+            <FormField id="website" label="Website" error={errors.website?.message}>
+              {(field) => <Input {...field} {...form.register('website')} autoComplete="url" />}
             </FormField>
           </div>
           <FormField id="address" label="Address" help="One line per row, up to 6" error={errors.address?.message}>
