@@ -94,7 +94,9 @@
 
 ## Decisions and rules (studio, 2026-09-14)
 
-- **Won** needs a project, and projects arrive in step 4, so moving a deal to Won is disabled until then.
+- **Won** needs a project: moving a deal to Won asks whether to create one (blank or from a template, starting from the
+  deal's title, currency and value) or to link an open project of the same client that no other deal has won. Creating
+  one needs `projects.create`; linking one needs `deals.manage`.
 - **Deleting a client** (`clients.delete`) works only while nothing depends on it: no contact has signed in to the
   portal, and no deals, projects, invoices or documents (each module adds its check). Otherwise the client is archived.
   Archived clients are hidden from the list unless filtered for. Contacts who never signed in can also be deleted;
@@ -168,14 +170,17 @@
   spam, Reopen. Convert preselects the suggested client (with the reason) or a new client named after the company,
   and asks for the deal title and an estimated value; it opens the new deal.
 - `/crm/deals` (`deals.view`): pipeline value and weighted value per currency, Board and Table views, and an Everyone or
-  My deals filter. On the board, `deals.manage` holders drag cards between stages or use each card's stage menu. Won is
-  shown but unavailable until Projects; Lost asks for a reason and an optional note. Cards show the owner and the next
+  My deals filter. On the board, `deals.manage` holders drag cards between stages or use each card's stage menu. Won
+  asks which project the deal becomes; Lost asks for a reason and an optional note. Cards show the owner and the next
   follow-up. Won and Lost columns show deals closed in the last 90 days. "New deal" chooses the client.
-- `/crm/deals/[id]`: value, probability and stage (movable with `deals.manage`), the loss reason when lost, next
+- `/crm/deals/[id]`: value, probability and stage (movable with `deals.manage`), the project a won deal became (named
+  but not linked for someone off the project), the loss reason when lost, next
   follow-up (set or clear), details with links to the client and the enquiry, the deal's timeline, Edit
   (`deals.manage`) and Delete (`clients.delete`).
 - The client page's **Deals** tab (`deals.view`) lists the client's open, won, lost or all deals, with "New deal" for
   that client.
+- The client page's **Projects** tab (`projects.view.all` or `projects.view.assigned`) lists the client's projects in
+  the viewer's scope, with "New project" for that client (`projects.create`).
 - `/settings/pipeline` (`deals.manage`): rename stages and set open stages' win percentage, move open stages up and
   down, add stages, remove a stage (choosing where its deals go), and add, rename, reorder, retire or bring back lost
   reasons.
@@ -187,7 +192,7 @@
 - A website enquiry with a valid Turnstile token appears in the inbox and notifies `enquiries.manage` holders; an
   invalid token or a rate-limited request is rejected without creating a row.
 - Converting an enquiry from an existing contact's email links to that client instead of creating a duplicate.
-- Moving a deal to Won without a project is blocked; moving to Lost without a reason is blocked.
+- Moving a deal to Won creates or links its project in the same step; moving to Lost without a reason is blocked.
 - A deal idle for 7 days with no future follow-up notifies its owner exactly once per idle period.
 - Weighted pipeline value equals the sum of value × probability, verified by test.
 - A rate card item lacking a price in the document currency cannot be added without a manual price.

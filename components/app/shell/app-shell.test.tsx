@@ -42,10 +42,12 @@ describe('AppShell', () => {
     expect(within(nav).queryByText('Invoices')).not.toBeInTheDocument();
     expect(within(nav).queryByText('Enquiries')).not.toBeInTheDocument();
 
-    const projects = within(nav).getByText('Projects').closest('[aria-disabled]');
-    expect(projects).toHaveAttribute('aria-disabled', 'true');
-    expect(projects).toHaveTextContent('Not built yet');
-    expect(within(nav).queryByRole('link', { name: /Projects/ })).not.toBeInTheDocument();
+    expect(within(nav).getByRole('link', { name: 'Projects' })).toHaveAttribute('href', '/projects');
+
+    const documents = within(nav).getByText('Documents').closest('[aria-disabled]');
+    expect(documents).toHaveAttribute('aria-disabled', 'true');
+    expect(documents).toHaveTextContent('Not built yet');
+    expect(within(nav).queryByRole('link', { name: /Documents/ })).not.toBeInTheDocument();
   });
 
   it('uses portal navigation on the portal', () => {

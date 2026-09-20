@@ -38,10 +38,17 @@ vi.mock('@/convex/_generated/api', () => {
   const functions = (name: string) => new Proxy({}, { get: (_, fn: string) => ({ _name: `${name}.${fn}` }) });
   return {
     api: Object.fromEntries(
-      ['clients', 'contacts', 'activities', 'deals', 'enquiries', 'pipeline', 'team'].map((name) => [
-        name,
-        functions(name),
-      ]),
+      [
+        'clients',
+        'contacts',
+        'activities',
+        'deals',
+        'enquiries',
+        'pipeline',
+        'projects',
+        'projectTemplates',
+        'team',
+      ].map((name) => [name, functions(name)]),
     ),
   };
 });
@@ -227,7 +234,6 @@ describe('DealBoard', () => {
     expect(value).toHaveTextContent('Weighted');
 
     const move = screen.getByLabelText('Move E-commerce rebuild');
-    expect(within(move).getByRole('option', { name: 'Won (arrives with Projects)' })).toBeDisabled();
     await userEvent.selectOptions(move, 's_prop');
     expect(state.mutations['deals.moveToStage']).toHaveBeenCalledWith({ dealId: 'd1', stageId: 's_prop' });
 
@@ -274,6 +280,26 @@ describe('DealDetail', () => {
     await userEvent.selectOptions(screen.getByLabelText('Stage'), 's_prop');
     expect(state.mutations['deals.moveToStage']).toHaveBeenCalledWith({ dealId: 'd1', stageId: 's_prop' });
     expect(screen.queryByRole('button', { name: 'Delete' })).not.toBeInTheDocument();
+  });
+
+  it('asks which project the deal becomes when it is won', async () => {
+    state.queries['deals.get'] = deal();
+    state.queries['projects.list'] = [];
+    render(<DealDetail dealId={'d1' as never} permissions={[...PM, 'projects.create']} />);
+
+    await userEvent.selectOptions(screen.getByLabelText('Stage'), 's_won');
+    const dialog = await screen.findByRole('dialog', { name: 'Mark E-commerce rebuild as won' });
+    expect(within(dialog).getByRole('option', { name: 'Create a new project' })).toBeInTheDocument();
+    expect(state.mutations['deals.moveToStage']).not.toHaveBeenCalledWith(
+      expect.objectContaining({ stageId: 's_won' }),
+    );
+  });
+
+  it('links the project a won deal became', () => {
+    state.queries['deals.get'] = deal({ stage: { id: 's_won', name: 'Won', kind: 'won' } });
+    state.queries['projects.forDeal'] = { id: 'p1', code: 'UNB-P-0007', name: 'Glossup app' };
+    render(<DealDetail dealId={'d1' as never} permissions={PM} />);
+    expect(screen.getByRole('link', { name: 'UNB-P-0007 Glossup app' })).toHaveAttribute('href', '/projects/p1');
   });
 });
 

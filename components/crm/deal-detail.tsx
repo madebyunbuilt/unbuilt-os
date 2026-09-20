@@ -25,7 +25,7 @@ export function DealDetail({ dealId, permissions }: { dealId: Id<'deals'>; permi
   const deal = useQuery(api.deals.get, { dealId });
   const stages = useQuery(api.pipeline.stages, {});
   const [error, setError] = useState<string | null>(null);
-  const { request, dialog } = useDealMove({ onError: setError });
+  const { request, dialog } = useDealMove({ permissions, onError: setError });
   const canManage = permissions.includes('deals.manage');
   const remove = useMutation(api.deals.remove);
 
@@ -123,6 +123,7 @@ export function DealDetail({ dealId, permissions }: { dealId: Id<'deals'>; permi
                 onMove={(stage) => void request(deal, stage)}
               />
             )}
+            {deal.stage?.kind === 'won' && <WonProject dealId={dealId} />}
             {deal.stage?.kind === 'lost' && (
               <p className="text-sm">
                 Lost
@@ -171,6 +172,24 @@ export function DealDetail({ dealId, permissions }: { dealId: Id<'deals'>; permi
         </aside>
       </div>
     </div>
+  );
+}
+
+/** The project a won deal became. Someone off the project sees its name but no link. */
+function WonProject({ dealId }: { dealId: Id<'deals'> }) {
+  const project = useQuery(api.projects.forDeal, { dealId });
+  if (!project) return null;
+  return (
+    <p className="text-sm">
+      Won as{' '}
+      {project.id ? (
+        <Link href={`/projects/${project.id}`} className="underline underline-offset-4">
+          {project.code} {project.name}
+        </Link>
+      ) : (
+        `${project.code} ${project.name}`
+      )}
+    </p>
   );
 }
 

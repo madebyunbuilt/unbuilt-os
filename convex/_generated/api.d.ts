@@ -38,6 +38,7 @@ import type * as lib_notify from "../lib/notify.js";
 import type * as lib_numbering from "../lib/numbering.js";
 import type * as lib_permissions from "../lib/permissions.js";
 import type * as lib_principals from "../lib/principals.js";
+import type * as lib_projectStatus from "../lib/projectStatus.js";
 import type * as lib_projectTemplates from "../lib/projectTemplates.js";
 import type * as lib_projects from "../lib/projects.js";
 import type * as lib_seedData from "../lib/seedData.js";
@@ -102,6 +103,7 @@ declare const fullApi: ApiFromModules<{
   "lib/numbering": typeof lib_numbering;
   "lib/permissions": typeof lib_permissions;
   "lib/principals": typeof lib_principals;
+  "lib/projectStatus": typeof lib_projectStatus;
   "lib/projectTemplates": typeof lib_projectTemplates;
   "lib/projects": typeof lib_projects;
   "lib/seedData": typeof lib_seedData;

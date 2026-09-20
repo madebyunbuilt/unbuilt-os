@@ -3,6 +3,7 @@ import { type Doc, type Id } from '../_generated/dataModel';
 import { type MutationCtx, type QueryCtx } from '../_generated/server';
 import { type TeamPermission } from './permissions';
 import { type TeamPrincipal } from './principals';
+import { CLOSED_PROJECT_STATUSES } from './projectStatus';
 
 // Projects (06-projects.md) and project scope (03-auth-and-permissions.md, Record-level rules): permissions ending in
 // `.assigned` apply only to projects the member belongs to, and projects.view.all lifts that restriction. Anything
@@ -72,7 +73,7 @@ export async function projectFor(
 }
 
 /** Projects that are finished and can no longer change, except by reopening. */
-export const CLOSED_STATUSES: ReadonlySet<Doc<'projects'>['status']> = new Set(['completed', 'cancelled', 'archived']);
+export const CLOSED_STATUSES: ReadonlySet<Doc<'projects'>['status']> = CLOSED_PROJECT_STATUSES;
 
 export function assertOpen(project: Doc<'projects'>) {
   if (CLOSED_STATUSES.has(project.status)) {
