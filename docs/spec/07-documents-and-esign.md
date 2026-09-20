@@ -128,6 +128,24 @@ Nigeria's Evidence Act 2011 recognises electronic signatures, but this spec does
 settings toggle "Signature process reviewed by counsel" that stays off until the studio's lawyer confirms the process
 and templates. See `18-open-questions.md`.
 
+## Decisions and rules (studio, 2026-09-21)
+
+- **Who sees a document**: `documents.view` reaches every document; `documents.view.assigned` reaches the ones on a
+  project the member belongs to. Anything else is "not found", as elsewhere.
+- **A document owns its text.** Creating it copies each clause's current wording in and fills every variable, so later
+  edits to the template or the clause change nothing. `refreshText` re-reads client, project and totals into a draft
+  on request; it never brings in new clause or template wording.
+- **Prices** come from the client's own VAT treatment and WHT settings, with the studio's default VAT rate, and can be
+  overridden per document. Only quotes, proposals, SOWs and change requests carry prices.
+- **Accepting and declining**: until the client portal exists, `documents.send` holders record the decision the client
+  gave elsewhere. The document keeps who recorded it and the note, so a recorded acceptance is never mistaken for one
+  the client clicked. A decline needs a reason. Only a document with the client (sent or viewed) can be decided.
+- **Void** needs a reason, keeps the number, and is refused on a signed document. A draft that was never sent can be
+  deleted instead, unless another document was made from it.
+- **Expiry** runs daily at 06:00 Lagos and covers quotes and proposals only. Whoever drafted it is notified.
+- **Variables** are limited to fields the app actually holds. The studio's email, phone and website are not variables
+  yet because `orgSettings` has no such fields; adding them means adding them to Settings too.
+
 ## Acceptance criteria
 
 - Sending a document creates an immutable version, a PDF and a stored hash, and assigns a number only on first send.
