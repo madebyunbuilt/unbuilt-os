@@ -38,7 +38,7 @@ export const PROJECT_TABS: Tab[] = [
   { label: 'Overview', segment: '', built: true },
   { label: 'Milestones and deliverables', segment: 'milestones', built: true },
   { label: 'Tasks', segment: 'tasks', built: true },
-  { label: 'Time', segment: 'time', built: false },
+  { label: 'Time', segment: 'time', built: true },
   { label: 'Change requests', segment: 'change-requests', built: false },
   { label: 'Documents', segment: 'documents', built: false },
   { label: 'Invoices', segment: 'invoices', built: false },

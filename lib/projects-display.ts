@@ -1,4 +1,5 @@
 import { PROJECT_STATUS_LABELS, type ProjectStatus } from '@/convex/lib/projectStatus';
+import { InputError } from '@/lib/convex-error';
 import { type StatusTone } from '@/lib/team-display';
 
 // How projects are shown: statuses in the brand's state colours, type and model labels, and hours. The status names
@@ -92,7 +93,7 @@ export function parseHoursToMinutes(value: string): number | undefined {
   const trimmed = value.trim();
   if (!trimmed) return undefined;
   const hours = Number(trimmed.replace(',', '.'));
-  if (!Number.isFinite(hours) || hours < 0) throw new Error('Give the hours as a number, such as 1.5');
+  if (!Number.isFinite(hours) || hours < 0) throw new InputError('Give the hours as a number, such as 1.5');
   return Math.round(hours * 60);
 }
 

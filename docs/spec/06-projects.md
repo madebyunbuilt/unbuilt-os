@@ -195,6 +195,18 @@
   `tasks.manage.assigned` on a project in scope: add a task straight into a column, drag cards between columns or use
   each card's "Move to" select, edit and delete. Only project members can be assigned. Opening a task shows its
   details and comments at `?task=<id>`, which is where a mention notification lands. A closed project is read-only.
+- **Time** on a project: hours logged and billable (only the viewer's own without `time.view.all`), approved hours and
+  the total task estimate, then every entry with who logged it, what they did and its state. Project members with
+  `time.log.own` log time here. With `team.rates.sensitive` the bill rate shows, and an entry logged before Finance set
+  someone's rates offers "Add a rate", recorded in the audit log with the amounts hidden.
+- `/time` (`time.log.own` or `time.approve`): **My week**, a week at a time, Monday to Sunday. Each day lists its
+  entries with their state and totals; drafts can be edited or deleted, and "Submit" sends the week's drafts for
+  approval. Entries an approver sent back appear at the top with the note. Time is typed as 1.5, 1:30 or 1h 30m.
+- `/time/approvals` (`time.approve`): the weeks waiting on the caller, each opening the member's week with every entry
+  chosen by default; approve them or send some back with a note. `time.view.all` also sees past weeks still sitting in
+  people's drafts.
+- The app header carries the **timer** for anyone with `time.log.own`: start it on a project and optional task, see it
+  counting, then stop it into a draft entry or throw it away.
 - **Home** shows "My tasks": your open tasks across every project you can see, overdue first, each linking to its task
   on the project board. The full role dashboards arrive with reports.
 - **Members**: everyone on the project with their project role and title. With `projects.members.manage`: add an active

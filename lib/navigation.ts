@@ -11,6 +11,7 @@ export type NavIcon =
   | 'building'
   | 'tag'
   | 'folder'
+  | 'clock'
   | 'file'
   | 'receipt'
   | 'wallet'
@@ -54,6 +55,13 @@ export const TEAM_NAVIGATION: readonly NavSection[] = [
         href: '/projects',
         icon: 'folder',
         anyOf: ['projects.view.all', 'projects.view.assigned'],
+        built: true,
+      },
+      {
+        label: 'Time',
+        href: '/time',
+        icon: 'clock',
+        anyOf: ['time.log.own', 'time.approve'],
         built: true,
       },
       {
