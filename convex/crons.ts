@@ -15,6 +15,9 @@ crons.daily('clear old session activity', { hourUTC: 3, minuteUTC: 0 }, internal
 // 17:00 Lagos: remind deal owners of missed follow-ups and deals gone quiet.
 crons.daily('deal follow-up reminders', { hourUTC: 16, minuteUTC: 0 }, internal.deals.sendFollowUpReminders, {});
 
+// 06:00 Lagos: mark quotes and proposals whose date has passed, and tell whoever drafted them.
+crons.daily('expire quotes and proposals', { hourUTC: 5, minuteUTC: 0 }, internal.documents.expireOverdue, {});
+
 // 04:30 Lagos: forget old rate-limit windows for public endpoints.
 crons.daily('clear old rate limits', { hourUTC: 3, minuteUTC: 30 }, internal.enquiries.cleanupRateLimits, {});
 

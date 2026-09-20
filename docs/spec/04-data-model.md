@@ -68,13 +68,15 @@ Better Auth's own tables (users, sessions, accounts, verification) are owned by 
 ## Organisation and settings
 
 **orgSettings** (single row)
-`legalName` `tradingName` `addressLines[]` `country` `tin` `vatNumber` `defaultCurrency` `timezone` `logoFileId`
+`legalName` `tradingName` `addressLines[]` `country` `tin` `vatNumber` `email` `phone` `website` `defaultCurrency`
+`timezone` `logoFileId`
 `bankAccounts[] { label, currency, bankName, accountName, accountNumber, swift?, iban?, sortCode? }` (sensitive)
 `numbering { [recordType]: { prefix, padding } }` `defaultPaymentTermsDays` `defaultVatBps` `lateFeePolicy { enabled,
 monthlyBps, graceDays }` `invoiceFooter` `quoteValidityDays` `retentionYears` `brand { primary, accent }`
 
 The seed creates the row with `country` NG, `defaultCurrency` NGN, `timezone` Africa/Lagos, `defaultVatBps` 750, late
 fees disabled at 500 bps, `retentionYears` 7, and no bank accounts. `legalName`, `tradingName`, `tin`, `vatNumber`,
+`email`, `phone`, `website`,
 `logoFileId`, `defaultPaymentTermsDays`, `invoiceFooter`, `quoteValidityDays` and `lateFeePolicy.graceDays` stay empty
 until the studio sets them. `numbering` holds only overrides of the defaults below.
 

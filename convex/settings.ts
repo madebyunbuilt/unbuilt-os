@@ -1,4 +1,5 @@
 import { ConvexError, v } from 'convex/values';
+import { email, phone, website } from './lib/crm';
 import { applyBps } from './lib/money';
 import { deleteFile, recordUpload } from './lib/files';
 import { teamMutation, teamQuery } from './lib/functions';
@@ -13,6 +14,17 @@ const currency = v.union(v.literal('NGN'), v.literal('USD'), v.literal('EUR'));
 
 function invalid(message: string): never {
   throw new ConvexError({ code: 'settings.invalid', message });
+}
+
+/** Runs one of the shared field checks but reports it as a settings problem, so this module speaks with one code. */
+function checked<T>(check: () => T): T {
+  try {
+    return check();
+  } catch (error) {
+    invalid(
+      error instanceof ConvexError ? String((error.data as { message?: string }).message) : 'That value is not valid',
+    );
+  }
 }
 
 function optionalText(value: string | undefined, label: string, max = 200): string | undefined {
@@ -41,6 +53,9 @@ export const updateOrganisation = teamMutation('settings.manage')({
     country: v.string(),
     tin: v.optional(v.string()),
     vatNumber: v.optional(v.string()),
+    email: v.optional(v.string()),
+    phone: v.optional(v.string()),
+    website: v.optional(v.string()),
     timezone: v.string(),
     retentionYears: v.number(),
     brand: v.object({ primary: v.string(), accent: v.string() }),
@@ -65,6 +80,10 @@ export const updateOrganisation = teamMutation('settings.manage')({
       country: args.country,
       tin: optionalText(args.tin, 'TIN', 40),
       vatNumber: optionalText(args.vatNumber, 'VAT number', 40),
+      // The same checks contacts get: a real address, an international number, a resolvable site.
+      email: args.email?.trim() ? checked(() => email(args.email!)) : undefined,
+      phone: checked(() => phone(args.phone, 'Phone')),
+      website: checked(() => website(args.website)),
       timezone: args.timezone,
       retentionYears: args.retentionYears,
       brand: { primary: args.brand.primary.toUpperCase(), accent: args.brand.accent.toUpperCase() },

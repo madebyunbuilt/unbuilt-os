@@ -18,6 +18,10 @@ export default defineSchema({
     country: v.string(),
     tin: v.optional(v.string()),
     vatNumber: v.optional(v.string()),
+    // On documents and invoices, so a client can reply to a real address.
+    email: v.optional(v.string()),
+    phone: v.optional(v.string()),
+    website: v.optional(v.string()),
     defaultCurrency: currency,
     timezone: v.string(),
     logoFileId: v.optional(v.id('files')),
@@ -662,4 +666,111 @@ export default defineSchema({
   })
     .index('by_key', ['key'])
     .index('by_category', ['category']),
+  documents: defineTable({
+    type: documentType,
+    // Assigned on the first send and never reused, so a draft has none.
+    number: v.optional(v.string()),
+    title: v.string(),
+    clientId: v.id('clients'),
+    projectId: v.optional(v.id('projects')),
+    dealId: v.optional(v.id('deals')),
+    templateId: v.optional(v.id('documentTemplates')),
+    templateVersion: v.optional(v.number()),
+    status: v.union(
+      v.literal('draft'),
+      v.literal('sent'),
+      v.literal('viewed'),
+      v.literal('accepted'),
+      v.literal('declined'),
+      v.literal('expired'),
+      v.literal('awaiting_signature'),
+      v.literal('partially_signed'),
+      v.literal('signed'),
+      v.literal('void'),
+    ),
+    currency: v.optional(v.union(v.literal('NGN'), v.literal('USD'), v.literal('EUR'))),
+    lineItems: v.optional(
+      v.array(
+        v.object({
+          description: v.string(),
+          quantityMilli: v.number(),
+          unitPriceMinor: v.number(),
+          amountMinor: v.number(),
+          rateCardItemId: v.optional(v.id('rateCardItems')),
+          taxable: v.boolean(),
+        }),
+      ),
+    ),
+    discount: v.optional(
+      v.object({
+        kind: v.union(v.literal('none'), v.literal('percent'), v.literal('fixed')),
+        bps: v.optional(v.number()),
+        amountMinor: v.optional(v.number()),
+      }),
+    ),
+    vat: v.optional(v.object({ applies: v.boolean(), bps: v.number() })),
+    wht: v.optional(v.object({ applies: v.boolean(), bps: v.number() })),
+    totals: v.optional(
+      v.object({
+        subtotalMinor: v.number(),
+        discountMinor: v.number(),
+        taxableMinor: v.number(),
+        vatMinor: v.number(),
+        totalMinor: v.number(),
+        whtExpectedMinor: v.number(),
+      }),
+    ),
+    // The blocks as they read on this document: clause wording copied in, variables filled.
+    blocks: v.array(blockValidator),
+    currentVersion: v.number(),
+    parentDocumentId: v.optional(v.id('documents')),
+    // The first document in the chain, so quote → proposal → SOW → contract can be shown together.
+    chainRootId: v.optional(v.id('documents')),
+    validUntilDate: v.optional(v.string()),
+    sentAt: v.optional(v.number()),
+    firstViewedAt: v.optional(v.number()),
+    lastViewedAt: v.optional(v.number()),
+    viewCount: v.number(),
+    acceptedAt: v.optional(v.number()),
+    acceptedByContactId: v.optional(v.id('contacts')),
+    // Set when the studio records a decision the client gave outside the portal.
+    decisionRecordedByMemberId: v.optional(v.id('teamMembers')),
+    decisionNote: v.optional(v.string()),
+    declinedAt: v.optional(v.number()),
+    declinedReason: v.optional(v.string()),
+    signedAt: v.optional(v.number()),
+    voidReason: v.optional(v.string()),
+    pdfFileId: v.optional(v.id('files')),
+    pdfSha256: v.optional(v.string()),
+    createdByMemberId: v.id('teamMembers'),
+  })
+    .index('by_client', ['clientId'])
+    .index('by_project', ['projectId'])
+    .index('by_status', ['status'])
+    .index('by_chainRoot', ['chainRootId'])
+    .searchIndex('search_documents', { searchField: 'title', filterFields: ['clientId', 'type', 'status'] }),
+
+  // Immutable: one row per send, so a client can always be shown the version they were sent.
+  documentVersions: defineTable({
+    documentId: v.id('documents'),
+    version: v.number(),
+    blocks: v.array(blockValidator),
+    lineItems: v.optional(v.array(v.any())),
+    totals: v.optional(v.any()),
+    pdfFileId: v.optional(v.id('files')),
+    pdfSha256: v.optional(v.string()),
+    createdAt: v.number(),
+    createdBy: v.id('teamMembers'),
+    changeNote: v.optional(v.string()),
+  }).index('by_document_version', ['documentId', 'version']),
+
+  documentViews: defineTable({
+    documentId: v.id('documents'),
+    version: v.number(),
+    viewerKind: v.union(v.literal('contact'), v.literal('token'), v.literal('member')),
+    viewerId: v.optional(v.string()),
+    ip: v.optional(v.string()),
+    userAgent: v.optional(v.string()),
+    viewedAt: v.number(),
+  }).index('by_document', ['documentId', 'viewedAt']),
 });
