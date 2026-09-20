@@ -147,6 +147,7 @@
   `deliverables.manage.assigned` (deliverables) or task management (tasks). Authors edit and delete their own. Mentions
   notify only people who can see the project.
 - **Tasks**: `taskAssignments` mirrors assignees, status and due date so each member's open tasks are indexed.
+  Estimates are entered in hours and stored in minutes.
 - **Time approval**: nobody approves their own time; the Owner approves their own. Project managers approve time on
   the projects they manage; the Owner and Admins approve time on any project. Approvers see only the weeks they may
   decide.
@@ -189,6 +190,13 @@
   not approved: submit a version with files, links and notes, and delete a deliverable that has no versions. Comments
   sit below: anyone who can see the project adds internal ones, and `deliverables.manage.assigned` chooses
   "The team and the client".
+- **Tasks**: a board by status (to do, in progress, blocked, done) or a list, filtered by assignee, milestone and
+  priority. Cards show priority, assignees, due date (marked when overdue) and estimate. With `tasks.manage.all` or
+  `tasks.manage.assigned` on a project in scope: add a task straight into a column, drag cards between columns or use
+  each card's "Move to" select, edit and delete. Only project members can be assigned. Opening a task shows its
+  details and comments at `?task=<id>`, which is where a mention notification lands. A closed project is read-only.
+- **Home** shows "My tasks": your open tasks across every project you can see, overdue first, each linking to its task
+  on the project board. The full role dashboards arrive with reports.
 - **Members**: everyone on the project with their project role and title. With `projects.members.manage`: add an active
   member with an optional role, rename a role, and remove anyone but the manager.
 - **Settings** (`projects.update`): the repository, staging, production and design links, and the SLA policy.
