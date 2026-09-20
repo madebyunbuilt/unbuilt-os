@@ -87,6 +87,22 @@ export function formatHours(minutes: number): string {
   return `${Number.isInteger(hours) ? hours : Number(hours.toFixed(2))}h`;
 }
 
+/** Hours typed by a person as whole minutes: "1.5" → 90, "" → undefined. Refuses anything that is not a number. */
+export function parseHoursToMinutes(value: string): number | undefined {
+  const trimmed = value.trim();
+  if (!trimmed) return undefined;
+  const hours = Number(trimmed.replace(',', '.'));
+  if (!Number.isFinite(hours) || hours < 0) throw new Error('Give the hours as a number, such as 1.5');
+  return Math.round(hours * 60);
+}
+
+/** Minutes as hours for an input: 90 → "1.5", undefined → "". */
+export function toHoursInput(minutes: number | undefined): string {
+  if (minutes === undefined) return '';
+  const hours = minutes / 60;
+  return String(Number.isInteger(hours) ? hours : Number(hours.toFixed(2)));
+}
+
 /** Bytes as a short size: 2,400,000 → "2.4 MB". */
 export function formatBytes(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;

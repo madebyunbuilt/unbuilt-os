@@ -37,7 +37,7 @@ type Tab = { label: string; segment: string; built: boolean; anyOf?: string[] };
 export const PROJECT_TABS: Tab[] = [
   { label: 'Overview', segment: '', built: true },
   { label: 'Milestones and deliverables', segment: 'milestones', built: true },
-  { label: 'Tasks', segment: 'tasks', built: false },
+  { label: 'Tasks', segment: 'tasks', built: true },
   { label: 'Time', segment: 'time', built: false },
   { label: 'Change requests', segment: 'change-requests', built: false },
   { label: 'Documents', segment: 'documents', built: false },

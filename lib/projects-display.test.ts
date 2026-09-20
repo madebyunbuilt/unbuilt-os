@@ -1,5 +1,14 @@
 import { describe, expect, it } from 'vitest';
-import { deliverableStatus, formatBytes, formatHours, milestoneStatus, projectStatus } from './projects-display';
+import {
+  deliverableStatus,
+  formatBytes,
+  formatHours,
+  milestoneStatus,
+  parseHoursToMinutes,
+  projectStatus,
+  toHoursInput,
+} from './projects-display';
+import { taskPriority, taskStatus } from './tasks-display';
 
 describe('projects display', () => {
   it('shows planning as not built yet and on hold as needing attention', () => {
@@ -24,5 +33,25 @@ describe('projects display', () => {
     expect(formatBytes(900)).toBe('900 B');
     expect(formatBytes(2048)).toBe('2 KB');
     expect(formatBytes(2_400_000)).toBe('2.3 MB');
+  });
+
+  it('takes hours as people type them and gives them back the same way', () => {
+    expect(parseHoursToMinutes('1.5')).toBe(90);
+    expect(parseHoursToMinutes('1,5')).toBe(90);
+    expect(parseHoursToMinutes(' 2 ')).toBe(120);
+    expect(parseHoursToMinutes('')).toBeUndefined();
+    expect(() => parseHoursToMinutes('half a day')).toThrow(/number/);
+    expect(() => parseHoursToMinutes('-1')).toThrow(/number/);
+    expect(toHoursInput(90)).toBe('1.5');
+    expect(toHoursInput(120)).toBe('2');
+    expect(toHoursInput(undefined)).toBe('');
+  });
+
+  it('marks blocked and urgent tasks as needing attention', () => {
+    expect(taskStatus('blocked')).toEqual({ label: 'Blocked', tone: 'attention' });
+    expect(taskStatus('in_progress').tone).toBe('draft');
+    expect(taskStatus('done').tone).toBe('built');
+    expect(taskPriority('urgent').tone).toBe('attention');
+    expect(taskPriority('low').tone).toBe('muted');
   });
 });
