@@ -2,7 +2,7 @@
 
 import { useMutation, useQuery } from 'convex/react';
 import { CalendarClock, Plus } from 'lucide-react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useSearchParams } from 'next/navigation';
 import { useState } from 'react';
 import { TaskFormDialog } from '@/components/projects/task-form-dialog';
 import { TaskPanel } from '@/components/projects/task-panel';
@@ -36,8 +36,13 @@ type Task = (typeof api.tasks.listForProject._returnType)[number];
 const today = () => new Date().toISOString().slice(0, 10);
 
 export function TaskBoard({ projectId, permissions }: { projectId: Id<'projects'>; permissions: string[] }) {
-  const router = useRouter();
   const params = useSearchParams();
+  // Which task is open comes from the URL, so a mention's ?task= link opens it. Opening one here does not navigate,
+  // which would wait on the server before the panel could appear: it is remembered against the link it replaces and
+  // the address bar follows through the history API. A real navigation changes the link and takes over again.
+  const linkedTask = params.get('task');
+  const [chosen, setChosen] = useState<{ insteadOf: string | null; taskId: string | null } | null>(null);
+  const openTask = chosen && chosen.insteadOf === linkedTask ? chosen.taskId : linkedTask;
   const [view, setView] = useState<'board' | 'list'>('board');
   const [assignee, setAssignee] = useState('');
   const [milestone, setMilestone] = useState('');
@@ -61,7 +66,6 @@ export function TaskBoard({ projectId, permissions }: { projectId: Id<'projects'
   const canManage = permissions.includes('tasks.manage.all') || permissions.includes('tasks.manage.assigned');
   const options = (milestones?.milestones ?? []).map((row) => ({ id: row.id, name: row.name }));
   const members = project.members.map((member) => ({ memberId: member.memberId, name: member.name }));
-  const openTask = params.get('task');
   const shown = openTask ? tasks.find((task) => task.id === openTask) : undefined;
 
   const onMove = async (task: Task, status: TaskStatus) => {
@@ -73,7 +77,11 @@ export function TaskBoard({ projectId, permissions }: { projectId: Id<'projects'
     }
   };
 
-  const closePanel = () => router.replace(`/projects/${projectId}/tasks`, { scroll: false });
+  const show = (taskId: string | null) => {
+    setChosen({ insteadOf: linkedTask, taskId });
+    const base = `/projects/${projectId}/tasks`;
+    window.history.replaceState(null, '', taskId ? `${base}?task=${taskId}` : base);
+  };
 
   return (
     <div className="space-y-6">
@@ -190,7 +198,7 @@ export function TaskBoard({ projectId, permissions }: { projectId: Id<'projects'
                         key={task.id}
                         task={task}
                         canMove={canManage && isOpen}
-                        onOpen={() => router.replace(`/projects/${projectId}/tasks?task=${task.id}`, { scroll: false })}
+                        onOpen={() => show(task.id)}
                         onMove={(status) => void onMove(task, status)}
                         onDragStart={() => setDragging(task.id)}
                         onDragEnd={() => setDragging(null)}
@@ -217,12 +225,7 @@ export function TaskBoard({ projectId, permissions }: { projectId: Id<'projects'
           </ol>
         </div>
       ) : (
-        <TaskTable
-          tasks={tasks}
-          canMove={canManage && isOpen}
-          onOpen={(task) => router.replace(`/projects/${projectId}/tasks?task=${task.id}`, { scroll: false })}
-          onMove={onMove}
-        />
+        <TaskTable tasks={tasks} canMove={canManage && isOpen} onOpen={(task) => show(task.id)} onMove={onMove} />
       )}
 
       {shown && (
@@ -234,7 +237,7 @@ export function TaskBoard({ projectId, permissions }: { projectId: Id<'projects'
           canManage={canManage}
           canMention={permissions.includes('team.view')}
           isOpen={isOpen}
-          onClose={closePanel}
+          onClose={() => show(null)}
         />
       )}
     </div>

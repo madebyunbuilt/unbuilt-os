@@ -122,10 +122,18 @@ describe('TaskBoard', () => {
     );
   });
 
-  it('opens a task from the board and keeps it in the address bar', async () => {
+  it('opens a task at once and puts it in the address bar', async () => {
     render(<TaskBoard projectId={'p1' as never} permissions={PM} />);
     await userEvent.click(screen.getByRole('button', { name: /Wire up the booking flow/ }));
-    expect(state.replace).toHaveBeenCalledWith('/projects/p1/tasks?task=t1', { scroll: false });
+
+    // The panel must not wait on a router navigation to the same page.
+    expect(await screen.findByRole('dialog', { name: 'Wire up the booking flow' })).toBeInTheDocument();
+    expect(window.location.search).toBe('?task=t1');
+    expect(state.replace).not.toHaveBeenCalled();
+
+    await userEvent.keyboard('{Escape}');
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    expect(window.location.search).toBe('');
   });
 
   it('shows the task a mention linked to, with its comments', async () => {
