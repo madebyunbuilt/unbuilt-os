@@ -143,6 +143,18 @@ and templates. See `18-open-questions.md`.
 - **Void** needs a reason, keeps the number, and is refused on a signed document. A draft that was never sent can be
   deleted instead, unless another document was made from it.
 - **Expiry** runs daily at 06:00 Lagos and covers quotes and proposals only. Whoever drafted it is notified.
+- **Sending** is checked in a mutation (`documents.send`, which refuses a signed or void document and a client with no
+  contact to send to) and carried out by a scheduled Node action: snapshot the version, render the PDF, store it with its
+  hash, assign the number on the first send, email the recipients, then mark it sent. The document keeps the status it
+  had until the email is away, and whoever pressed send is notified if any step fails.
+- **Recipients** default to the client's primary contact; the sender can choose others, and a contact who has left is
+  never one. Every send records the recipients on the client's timeline.
+- **The PDF** renders the same bytes for the same version, so its hash is stable; a signature certificate can rely on
+  it. Its file belongs to the document, is marked client-visible, and is read through the usual signed download link:
+  every document reader may fetch it, and a member with `documents.view.assigned` only within their projects.
+- **View tracking**: a team member's look is recorded as `member` and never counts as the client's. A client's first
+  look moves a sent document to viewed, sets `firstViewedAt` and notifies whoever drafted it, once; later looks only
+  raise the count, and a document already accepted or signed keeps that status.
 - **Variables** are limited to fields the app actually holds, so a document can never print a blank where a value was
   promised. The studio's email, phone and website are part of that set: they are settings, checked the same way a
   contact's are (a real address, an international number, a resolvable site), and they belong on a letterhead.

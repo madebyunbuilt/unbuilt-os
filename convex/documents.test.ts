@@ -415,3 +415,205 @@ describe('who can see and do what', () => {
     await expect(as.mutation(api.documents.voidDocument, { documentId, reason: 'no' })).rejects.toThrow();
   });
 });
+
+describe('sending', () => {
+  it('checks the send before scheduling it, and refuses one that cannot go out', async () => {
+    const { as } = await signedIn('owner');
+    const documentId = await as.mutation(api.documents.create, { type: 'quote', clientId, lineItems: twoLines });
+
+    expect(await as.mutation(api.documents.send, { documentId })).toEqual({ sendingTo: ['ada@glossup.com'] });
+
+    // Nothing has changed yet: the action does the work, and the document is still a draft until it has.
+    expect(await t.run((ctx) => ctx.db.get('documents', documentId))).toMatchObject({ status: 'draft' });
+
+    await t.run((ctx) => ctx.db.patch('documents', documentId, { status: 'signed' }));
+    await expectCode(as.mutation(api.documents.send, { documentId }), 'documents.signed');
+  });
+
+  it('is closed to a role without documents.send', async () => {
+    const owner = await signedIn('owner');
+    const documentId = await owner.as.mutation(api.documents.create, {
+      type: 'quote',
+      clientId,
+      lineItems: twoLines,
+    });
+    // Finance reads every document but does not send one; project managers do hold documents.send.
+    const finance = await signedIn('finance');
+    await expect(finance.as.mutation(api.documents.send, { documentId })).rejects.toThrow();
+
+    const pm = await signedIn('project_manager');
+    expect(await pm.as.mutation(api.documents.send, { documentId })).toEqual({ sendingTo: ['ada@glossup.com'] });
+  });
+
+  it('tells whoever pressed send when it did not go out', async () => {
+    const { as, memberId } = await signedIn('owner');
+    const documentId = await as.mutation(api.documents.create, { type: 'quote', clientId, lineItems: twoLines });
+    await t.mutation(internal.documents.reportSendFailed, {
+      documentId,
+      memberId,
+      reason: 'Could not send the document email: validation_error',
+    });
+    const notifications = await t.run((ctx) => ctx.db.query('notifications').collect());
+    expect(notifications).toEqual([expect.objectContaining({ event: 'document_send_failed', recipientId: memberId })]);
+  });
+
+  /** The three steps the send action brackets the PDF render with. */
+  async function prepare(documentId: Id<'documents'>, memberId: Id<'teamMembers'>, contactIds?: Id<'contacts'>[]) {
+    return await t.mutation(internal.documents.prepareSend, { documentId, memberId, contactIds });
+  }
+
+  it('numbers the document once, snapshots the version and addresses the primary contact', async () => {
+    const { as, memberId } = await signedIn('owner');
+    const documentId = await as.mutation(api.documents.create, { type: 'quote', clientId, lineItems: twoLines });
+
+    const first = await prepare(documentId, memberId);
+    expect(first.number).toBe('UNB-QUO-0001');
+    expect(first.version).toBe(1);
+    expect(first.recipients).toEqual([{ id: contactId, name: 'Ada Obi', email: 'ada@glossup.com' }]);
+    expect(first.pdf.totals?.totalMinor).toBe(2_075_000);
+    expect(first.pdf.org.email).toBeUndefined();
+
+    // The version row holds the text and prices as they were sent, and cannot be edited afterwards.
+    const versions = await t.run((ctx) => ctx.db.query('documentVersions').collect());
+    expect(versions).toHaveLength(1);
+    expect(versions[0]).toMatchObject({ documentId, version: 1, createdBy: memberId });
+
+    // Sending again keeps the number and moves to the next version.
+    const second = await prepare(documentId, memberId);
+    expect(second.number).toBe('UNB-QUO-0001');
+    expect(second.version).toBe(2);
+    expect(await t.run((ctx) => ctx.db.query('documentVersions').collect())).toHaveLength(2);
+  });
+
+  it('sends to the contacts chosen, and refuses a client with nobody to send to', async () => {
+    const { as, memberId } = await signedIn('owner');
+    const second = await t.run((ctx) =>
+      ctx.db.insert('contacts', {
+        clientId,
+        name: 'Bayo Ade',
+        email: 'bayo@glossup.com',
+        isPrimary: false,
+        isBilling: true,
+        portalAccess: false,
+        status: 'active',
+      }),
+    );
+    const documentId = await as.mutation(api.documents.create, { type: 'quote', clientId, lineItems: twoLines });
+    const prepared = await prepare(documentId, memberId, [contactId, second]);
+    expect(prepared.recipients.map((r) => r.email)).toEqual(['ada@glossup.com', 'bayo@glossup.com']);
+
+    // A contact who has left is not a recipient.
+    await t.run(async (ctx) => {
+      await ctx.db.patch('contacts', contactId, { status: 'left' });
+      await ctx.db.patch('contacts', second, { status: 'left' });
+    });
+    const orphan = await as.mutation(api.documents.create, { type: 'quote', clientId, lineItems: twoLines });
+    await expectCode(prepare(orphan, memberId), 'documents.noRecipients');
+  });
+
+  it('refuses to send a signed or void document', async () => {
+    const { as, memberId } = await signedIn('owner');
+    const documentId = await as.mutation(api.documents.create, { type: 'quote', clientId, lineItems: twoLines });
+    await t.run((ctx) => ctx.db.patch('documents', documentId, { status: 'void', voidReason: 'wrong client' }));
+    await expectCode(prepare(documentId, memberId), 'documents.void');
+
+    await t.run((ctx) => ctx.db.patch('documents', documentId, { status: 'signed' }));
+    await expectCode(prepare(documentId, memberId), 'documents.signed');
+  });
+
+  it('attaches the stored PDF with its hash to the document and the version', async () => {
+    const { as, memberId } = await signedIn('owner');
+    const documentId = await as.mutation(api.documents.create, { type: 'quote', clientId, lineItems: twoLines });
+    const prepared = await prepare(documentId, memberId);
+
+    const storageId = await t.run(async (ctx) => await ctx.storage.store(new Blob(['%PDF-1.7 pretend'])));
+    const stored = await t.mutation(internal.documents.attachPdf, {
+      documentId,
+      version: prepared.version,
+      storageId,
+      fileName: `${prepared.number}.pdf`,
+      memberId,
+    });
+    expect(stored.ok).toBe(true);
+
+    const document = await t.run((ctx) => ctx.db.get('documents', documentId));
+    const version = await t.run((ctx) => ctx.db.query('documentVersions').first());
+    expect(document?.pdfSha256).toHaveLength(64);
+    expect(version?.pdfSha256).toBe(document?.pdfSha256);
+    expect(version?.pdfFileId).toBe(document?.pdfFileId);
+
+    // The file is the client's to read, and belongs to the document.
+    const file = await t.run((ctx) => ctx.db.get('files', document!.pdfFileId!));
+    expect(file).toMatchObject({ visibility: 'client', mimeType: 'application/pdf', owner: { table: 'documents' } });
+  });
+
+  it('marks a quote sent and a contract awaiting signature, and records it', async () => {
+    const { as, memberId } = await signedIn('owner');
+    const quoteId = await as.mutation(api.documents.create, { type: 'quote', clientId, lineItems: twoLines });
+    await prepare(quoteId, memberId);
+    await t.mutation(internal.documents.markSent, { documentId: quoteId, version: 1, emailed: ['ada@glossup.com'] });
+    expect(await t.run((ctx) => ctx.db.get('documents', quoteId))).toMatchObject({ status: 'sent' });
+
+    const contractId = await as.mutation(api.documents.create, { type: 'contract', clientId });
+    await prepare(contractId, memberId);
+    await t.mutation(internal.documents.markSent, { documentId: contractId, version: 1, emailed: ['ada@glossup.com'] });
+    expect(await t.run((ctx) => ctx.db.get('documents', contractId))).toMatchObject({ status: 'awaiting_signature' });
+
+    const activity = await t.run((ctx) => ctx.db.query('activities').collect());
+    expect(activity.some((entry) => entry.title.includes('UNB-QUO-0001 sent to ada@glossup.com'))).toBe(true);
+  });
+});
+
+describe('view tracking', () => {
+  it('records a team member looking without counting it as the client seeing it', async () => {
+    const { as, memberId } = await signedIn('owner');
+    const documentId = await as.mutation(api.documents.create, { type: 'quote', clientId, lineItems: twoLines });
+    await t.run((ctx) => ctx.db.patch('documents', documentId, { status: 'sent', number: 'UNB-QUO-0009' }));
+
+    await as.mutation(api.documents.logTeamView, { documentId });
+    const document = await t.run((ctx) => ctx.db.get('documents', documentId));
+    expect(document).toMatchObject({ status: 'sent', viewCount: 0 });
+    expect(document?.firstViewedAt).toBeUndefined();
+
+    const views = await t.run((ctx) => ctx.db.query('documentViews').collect());
+    expect(views).toEqual([expect.objectContaining({ viewerKind: 'member', viewerId: memberId })]);
+  });
+
+  it('moves a sent document to viewed on the client’s first look and tells whoever drafted it', async () => {
+    const { as, memberId } = await signedIn('owner');
+    const documentId = await as.mutation(api.documents.create, { type: 'quote', clientId, lineItems: twoLines });
+    await t.run((ctx) => ctx.db.patch('documents', documentId, { status: 'sent', number: 'UNB-QUO-0010' }));
+
+    await t.mutation(internal.documents.recordClientView, {
+      documentId,
+      contactId,
+      viewerKind: 'contact',
+      ip: '102.89.0.1',
+      userAgent: 'Safari',
+    });
+    let document = await t.run((ctx) => ctx.db.get('documents', documentId));
+    expect(document).toMatchObject({ status: 'viewed', viewCount: 1 });
+    expect(document?.firstViewedAt).toBeDefined();
+
+    const notifications = await t.run((ctx) => ctx.db.query('notifications').collect());
+    expect(notifications.filter((row) => row.event === 'document_viewed' && row.recipientId === memberId)).toHaveLength(
+      1,
+    );
+
+    // A second look counts, but the studio is told only once.
+    await t.mutation(internal.documents.recordClientView, { documentId, contactId, viewerKind: 'contact' });
+    document = await t.run((ctx) => ctx.db.get('documents', documentId));
+    expect(document).toMatchObject({ viewCount: 2 });
+    expect(
+      (await t.run((ctx) => ctx.db.query('notifications').collect())).filter((row) => row.event === 'document_viewed'),
+    ).toHaveLength(1);
+  });
+
+  it('leaves an accepted document as accepted when the client looks again', async () => {
+    const { as } = await signedIn('owner');
+    const documentId = await as.mutation(api.documents.create, { type: 'quote', clientId, lineItems: twoLines });
+    await t.run((ctx) => ctx.db.patch('documents', documentId, { status: 'accepted', number: 'UNB-QUO-0011' }));
+    await t.mutation(internal.documents.recordClientView, { documentId, contactId, viewerKind: 'contact' });
+    expect(await t.run((ctx) => ctx.db.get('documents', documentId))).toMatchObject({ status: 'accepted' });
+  });
+});

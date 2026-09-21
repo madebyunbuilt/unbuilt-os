@@ -47,6 +47,11 @@ Better Auth's own tables (users, sessions, accounts, verification) are owned by 
 | Contract       | `UNB-CON-0001` |
 | SLA            | `UNB-SLA-0001` |
 | Change request | `UNB-CR-0001`  |
+| NDA            | `UNB-NDA-0001` |
+| DPA            | `UNB-DPA-0001` |
+| Handover       | `UNB-HOV-0001` |
+| Team agreement | `UNB-TA-0001`  |
+| Other document | `UNB-DOC-0001` |
 | Credit note    | `UNB-CN-0001`  |
 | Receipt        | `UNB-RCT-0001` |
 | Ticket         | `UNB-TKT-0001` |
