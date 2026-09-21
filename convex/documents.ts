@@ -20,9 +20,10 @@ import {
   FINAL_STATUSES,
   getDocument,
   type LineItem,
+  copyClausesIn,
+  fillBlocks,
   numberedRecordFor,
   type PreparedSend,
-  resolveBlocks,
   taxSettingsFor,
   TYPE_LABELS,
   variableValues,
@@ -211,7 +212,9 @@ export const get = teamQuery(null)({
 
     return {
       ...(await withNames(ctx, document)),
-      blocks: document.blocks,
+      // As the client will read it, and the raw wording underneath for editing.
+      blocks: await filledBlocks(ctx, document),
+      rawBlocks: document.blocks,
       lineItems: document.lineItems,
       discount: document.discount,
       vat: document.vat,
@@ -301,13 +304,10 @@ async function buildDocument(ctx: MutationCtx & Principal, args: CreateArgs) {
   }
 
   const title = text(args.title, 'Title', { max: 200 }) ?? `${TYPE_LABELS[args.type]} for ${client.displayName}`;
-  const values = await variableValues(
-    ctx,
-    { type: args.type, title, validUntilDate, currency, totals: priceable?.totals },
-    { client, contact, project, deal },
-    today,
-  );
-  const blocks = await resolveBlocks(ctx, (template?.blocks ?? []) as DocumentBlock[], values);
+  // The clause wording is taken now; the variables wait until the document is read or sent, when its number exists.
+  const blocks = await copyClausesIn(ctx, (template?.blocks ?? []) as DocumentBlock[]);
+  void contact;
+  void deal;
 
   return {
     fields: {
@@ -334,6 +334,19 @@ async function buildDocument(ctx: MutationCtx & Principal, args: CreateArgs) {
     },
     client,
   };
+}
+
+/** The document's wording with its variables filled in from the client, project, deal and totals it has now. */
+async function filledBlocks(ctx: Ctx, document: Doc<'documents'>) {
+  const [client, contact, project, deal] = await Promise.all([
+    ctx.db.get('clients', document.clientId),
+    primaryContact(ctx, document.clientId),
+    document.projectId ? ctx.db.get('projects', document.projectId) : null,
+    document.dealId ? ctx.db.get('deals', document.dealId) : null,
+  ]);
+  if (!client) return document.blocks;
+  const values = await variableValues(ctx, document, { client, contact, project, deal }, await studioToday(ctx));
+  return fillBlocks(document.blocks, values);
 }
 
 async function primaryContact(ctx: Ctx, clientId: Id<'clients'>) {
@@ -488,9 +501,12 @@ export const refreshText = teamMutation('documents.update')({
       document.projectId ? ctx.db.get('projects', document.projectId) : null,
       document.dealId ? ctx.db.get('deals', document.dealId) : null,
     ]);
-    const values = await variableValues(ctx, document, { client, contact, project, deal }, await studioToday(ctx));
+    void client;
+    void contact;
+    void project;
+    void deal;
     await ctx.db.patch('documents', documentId, {
-      blocks: await resolveBlocks(ctx, template.blocks as DocumentBlock[], values),
+      blocks: await copyClausesIn(ctx, template.blocks as DocumentBlock[]),
       templateVersion: template.version,
     });
   },
@@ -676,7 +692,17 @@ export const prepareSend = internalMutation({
     const now = Date.now();
     const changeNote = text(args.changeNote, 'Change note', { max: 500 });
 
-    // An earlier attempt that never got its PDF left a version behind; that one is reused rather than stacking another.
+    // Filled now, with the number the document is about to carry: this is exactly what the client will read.
+    const [contact, project, deal] = await Promise.all([
+      ctx.db.get('contacts', recipients[0].id),
+      document.projectId ? ctx.db.get('projects', document.projectId) : null,
+      document.dealId ? ctx.db.get('deals', document.dealId) : null,
+    ]);
+    const readable = fillBlocks(
+      document.blocks,
+      await variableValues(ctx, { ...document, number }, { client, contact, project, deal }, await studioToday(ctx)),
+    );
+
     const latest = await ctx.db
       .query('documentVersions')
       .withIndex('by_document_version', (q) => q.eq('documentId', document._id))
@@ -687,7 +713,7 @@ export const prepareSend = internalMutation({
 
     if (unfinished) {
       await ctx.db.patch('documentVersions', unfinished._id, {
-        blocks: document.blocks,
+        blocks: readable,
         lineItems: document.lineItems,
         totals: document.totals,
         createdAt: now,
@@ -698,7 +724,7 @@ export const prepareSend = internalMutation({
       await ctx.db.insert('documentVersions', {
         documentId: document._id,
         version,
-        blocks: document.blocks,
+        blocks: readable,
         lineItems: document.lineItems,
         totals: document.totals,
         createdAt: now,
@@ -736,7 +762,7 @@ export const prepareSend = internalMutation({
       portalUrl: `${portalAppOrigin() ?? ''}/documents/${document._id}`,
       recipients,
       pdf: {
-        blocks: document.blocks,
+        blocks: readable,
         title: document.title,
         typeLabel: TYPE_LABELS[document.type],
         number,

@@ -80,8 +80,18 @@ const listRow = (overrides: object = {}) => ({
   ...overrides,
 });
 
+const wording = [
+  { kind: 'heading', text: '{{document.title}}' },
+  { kind: 'paragraph', text: 'Prepared for {{contact.name}} at {{client.displayName}}.' },
+  { kind: 'lineItems', title: 'The work' },
+  { kind: 'totals' },
+  { kind: 'signature', party: 'client' },
+];
+
 const document = (overrides: object = {}) => ({
   ...listRow(),
+  // What the client reads, and the wording underneath it with its variables intact.
+  rawBlocks: wording,
   blocks: [
     { kind: 'heading', text: 'Quote UNB-QUO-0001' },
     { kind: 'paragraph', text: 'Prepared for Ada Obi at Glossup.' },

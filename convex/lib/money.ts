@@ -199,6 +199,20 @@ export function formatMoney(amountMinor: number, currency: Currency, locale: str
 }
 
 /** Parses user input such as "1,250,000.5" into minor units. Rejects negatives and extra decimal places. */
+/**
+ * The same amount with the currency's code rather than its symbol: "NGN 20,750.00". PDFs use this because the standard
+ * PDF fonts have no ₦, which would otherwise print as a broken glyph.
+ */
+export function formatMoneyWithCode(amountMinor: number, currency: Currency): string {
+  const { minorDigits, locale } = CURRENCIES[currency];
+  const amount = amountMinor / 10 ** minorDigits;
+  const formatted = new Intl.NumberFormat(locale, {
+    minimumFractionDigits: minorDigits,
+    maximumFractionDigits: minorDigits,
+  }).format(amount);
+  return `${currency} ${formatted}`;
+}
+
 export function parseMoneyInput(input: string, currency: Currency): number {
   const digits = CURRENCIES[currency].minorDigits;
   const cleaned = input.trim().replace(/[,\s]/g, '');

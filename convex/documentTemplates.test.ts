@@ -107,8 +107,11 @@ describe('document templates', () => {
   it('records the variables a template uses', async () => {
     const owner = await signedIn('owner');
     const quote = (await owner.query(api.documentTemplates.list, { type: 'quote' }))[0];
-    expect(quote.variables).toContain('document.number');
     expect(quote.variables).toContain('contact.name');
+    expect(quote.variables).toContain('today');
+    // A clause's own variables are not listed here: the clause is checked when it is saved, and filled with the rest
+    // when the document is read or sent.
+    expect(quote.variables).not.toContain('validUntil');
   });
 
   it('refuses a template that names an unknown variable or a missing clause', async () => {

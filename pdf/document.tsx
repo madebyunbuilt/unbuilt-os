@@ -1,6 +1,6 @@
 import { Document, Page, StyleSheet, Text, View } from '@react-pdf/renderer';
 import { type DocumentBlock } from '@/convex/lib/documentBlocks';
-import { type Currency, formatMoney } from '@/convex/lib/money';
+import { type Currency, formatMoneyWithCode } from '@/convex/lib/money';
 import { type DocumentPdfProps, type PdfLineItem, type PdfTotals } from './types';
 
 export type { DocumentPdfProps, PdfLineItem, PdfMilestone, PdfTotals } from './types';
@@ -23,8 +23,15 @@ const styles = StyleSheet.create({
   studio: { fontSize: 11, fontFamily: 'Helvetica-Bold' },
   headerRight: { textAlign: 'right' },
   muted: { color: '#6B7280' },
-  title: { fontSize: 20, fontFamily: 'Helvetica-Bold', marginBottom: 4 },
-  parties: { flexDirection: 'row', gap: 32, marginBottom: 20 },
+  title: { fontSize: 20, fontFamily: 'Helvetica-Bold', marginBottom: 16 },
+  parties: {
+    flexDirection: 'row',
+    gap: 32,
+    marginBottom: 24,
+    paddingBottom: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
+  },
   party: { flex: 1 },
   partyLabel: { fontSize: 8, textTransform: 'uppercase', color: '#6B7280', marginBottom: 2 },
   h1: { fontSize: 14, fontFamily: 'Helvetica-Bold', marginTop: 16, marginBottom: 6 },
@@ -93,8 +100,8 @@ function LineItems({ items, currency, title }: { items: PdfLineItem[]; currency:
             {item.taxable ? '' : ' (no VAT)'}
           </Text>
           <Text style={styles.cellNumber}>{quantity(item.quantityMilli)}</Text>
-          <Text style={styles.cellNumber}>{formatMoney(item.unitPriceMinor, currency)}</Text>
-          <Text style={styles.cellNumber}>{formatMoney(item.amountMinor, currency)}</Text>
+          <Text style={styles.cellNumber}>{formatMoneyWithCode(item.unitPriceMinor, currency)}</Text>
+          <Text style={styles.cellNumber}>{formatMoneyWithCode(item.amountMinor, currency)}</Text>
         </View>
       ))}
     </View>
@@ -112,17 +119,17 @@ function Totals({ totals, currency }: { totals: PdfTotals; currency: Currency })
       {rows.map(([label, amount]) => (
         <View key={label} style={styles.totalsRow}>
           <Text style={styles.muted}>{label}</Text>
-          <Text>{formatMoney(amount, currency)}</Text>
+          <Text>{formatMoneyWithCode(amount, currency)}</Text>
         </View>
       ))}
       <View style={styles.totalsTotal}>
         <Text style={styles.bold}>Total</Text>
-        <Text style={styles.bold}>{formatMoney(totals.totalMinor, currency)}</Text>
+        <Text style={styles.bold}>{formatMoneyWithCode(totals.totalMinor, currency)}</Text>
       </View>
       {totals.whtExpectedMinor > 0 && (
         <View style={styles.totalsRow}>
           <Text style={styles.muted}>Withholding tax to deduct</Text>
-          <Text style={styles.muted}>{formatMoney(totals.whtExpectedMinor, currency)}</Text>
+          <Text style={styles.muted}>{formatMoneyWithCode(totals.whtExpectedMinor, currency)}</Text>
         </View>
       )}
     </View>

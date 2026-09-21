@@ -35,7 +35,8 @@ export function DocumentDraftEditor({
   const refreshText = useMutation(api.documents.refreshText);
   const [title, setTitle] = useState(document.title);
   const [validUntil, setValidUntil] = useState(document.validUntilDate ?? '');
-  const [blocks, setBlocks] = useState<DocumentBlock[]>(document.blocks);
+  // The wording as it is stored, variables and all: saving the filled copy would freeze today's values into it.
+  const [blocks, setBlocks] = useState<DocumentBlock[]>(document.rawBlocks);
   const [lines, setLines] = useState<LineDraft[]>(
     toLineDrafts(document.lineItems).length > 0 ? toLineDrafts(document.lineItems) : [emptyLine()],
   );

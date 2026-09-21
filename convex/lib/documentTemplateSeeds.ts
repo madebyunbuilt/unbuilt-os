@@ -137,10 +137,10 @@ export const DEFAULT_DOCUMENT_TEMPLATES: readonly DocumentTemplateSeed[] = [
     name: 'Quote',
     description: 'A price for defined work, open until a date.',
     blocks: [
-      heading('Quote {{document.number}}'),
+      heading('What this covers'),
       ADDRESSED_TO,
       paragraph(
-        'Thank you for talking to us about {{deal.title}}. Here is what the work would cost. Everything below is open to discussion.',
+        'Thank you for the conversation. Here is what the work would cost. Everything below is open to discussion.',
       ),
       heading('What is included', 2),
       lineItems('The work'),
@@ -159,7 +159,7 @@ export const DEFAULT_DOCUMENT_TEMPLATES: readonly DocumentTemplateSeed[] = [
     name: 'Proposal',
     description: 'Approach, scope, timeline and price for a piece of work.',
     blocks: [
-      heading('Proposal: {{document.title}}'),
+      heading('{{document.title}}'),
       ADDRESSED_TO,
       heading('What you asked for', 2),
       paragraph(
@@ -189,7 +189,7 @@ export const DEFAULT_DOCUMENT_TEMPLATES: readonly DocumentTemplateSeed[] = [
     name: 'Statement of work',
     description: 'Detailed scope, deliverables, milestones and acceptance terms.',
     blocks: [
-      heading('Statement of work {{document.number}}'),
+      heading('What this statement of work covers'),
       paragraph(
         'This statement of work covers {{project.name}} ({{project.code}}) for {{client.legalName}}, starting {{project.startDate}} and due {{project.dueDate}}. It sits under the services agreement between us.',
       ),
@@ -364,7 +364,7 @@ export const DEFAULT_DOCUMENT_TEMPLATES: readonly DocumentTemplateSeed[] = [
     name: 'Change request',
     description: 'A priced change to scope, dates or both.',
     blocks: [
-      heading('Change request {{document.number}}'),
+      heading('What is changing'),
       paragraph(
         'For {{project.name}} ({{project.code}}), requested on {{today}}. This changes the statement of work already agreed; everything not mentioned here stays as it was.',
       ),
