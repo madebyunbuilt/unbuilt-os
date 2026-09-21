@@ -1,22 +1,36 @@
 import { v } from 'convex/values';
+import { internal } from './_generated/api';
 import { type Doc, type Id } from './_generated/dataModel';
 import { type MutationCtx, type QueryCtx } from './_generated/server';
 import { defaultTemplateFor } from './documentTemplates';
 import { getClient, recordActivity, requirePermission, text } from './lib/crm';
-import { blockValidator, type DocumentBlock, documentError, documentType, PRICED_TYPES } from './lib/documentBlocks';
 import {
+  blockValidator,
+  type DocumentBlock,
+  documentError,
+  documentType,
+  PRICED_TYPES,
+  SIGNED_TYPES,
+} from './lib/documentBlocks';
+import {
+  type AttachedPdf,
   DECIDABLE_STATUSES,
   documentTotals,
   EDITABLE_STATUSES,
   FINAL_STATUSES,
   getDocument,
   type LineItem,
+  numberedRecordFor,
+  type PreparedSend,
   resolveBlocks,
   taxSettingsFor,
   TYPE_LABELS,
   variableValues,
 } from './lib/documents';
+import { recordUpload } from './lib/files';
 import { internalMutation, teamMutation, teamQuery } from './lib/functions';
+import { portalAppOrigin } from './lib/hosts';
+import { nextNumber } from './lib/numbering';
 import { type Currency } from './lib/money';
 import { activeMembersWith, notifyTeamMembers } from './lib/notify';
 import { type TeamPrincipal } from './lib/principals';
@@ -560,6 +574,295 @@ export const remove = teamMutation('documents.update')({
       throw documentError('documents.hasChildren', 'Another document was made from this one');
     }
     await ctx.db.delete('documents', documentId);
+  },
+});
+
+// Sending ---------------------------------------------------------------------------------------------------------------
+
+/**
+ * Sends the document to the client: checked here, then carried out by the action in convex/documentSending.ts, which
+ * renders the PDF and emails it. Editing a sent document and sending again issues the next version.
+ */
+export const send = teamMutation('documents.send')({
+  args: {
+    documentId: v.id('documents'),
+    contactIds: v.optional(v.array(v.id('contacts'))),
+    message: v.optional(v.string()),
+    changeNote: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const document = await visibleDocument(ctx, args.documentId);
+    if (document.status === 'signed' || document.status === 'void') {
+      throw documentError(
+        document.status === 'signed' ? 'documents.signed' : 'documents.void',
+        `A ${document.status} document cannot be sent again`,
+      );
+    }
+    // Checked before scheduling, so an impossible send is refused while the person is still looking at it.
+    const recipients = await sendRecipients(ctx, document.clientId, args.contactIds);
+    if (recipients.length === 0) {
+      throw documentError('documents.noRecipients', 'Add a contact with an email address to send this to');
+    }
+    await ctx.scheduler.runAfter(0, internal.documentSending.send, {
+      documentId: args.documentId,
+      memberId: ctx.principal.member._id,
+      contactIds: args.contactIds,
+      message: text(args.message, 'Message', { max: 2000 }),
+      changeNote: text(args.changeNote, 'Change note', { max: 500 }),
+    });
+    return { sendingTo: recipients.map((recipient) => recipient.email) };
+  },
+});
+
+/** Tells whoever pressed send that it did not go out, with the reason, so nothing fails silently. */
+export const reportSendFailed = internalMutation({
+  args: { documentId: v.id('documents'), memberId: v.id('teamMembers'), reason: v.string() },
+  handler: async (ctx, { documentId, memberId, reason }): Promise<null> => {
+    const document = await ctx.db.get('documents', documentId);
+    const member = await ctx.db.get('teamMembers', memberId);
+    if (!document || member?.status !== 'active') return null;
+    await notifyTeamMembers(ctx, [member._id], {
+      event: 'document_send_failed',
+      title: `${document.number ?? TYPE_LABELS[document.type]} was not sent`,
+      body: reason,
+      link: `/documents/${documentId}`,
+    });
+    return null;
+  },
+});
+
+/**
+ * The first half of a send: the version is snapshotted and the number assigned here, in one transaction, and the PDF is
+ * rendered afterwards by the action in convex/documentSending.ts. Editing a sent document sends the next version, and
+ * the previous one stays readable.
+ */
+export const prepareSend = internalMutation({
+  args: {
+    documentId: v.id('documents'),
+    contactIds: v.optional(v.array(v.id('contacts'))),
+    changeNote: v.optional(v.string()),
+    memberId: v.id('teamMembers'),
+  },
+  handler: async (ctx, args): Promise<PreparedSend> => {
+    const document = await getDocument(ctx, args.documentId);
+    if (document.status === 'signed' || document.status === 'void') {
+      throw documentError(
+        document.status === 'signed' ? 'documents.signed' : 'documents.void',
+        `A ${document.status} document cannot be sent again`,
+      );
+    }
+    const client = await getClient(ctx, document.clientId);
+
+    const recipients = await sendRecipients(ctx, document.clientId, args.contactIds);
+    if (recipients.length === 0) {
+      throw documentError('documents.noRecipients', 'Add a contact with an email address to send this to');
+    }
+
+    const number = document.number ?? (await nextNumber(ctx, numberedRecordFor(document.type)));
+    const version = document.currentVersion + 1;
+    const now = Date.now();
+
+    await ctx.db.insert('documentVersions', {
+      documentId: document._id,
+      version,
+      blocks: document.blocks,
+      lineItems: document.lineItems,
+      totals: document.totals,
+      createdAt: now,
+      createdBy: args.memberId,
+      changeNote: text(args.changeNote, 'Change note', { max: 500 }),
+    });
+    await ctx.db.patch('documents', document._id, { number, currentVersion: version });
+
+    const settings = await getOrgSettings(ctx);
+    const milestones = document.projectId
+      ? await ctx.db
+          .query('milestones')
+          .withIndex('by_project_order', (q) => q.eq('projectId', document.projectId!))
+          .collect()
+      : [];
+    const currency = document.currency ?? settings.defaultCurrency;
+    const longDate = (value: string | undefined) =>
+      value
+        ? new Intl.DateTimeFormat('en-GB', { dateStyle: 'long', timeZone: 'UTC' }).format(
+            Date.parse(`${value}T00:00:00Z`),
+          )
+        : undefined;
+
+    const sender = await ctx.db.get('teamMembers', args.memberId);
+
+    return {
+      version,
+      number,
+      title: document.title,
+      typeLabel: TYPE_LABELS[document.type],
+      senderName: sender?.name ?? 'Unbuilt Studio',
+      studioName: settings.legalName ?? settings.tradingName ?? 'Unbuilt Studio',
+      validUntilLabel: longDate(document.validUntilDate),
+      portalUrl: `${portalAppOrigin() ?? ''}/documents/${document._id}`,
+      recipients,
+      pdf: {
+        blocks: document.blocks,
+        title: document.title,
+        typeLabel: TYPE_LABELS[document.type],
+        number,
+        org: {
+          name: settings.legalName ?? settings.tradingName ?? 'Unbuilt Studio',
+          addressLines: settings.addressLines,
+          email: settings.email,
+          phone: settings.phone,
+          website: settings.website,
+          tin: settings.tin,
+        },
+        client: { name: client.legalName ?? client.displayName, addressLines: client.addressLines ?? [] },
+        currency,
+        lineItems: document.lineItems,
+        totals: document.totals,
+        milestones: milestones.map((milestone) => ({ name: milestone.name, dueDate: longDate(milestone.dueDate) })),
+        paymentSchedule: [],
+        voided: false,
+        brand: settings.brand,
+        // The version's own time, so re-rendering the same version gives the same bytes.
+        createdAtMs: now,
+      },
+    };
+  },
+});
+
+/** The stored PDF, checked and recorded like any other upload, then attached to the document and its version. */
+export const attachPdf = internalMutation({
+  args: {
+    documentId: v.id('documents'),
+    version: v.number(),
+    storageId: v.id('_storage'),
+    fileName: v.string(),
+    memberId: v.id('teamMembers'),
+  },
+  handler: async (ctx, args): Promise<AttachedPdf> => {
+    const document = await getDocument(ctx, args.documentId);
+    const result = await recordUpload(ctx, {
+      storageId: args.storageId,
+      name: args.fileName,
+      contentType: 'application/pdf',
+      context: 'document',
+      owner: { table: 'documents', id: args.documentId },
+      // The client reads it in the portal.
+      visibility: 'client',
+      clientId: document.clientId,
+      projectId: document.projectId,
+      uploadedBy: { kind: 'team', id: args.memberId },
+    });
+    if (!result.ok) return result;
+
+    const file = (await ctx.db.get('files', result.fileId))!;
+    const versionRow = await ctx.db
+      .query('documentVersions')
+      .withIndex('by_document_version', (q) => q.eq('documentId', args.documentId).eq('version', args.version))
+      .unique();
+    if (versionRow) {
+      await ctx.db.patch('documentVersions', versionRow._id, { pdfFileId: file._id, pdfSha256: file.sha256 });
+    }
+    await ctx.db.patch('documents', args.documentId, { pdfFileId: file._id, pdfSha256: file.sha256 });
+    return { ok: true as const, fileId: file._id, sha256: file.sha256 };
+  },
+});
+
+/** The document is sent once the client has been emailed, so a failed send never shows as one. */
+export const markSent = internalMutation({
+  args: { documentId: v.id('documents'), version: v.number(), emailed: v.array(v.string()) },
+  handler: async (ctx, { documentId, version, emailed }): Promise<null> => {
+    const document = await getDocument(ctx, documentId);
+    const now = Date.now();
+    await ctx.db.patch('documents', documentId, {
+      status: SIGNED_TYPES.has(document.type) ? 'awaiting_signature' : 'sent',
+      sentAt: document.sentAt ?? now,
+    });
+    await recordActivity(ctx, {
+      subject: { table: 'clients', id: document.clientId },
+      clientId: document.clientId,
+      type: 'system',
+      title: `${document.number} sent to ${emailed.join(', ')}`,
+      body: version > 1 ? `Version ${version}` : undefined,
+      actor: { kind: 'team', id: document.createdByMemberId },
+      meta: { documentId, version },
+    });
+    return null;
+  },
+});
+
+/** Who a document goes to: the contacts chosen, or the primary contact when none are. */
+async function sendRecipients(ctx: MutationCtx, clientId: Id<'clients'>, contactIds?: Id<'contacts'>[]) {
+  const contacts = await ctx.db
+    .query('contacts')
+    .withIndex('by_client', (q) => q.eq('clientId', clientId))
+    .collect();
+  const active = contacts.filter((contact) => contact.status === 'active');
+  const chosen = contactIds?.length
+    ? active.filter((contact) => contactIds.includes(contact._id))
+    : active.filter((contact) => contact.isPrimary).slice(0, 1);
+  if (contactIds?.length && chosen.length !== contactIds.length) {
+    throw documentError('documents.invalid', 'Choose active contacts at this client');
+  }
+  return chosen.map((contact) => ({ id: contact._id, name: contact.name, email: contact.email }));
+}
+
+/**
+ * Records that someone opened a document. A team member's look is recorded but never counts as the client seeing it
+ * (07-documents-and-esign.md, View tracking); the portal's own view arrives with the client portal step.
+ */
+export const logTeamView = teamMutation(null)({
+  args: { documentId: v.id('documents') },
+  handler: async (ctx, { documentId }) => {
+    const document = await visibleDocument(ctx, documentId);
+    await ctx.db.insert('documentViews', {
+      documentId,
+      version: document.currentVersion,
+      viewerKind: 'member',
+      viewerId: ctx.principal.member._id,
+      viewedAt: Date.now(),
+    });
+  },
+});
+
+/** A client's view: the first one moves a sent document to viewed and tells whoever drafted it. */
+export const recordClientView = internalMutation({
+  args: {
+    documentId: v.id('documents'),
+    contactId: v.optional(v.id('contacts')),
+    viewerKind: v.union(v.literal('contact'), v.literal('token')),
+    ip: v.optional(v.string()),
+    userAgent: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const document = await getDocument(ctx, args.documentId);
+    const now = Date.now();
+    await ctx.db.insert('documentViews', {
+      documentId: args.documentId,
+      version: document.currentVersion,
+      viewerKind: args.viewerKind,
+      viewerId: args.contactId,
+      ip: args.ip,
+      userAgent: args.userAgent,
+      viewedAt: now,
+    });
+    const first = document.firstViewedAt === undefined;
+    await ctx.db.patch('documents', args.documentId, {
+      status: document.status === 'sent' ? 'viewed' : document.status,
+      firstViewedAt: document.firstViewedAt ?? now,
+      lastViewedAt: now,
+      viewCount: document.viewCount + 1,
+    });
+    if (first) {
+      const owner = await ctx.db.get('teamMembers', document.createdByMemberId);
+      if (owner?.status === 'active') {
+        await notifyTeamMembers(ctx, [owner._id], {
+          event: 'document_viewed',
+          title: `${document.number ?? TYPE_LABELS[document.type]} was opened by the client`,
+          body: document.title,
+          link: `/documents/${document._id}`,
+        });
+      }
+    }
   },
 });
 

@@ -28,6 +28,11 @@ export const NUMBERED_RECORD_LABELS: Record<NumberedRecord, string> = {
   contract: 'Contracts',
   sla: 'SLAs',
   changeRequest: 'Change requests',
+  nda: 'NDAs',
+  dpa: 'Data processing agreements',
+  handover: 'Handover documents',
+  teamAgreement: 'Team agreements',
+  document: 'Other documents',
   creditNote: 'Credit notes',
   receipt: 'Receipts',
   ticket: 'Support tickets',
@@ -174,10 +179,11 @@ export function BillingForm() {
     lateFeeGraceDays: settings.lateFeePolicy.graceDays?.toString() ?? '',
     invoiceFooter: settings.invoiceFooter ?? '',
     numbering: Object.fromEntries(
-      RECORDS.map((record) => [
-        record,
-        { prefix: settings.numbering[record].prefix, padding: String(settings.numbering[record].padding) },
-      ]),
+      RECORDS.map((record) => {
+        // A record type added since this page was last loaded falls back to its default rather than breaking the form.
+        const format = settings.numbering[record] ?? DEFAULT_NUMBERING[record];
+        return [record, { prefix: format.prefix, padding: String(format.padding) }];
+      }),
     ),
     bankAccounts: settings.bankAccounts.map((account) => ({
       ...account,

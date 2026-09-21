@@ -1,12 +1,35 @@
 import { type Doc, type Id } from '../_generated/dataModel';
 import { type MutationCtx, type QueryCtx } from '../_generated/server';
 import { type Currency, calculateTotals, type Discount, formatMoney, type LineInput, type TaxSetting } from './money';
+import { type DocumentPdfPayload } from '../../pdf/types';
 import { type DocumentBlock, documentError, type DocumentType, fillVariables } from './documentBlocks';
+import { type NumberedRecord } from './numbering';
 import { getOrgSettings } from './settings';
 
 // Building a document (07-documents-and-esign.md). A document is created from a template, and from that moment it owns
 // its text: clause wording is copied in and variables are filled, so editing the template or the clause later changes
 // nothing here.
+
+/**
+ * What a send needs after its version is snapshotted. Named here, rather than inferred, so the action in
+ * convex/documentSending.ts does not have to infer it back through convex/_generated/api.d.ts: that circle overwhelms
+ * TypeScript and every api.* result silently loses its type.
+ */
+export type PreparedSend = {
+  version: number;
+  number: string;
+  title: string;
+  typeLabel: string;
+  senderName: string;
+  studioName: string;
+  validUntilLabel?: string;
+  portalUrl: string;
+  recipients: { id: Id<'contacts'>; name: string; email: string }[];
+  pdf: DocumentPdfPayload;
+};
+
+export type AttachedPdf =
+  { ok: true; fileId: Id<'files'>; sha256: string } | { ok: false; code: string; message: string };
 
 export type LineItem = {
   description: string;
@@ -38,6 +61,23 @@ export const TYPE_LABELS: Record<DocumentType, string> = {
   team_agreement: 'Team agreement',
   other: 'Document',
 };
+
+const NUMBERED: Record<DocumentType, NumberedRecord> = {
+  quote: 'quote',
+  proposal: 'proposal',
+  sow: 'sow',
+  contract: 'contract',
+  sla: 'sla',
+  nda: 'nda',
+  dpa: 'dpa',
+  change_request: 'changeRequest',
+  handover: 'handover',
+  team_agreement: 'teamAgreement',
+  other: 'document',
+};
+
+/** Which counter a document's number comes from, so each type runs its own sequence. */
+export const numberedRecordFor = (type: DocumentType): NumberedRecord => NUMBERED[type];
 
 export async function getDocument(ctx: QueryCtx | MutationCtx, documentId: Id<'documents'>) {
   const document = await ctx.db.get('documents', documentId);

@@ -183,6 +183,17 @@ export const FILE_ACCESS: Partial<Record<TableNames, FileAccessRule>> = {
   orgSettings: { team: () => true },
   // Avatars appear across the team app.
   teamMembers: { team: () => true },
+  // A document's PDF follows the document: everyone with documents.view, or the project's members. The client reads it
+  // in the portal, which the shared rule above already limits to their own client's client-visible files.
+  documents: {
+    team: async (ctx, principal, file) => {
+      if (principal.permissions.has('documents.view')) return true;
+      if (!principal.permissions.has('documents.view.assigned')) return false;
+      const projectId = file.projectId ? ctx.db.normalizeId('projects', file.projectId) : null;
+      return projectId ? await inProjectScope(ctx, principal, projectId) : false;
+    },
+    portal: () => true,
+  },
   // Deliverable versions follow project scope. The portal rule arrives with the client portal.
   deliverables: {
     team: async (ctx, principal, file) => {

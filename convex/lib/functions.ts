@@ -104,7 +104,15 @@ export const portalMutation = (permission: PortalPermission | null) =>
     }),
   );
 
-/** Actions have no database; they read and write through internal functions. */
+/**
+ * Actions have no database; they read and write through internal functions.
+ *
+ * Nothing uses this yet, and there is a catch when something does: an action's inferred types run back through
+ * convex/_generated/api.d.ts, which includes the action's own module, and TypeScript gives up on the circle by quietly
+ * widening every api.* result to a loose type. A public action needs explicit return types on itself and on every
+ * function it calls. Where the work is heavy anyway, a teamMutation that checks the permission and schedules an
+ * internalAction avoids the circle altogether: convex/documents.ts `send` does that.
+ */
 export const teamAction = (permission: TeamPermission) =>
   customAction(
     action,

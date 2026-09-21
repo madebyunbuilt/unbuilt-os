@@ -13,6 +13,12 @@ export const DEFAULT_NUMBERING = {
   contract: { prefix: 'UNB-CON-', padding: 4 },
   sla: { prefix: 'UNB-SLA-', padding: 4 },
   changeRequest: { prefix: 'UNB-CR-', padding: 4 },
+  nda: { prefix: 'UNB-NDA-', padding: 4 },
+  dpa: { prefix: 'UNB-DPA-', padding: 4 },
+  handover: { prefix: 'UNB-HOV-', padding: 4 },
+  teamAgreement: { prefix: 'UNB-TA-', padding: 4 },
+  // Anything without a type of its own, so every sent document still carries a number.
+  document: { prefix: 'UNB-DOC-', padding: 4 },
   creditNote: { prefix: 'UNB-CN-', padding: 4 },
   receipt: { prefix: 'UNB-RCT-', padding: 4 },
   ticket: { prefix: 'UNB-TKT-', padding: 4 },
