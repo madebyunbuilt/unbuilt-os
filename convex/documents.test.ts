@@ -478,11 +478,41 @@ describe('sending', () => {
     expect(versions).toHaveLength(1);
     expect(versions[0]).toMatchObject({ documentId, version: 1, createdBy: memberId });
 
-    // Sending again keeps the number and moves to the next version.
+    // A send that never got its PDF is retried into the same version, rather than stacking another.
+    const retried = await prepare(documentId, memberId);
+    expect(retried.number).toBe('UNB-QUO-0001');
+    expect(retried.version).toBe(1);
+    expect(await t.run((ctx) => ctx.db.query('documentVersions').collect())).toHaveLength(1);
+
+    // Once that version has its PDF, the next send is the next version.
+    await t.run(async (ctx) => {
+      const version = (await ctx.db.query('documentVersions').first())!;
+      const fileId = await ctx.db.insert('files', {
+        storageId: (await ctx.storage.store(new Blob(['%PDF-1.7 pretend']))) as Id<'_storage'>,
+        name: 'UNB-QUO-0001.pdf',
+        mimeType: 'application/pdf',
+        sizeBytes: 16,
+        sha256: 'b'.repeat(64),
+        owner: { table: 'documents', id: documentId },
+        visibility: 'client',
+        uploadedByKind: 'team',
+        uploadedById: memberId,
+      });
+      await ctx.db.patch('documentVersions', version._id, { pdfFileId: fileId, pdfSha256: 'b'.repeat(64) });
+    });
     const second = await prepare(documentId, memberId);
-    expect(second.number).toBe('UNB-QUO-0001');
     expect(second.version).toBe(2);
     expect(await t.run((ctx) => ctx.db.query('documentVersions').collect())).toHaveLength(2);
+  });
+
+  it('refuses to draft a type with no template, since there would be no wording', async () => {
+    const { as } = await signedIn('owner');
+    await t.run(async (ctx) => {
+      for (const template of await ctx.db.query('documentTemplates').collect()) {
+        if (template.type === 'sla') await ctx.db.patch('documentTemplates', template._id, { active: false });
+      }
+    });
+    await expectCode(as.mutation(api.documents.create, { type: 'sla', clientId }), 'documents.noTemplate');
   });
 
   it('sends to the contacts chosen, and refuses a client with nobody to send to', async () => {

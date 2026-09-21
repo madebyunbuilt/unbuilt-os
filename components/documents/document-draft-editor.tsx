@@ -103,30 +103,35 @@ export function DocumentDraftEditor({
       <div className="space-y-3">
         <div className="flex flex-wrap items-baseline justify-between gap-2">
           <Label>The wording</Label>
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            disabled={refreshing}
-            onClick={async () => {
-              setRefreshing(true);
-              setError(null);
-              try {
-                await refreshText({ documentId: document.id });
-                onDone();
-              } catch (caught) {
-                setError(errorMessage(caught));
-              } finally {
-                setRefreshing(false);
-              }
-            }}
-          >
-            {refreshing ? 'Rebuilding…' : 'Rebuild from the template'}
-          </Button>
+          {/* Only a document made from a template has one to rebuild from. */}
+          {document.templateId && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              disabled={refreshing}
+              onClick={async () => {
+                setRefreshing(true);
+                setError(null);
+                try {
+                  await refreshText({ documentId: document.id });
+                  onDone();
+                } catch (caught) {
+                  setError(errorMessage(caught));
+                } finally {
+                  setRefreshing(false);
+                }
+              }}
+            >
+              {refreshing ? 'Rebuilding…' : 'Rebuild from the template'}
+            </Button>
+          )}
         </div>
-        <p className="text-sm text-muted-foreground">
-          Rebuilding replaces everything below with the template again, with today&rsquo;s client and project details.
-        </p>
+        {document.templateId && (
+          <p className="text-sm text-muted-foreground">
+            Rebuilding replaces everything below with the template again, with today&rsquo;s client and project details.
+          </p>
+        )}
         <ul className="space-y-3">
           {blocks.map((block, index) =>
             block.kind === 'heading' || block.kind === 'paragraph' ? (

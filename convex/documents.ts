@@ -263,6 +263,13 @@ async function buildDocument(ctx: MutationCtx & Principal, args: CreateArgs) {
     : await defaultTemplateFor(ctx, args.type);
   if (args.templateId && !template) throw documentError('documents.notFound', 'Template not found');
   if (template && !template.active) throw documentError('documents.retired', 'That template is retired');
+  if (!template) {
+    // Without a template there is no wording, and an empty document is no use to anyone.
+    throw documentError(
+      'documents.noTemplate',
+      `There is no active template for a ${TYPE_LABELS[args.type].toLowerCase()} yet. Add one first.`,
+    );
+  }
 
   const today = await studioToday(ctx);
   const settings = await getOrgSettings(ctx);
@@ -469,7 +476,12 @@ export const refreshText = teamMutation('documents.update')({
     const document = await visibleDocument(ctx, documentId);
     assertEditable(document);
     const template = document.templateId ? await ctx.db.get('documentTemplates', document.templateId) : null;
-    if (!template) throw documentError('documents.noTemplate', 'This document was not made from a template');
+    if (!template) {
+      throw documentError(
+        'documents.noTemplate',
+        'This document has no template to rebuild from. Edit its wording here instead.',
+      );
+    }
     const [client, contact, project, deal] = await Promise.all([
       getClient(ctx, document.clientId),
       primaryContact(ctx, document.clientId),
@@ -661,19 +673,39 @@ export const prepareSend = internalMutation({
     }
 
     const number = document.number ?? (await nextNumber(ctx, numberedRecordFor(document.type)));
-    const version = document.currentVersion + 1;
     const now = Date.now();
+    const changeNote = text(args.changeNote, 'Change note', { max: 500 });
 
-    await ctx.db.insert('documentVersions', {
-      documentId: document._id,
-      version,
-      blocks: document.blocks,
-      lineItems: document.lineItems,
-      totals: document.totals,
-      createdAt: now,
-      createdBy: args.memberId,
-      changeNote: text(args.changeNote, 'Change note', { max: 500 }),
-    });
+    // An earlier attempt that never got its PDF left a version behind; that one is reused rather than stacking another.
+    const latest = await ctx.db
+      .query('documentVersions')
+      .withIndex('by_document_version', (q) => q.eq('documentId', document._id))
+      .order('desc')
+      .first();
+    const unfinished = latest?.version === document.currentVersion && latest.pdfFileId === undefined ? latest : null;
+    const version = unfinished ? unfinished.version : document.currentVersion + 1;
+
+    if (unfinished) {
+      await ctx.db.patch('documentVersions', unfinished._id, {
+        blocks: document.blocks,
+        lineItems: document.lineItems,
+        totals: document.totals,
+        createdAt: now,
+        createdBy: args.memberId,
+        changeNote,
+      });
+    } else {
+      await ctx.db.insert('documentVersions', {
+        documentId: document._id,
+        version,
+        blocks: document.blocks,
+        lineItems: document.lineItems,
+        totals: document.totals,
+        createdAt: now,
+        createdBy: args.memberId,
+        changeNote,
+      });
+    }
     await ctx.db.patch('documents', document._id, { number, currentVersion: version });
 
     const settings = await getOrgSettings(ctx);

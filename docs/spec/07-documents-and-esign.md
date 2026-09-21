@@ -149,6 +149,14 @@ and templates. See `18-open-questions.md`.
   had until the email is away, and whoever pressed send is notified if any step fails.
 - **Recipients** default to the client's primary contact; the sender can choose others, and a contact who has left is
   never one. Every send records the recipients on the client's timeline.
+- **A document needs a template.** Creating one for a type with no active template is refused rather than producing a
+  document with no wording. `refreshText` only applies to a document made from a template; one written by hand is edited
+  in place.
+- **A send that failed** is retried into the same version: the version row an unfinished attempt left behind is filled
+  in again rather than another being stacked on top. The number, once assigned, never changes.
+- **react-pdf is an external package** (`convex.json`), because its pdfkit dependency resolves `#standard-fonts/*`
+  subpath imports at runtime that the bundler cannot follow. External packages arrive as CommonJS, so the renderer takes
+  the named export first.
 - **The PDF** renders the same bytes for the same version, so its hash is stable; a signature certificate can rely on
   it. Its file belongs to the document, is marked client-visible, and is read through the usual signed download link:
   every document reader may fetch it, and a member with `documents.view.assigned` only within their projects.
