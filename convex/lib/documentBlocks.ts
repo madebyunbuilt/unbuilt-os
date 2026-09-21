@@ -39,6 +39,20 @@ export const documentType = v.union(
 
 export type DocumentType = typeof documentType.type;
 
+export const TYPE_LABELS: Record<DocumentType, string> = {
+  quote: 'Quote',
+  proposal: 'Proposal',
+  sow: 'Statement of work',
+  contract: 'Contract',
+  sla: 'Service level agreement',
+  nda: 'Non-disclosure agreement',
+  dpa: 'Data processing agreement',
+  change_request: 'Change request',
+  handover: 'Handover',
+  team_agreement: 'Team agreement',
+  other: 'Document',
+};
+
 /** Which types carry prices, so a template without line items and totals can be refused where it matters. */
 export const PRICED_TYPES: ReadonlySet<DocumentType> = new Set(['quote', 'proposal', 'sow', 'change_request']);
 

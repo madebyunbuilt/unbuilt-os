@@ -146,6 +146,8 @@ function documentView(document: Doc<'documents'>, extras: { clientName: string; 
     decisionNote: document.decisionNote,
     signedAt: document.signedAt,
     voidReason: document.voidReason,
+    pdfFileId: document.pdfFileId,
+    pdfSha256: document.pdfSha256,
     createdAt: document._creationTime,
   };
 }

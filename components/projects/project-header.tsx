@@ -40,7 +40,12 @@ export const PROJECT_TABS: Tab[] = [
   { label: 'Tasks', segment: 'tasks', built: true },
   { label: 'Time', segment: 'time', built: true },
   { label: 'Change requests', segment: 'change-requests', built: false },
-  { label: 'Documents', segment: 'documents', built: false },
+  {
+    label: 'Documents',
+    segment: 'documents',
+    built: true,
+    anyOf: ['documents.view', 'documents.view.assigned'],
+  },
   { label: 'Invoices', segment: 'invoices', built: false },
   { label: 'Files', segment: 'files', built: false },
   { label: 'Vault', segment: 'vault', built: false, anyOf: ['vault.view.all', 'vault.view.assigned'] },

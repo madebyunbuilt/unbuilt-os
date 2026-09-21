@@ -2,9 +2,11 @@ import { type Doc, type Id } from '../_generated/dataModel';
 import { type MutationCtx, type QueryCtx } from '../_generated/server';
 import { type Currency, calculateTotals, type Discount, formatMoney, type LineInput, type TaxSetting } from './money';
 import { type DocumentPdfPayload } from '../../pdf/types';
-import { type DocumentBlock, documentError, type DocumentType, fillVariables } from './documentBlocks';
+import { type DocumentBlock, documentError, type DocumentType, fillVariables, TYPE_LABELS } from './documentBlocks';
 import { type NumberedRecord } from './numbering';
 import { getOrgSettings } from './settings';
+
+export { TYPE_LABELS };
 
 // Building a document (07-documents-and-esign.md). A document is created from a template, and from that moment it owns
 // its text: clause wording is copied in and variables are filled, so editing the template or the clause later changes
@@ -47,20 +49,6 @@ export const EDITABLE_STATUSES: ReadonlySet<Doc<'documents'>['status']> = new Se
 export const FINAL_STATUSES: ReadonlySet<Doc<'documents'>['status']> = new Set(['signed', 'void']);
 
 export const DECIDABLE_STATUSES: ReadonlySet<Doc<'documents'>['status']> = new Set(['sent', 'viewed']);
-
-export const TYPE_LABELS: Record<DocumentType, string> = {
-  quote: 'Quote',
-  proposal: 'Proposal',
-  sow: 'Statement of work',
-  contract: 'Contract',
-  sla: 'Service level agreement',
-  nda: 'Non-disclosure agreement',
-  dpa: 'Data processing agreement',
-  change_request: 'Change request',
-  handover: 'Handover',
-  team_agreement: 'Team agreement',
-  other: 'Document',
-};
 
 const NUMBERED: Record<DocumentType, NumberedRecord> = {
   quote: 'quote',

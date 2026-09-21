@@ -69,7 +69,7 @@ export const TEAM_NAVIGATION: readonly NavSection[] = [
         href: '/documents',
         icon: 'file',
         anyOf: ['documents.view', 'documents.view.assigned'],
-        built: false,
+        built: true,
       },
     ],
   },

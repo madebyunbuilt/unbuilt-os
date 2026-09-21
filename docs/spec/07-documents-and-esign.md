@@ -159,6 +159,26 @@ and templates. See `18-open-questions.md`.
   promised. The studio's email, phone and website are part of that set: they are settings, checked the same way a
   contact's are (a real address, an international number, a resolvable site), and they belong on a letterhead.
 
+## Screens
+
+- `/documents` (`documents.view` or `documents.view.assigned`): every document the viewer can see, newest first, with
+  filters for type and status, and its number, client, status, total and valid-until date. "New document"
+  (`documents.create`) chooses the type, client, template, currency, an optional title and, for priced types, the lines
+  with a running total; rate card items fill a line's description and price where the item is priced in that currency.
+  A template still awaiting legal review says so before anything is created.
+- The document page shows the document as the client will read it, its chain, and its versions. Looking at it records a
+  team view, which never counts as the client's.
+  - `documents.send`: send it (the main contact ticked, others addable, an optional note, and a change note on later
+    versions), then record what the client said (accepted or declined, with who said so).
+  - `documents.update`: edit the draft — title, valid-until, the priced lines, and the wording block by block, or
+    rebuild the wording from the template with today's client and project details.
+  - `documents.void`: void it with a reason. Never offered on a signed document.
+  - `documents.create`: draft the next document in the chain (quote → proposal → SOW → contract), which carries the
+    client, project, deal and prices across.
+  - Anyone who can read it can download the stored PDF through a short-lived link.
+- The client page's and the project's **Documents** tabs list that client's or project's documents, and can start one
+  already pointed at them.
+
 ## Acceptance criteria
 
 - Sending a document creates an immutable version, a PDF and a stored hash, and assigns a number only on first send.
