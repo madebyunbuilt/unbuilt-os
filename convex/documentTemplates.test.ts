@@ -12,7 +12,7 @@ let t: TestConvex;
 let roles: Awaited<ReturnType<typeof seedRoles>>;
 
 /** Someone signed in with the given system role. */
-async function signedIn(key: 'owner' | 'project_manager' | 'member') {
+async function signedIn(key: 'owner' | 'admin' | 'project_manager' | 'member') {
   const { as } = await createTeamMember(t, roles[key], { email: `${key}@unbuilt.studio` }, { twoFactorEnabled: true });
   return as;
 }
@@ -180,5 +180,91 @@ describe('document templates', () => {
         active: false,
       }),
     ).rejects.toThrow();
+  });
+});
+
+describe('the lawyer\u2019s approval', () => {
+  async function contract(owner: Awaited<ReturnType<typeof signedIn>>) {
+    return (await owner.query(api.documentTemplates.list, { type: 'contract' }))[0];
+  }
+
+  it('is recorded by the Owner against the version read, and lapses when the wording changes', async () => {
+    const owner = await signedIn('owner');
+    const before = await contract(owner);
+    expect(before.needsLegalReview).toBe(true);
+
+    await owner.mutation(api.documentTemplates.recordLegalApproval, {
+      templateId: before.id,
+      version: before.version,
+      note: 'Reviewed by Adaeze Okafor, Okafor & Co',
+    });
+    const approved = await contract(owner);
+    expect(approved.needsLegalReview).toBe(false);
+    expect(approved.legalApproval).toMatchObject({ version: 1, note: 'Reviewed by Adaeze Okafor, Okafor & Co' });
+
+    // Changing the wording makes version 2, which the lawyer has not read.
+    await owner.mutation(api.documentTemplates.update, {
+      templateId: approved.id,
+      name: approved.name,
+      blocks: [...approved.blocks, { kind: 'paragraph', text: 'An extra paragraph.' }],
+    });
+    expect((await contract(owner)).needsLegalReview).toBe(true);
+  });
+
+  it('refuses an approval for a version that has moved on', async () => {
+    const owner = await signedIn('owner');
+    const template = await contract(owner);
+    await owner.mutation(api.documentTemplates.update, {
+      templateId: template.id,
+      name: template.name,
+      blocks: [...template.blocks, { kind: 'paragraph', text: 'Changed while the Owner was reading.' }],
+    });
+    await expectCode(
+      owner.mutation(api.documentTemplates.recordLegalApproval, { templateId: template.id, version: 1 }),
+      'documents.staleVersion',
+    );
+  });
+
+  it('is the Owner\u2019s alone to record', async () => {
+    const owner = await signedIn('owner');
+    const template = await contract(owner);
+    for (const key of ['admin', 'project_manager'] as const) {
+      const other = await signedIn(key);
+      await expectCode(
+        other.mutation(api.documentTemplates.recordLegalApproval, { templateId: template.id, version: 1 }),
+        'documents.ownerOnly',
+      );
+    }
+  });
+
+  it('is only for the templates that need it', async () => {
+    const owner = await signedIn('owner');
+    const quote = (await owner.query(api.documentTemplates.list, { type: 'quote' }))[0];
+    expect(quote.needsLegalReview).toBe(false);
+    await expectCode(
+      owner.mutation(api.documentTemplates.recordLegalApproval, { templateId: quote.id, version: quote.version }),
+      'documents.invalid',
+    );
+  });
+});
+
+describe('the signing process review', () => {
+  it('stays off until the Owner records it, and can be withdrawn', async () => {
+    const owner = await signedIn('owner');
+    expect(await owner.query(api.settings.signatureProcessReview, {})).toEqual({ reviewed: false });
+
+    await owner.mutation(api.settings.setSignatureProcessReview, { reviewed: true, note: 'Okafor & Co, 22 Sept' });
+    expect(await owner.query(api.settings.signatureProcessReview, {})).toMatchObject({
+      reviewed: true,
+      note: 'Okafor & Co, 22 Sept',
+    });
+
+    await owner.mutation(api.settings.setSignatureProcessReview, { reviewed: false });
+    expect(await owner.query(api.settings.signatureProcessReview, {})).toEqual({ reviewed: false });
+  });
+
+  it('cannot be recorded by an Admin', async () => {
+    const admin = await signedIn('admin');
+    await expectCode(admin.mutation(api.settings.setSignatureProcessReview, { reviewed: true }), 'settings.ownerOnly');
   });
 });

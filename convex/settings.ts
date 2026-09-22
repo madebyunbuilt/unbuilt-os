@@ -5,6 +5,7 @@ import { deleteFile, recordUpload } from './lib/files';
 import { teamMutation, teamQuery } from './lib/functions';
 import { DEFAULT_NUMBERING, type NumberedRecord } from './lib/numbering';
 import { billingView, ensureOrgSettings, getOrgSettings, organisationView } from './lib/settings';
+import { isOwner } from './lib/team';
 import { isTimeZone } from './lib/validation';
 
 // Organisation and billing settings (14-platform.md, Settings). Organisation details need settings.manage; billing
@@ -87,6 +88,47 @@ export const updateOrganisation = teamMutation('settings.manage')({
       timezone: args.timezone,
       retentionYears: args.retentionYears,
       brand: { primary: args.brand.primary.toUpperCase(), accent: args.brand.accent.toUpperCase() },
+    });
+  },
+});
+
+/**
+ * Whether counsel has reviewed the signing process (07-documents-and-esign.md, Legal note). It is a statement anyone
+ * working with documents may need to see, and only the Owner may make or withdraw.
+ */
+export const signatureProcessReview = teamQuery(null)({
+  args: {},
+  handler: async (ctx) => {
+    const review = (await getOrgSettings(ctx)).signatureProcessReview;
+    if (!review) return { reviewed: false as const };
+    const reviewer = await ctx.db.get('teamMembers', review.reviewedByMemberId);
+    return {
+      reviewed: true as const,
+      reviewedAt: review.reviewedAt,
+      reviewedByName: reviewer?.name ?? 'Former member',
+      note: review.note,
+    };
+  },
+});
+
+export const setSignatureProcessReview = teamMutation(null)({
+  args: { reviewed: v.boolean(), note: v.optional(v.string()) },
+  handler: async (ctx, { reviewed, note }) => {
+    if (!isOwner(ctx.principal.role)) {
+      throw new ConvexError({
+        code: 'settings.ownerOnly',
+        message: 'Only the Owner can record that counsel reviewed the signing process',
+      });
+    }
+    const settings = await ensureOrgSettings(ctx);
+    await ctx.db.patch('orgSettings', settings._id, {
+      signatureProcessReview: reviewed
+        ? {
+            reviewedAt: Date.now(),
+            reviewedByMemberId: ctx.principal.member._id,
+            note: optionalText(note, 'Note', 500),
+          }
+        : undefined,
     });
   },
 });

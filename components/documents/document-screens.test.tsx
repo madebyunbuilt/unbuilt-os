@@ -131,8 +131,24 @@ beforeEach(() => {
     'documents.get': document(),
     'clients.list': [{ id: 'c1', displayName: 'Glossup' }],
     'documentTemplates.list': [
-      { id: 't1', name: 'Quote', type: 'quote', isDefault: true, requiresLegalReview: false },
-      { id: 't2', name: 'Contract', type: 'contract', isDefault: true, requiresLegalReview: true },
+      { id: 't1', name: 'Quote', type: 'quote', isDefault: true, requiresLegalReview: false, needsLegalReview: false },
+      {
+        id: 't2',
+        name: 'Contract',
+        type: 'contract',
+        isDefault: true,
+        requiresLegalReview: true,
+        needsLegalReview: true,
+      },
+      // A legal template the Owner has recorded the lawyer's approval of, for the version it is now.
+      {
+        id: 't3',
+        name: 'Approved NDA',
+        type: 'nda',
+        isDefault: true,
+        requiresLegalReview: true,
+        needsLegalReview: false,
+      },
     ],
     'contacts.listForClient': [
       { id: 'ct1', name: 'Ada Obi', email: 'ada@glossup.com', isPrimary: true, status: 'active' },
@@ -198,6 +214,10 @@ describe('DocumentList', () => {
     await userEvent.selectOptions(within(dialog).getByLabelText('Type'), 'contract');
     await userEvent.selectOptions(within(dialog).getByLabelText('Template'), 't2');
     expect(within(dialog).getByText(/needs your lawyer/)).toBeInTheDocument();
+
+    // Once the lawyer has approved the wording as it stands, there is nothing to warn about.
+    await userEvent.selectOptions(within(dialog).getByLabelText('Template'), 't3');
+    expect(within(dialog).queryByText(/needs your lawyer/)).not.toBeInTheDocument();
   });
 
   it('offers nothing to create without documents.create', () => {

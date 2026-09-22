@@ -58,7 +58,10 @@ export function DocumentFormDialog({
   const clients = useQuery(api.clients.list, open && !clientId ? {} : 'skip');
   const templates = useQuery(api.documentTemplates.list, open ? { type } : 'skip');
   const priced = PRICED_TYPES.has(type);
-  const legal = templates?.find((template) => template.id === templateId)?.requiresLegalReview;
+  const chosen = templateId
+    ? templates?.find((template) => template.id === templateId)
+    : (templates?.find((template) => template.isDefault) ?? templates?.[0]);
+  const legal = chosen?.needsLegalReview;
 
   return (
     <Dialog
