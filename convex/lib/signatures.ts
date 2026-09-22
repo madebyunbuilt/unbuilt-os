@@ -1,6 +1,6 @@
 import { ConvexError } from 'convex/values';
 import { type Doc, type Id } from '../_generated/dataModel';
-import { type MutationCtx } from '../_generated/server';
+import { type MutationCtx, type QueryCtx } from '../_generated/server';
 
 // E-signature rules (07-documents-and-esign.md, E-signatures; decisions of 2026-09-22). The code limits and the
 // studio countersigning inside the app were chosen by the studio; the consent text is versioned so each signature
@@ -66,12 +66,17 @@ export function constantTimeEqual(a: string, b: string): boolean {
 }
 
 /**
- * Who is invited next. In parallel order everyone is invited at once. In sequential order the clients go first and the
- * studio countersigns last, one at a time: the next signer only once everyone before them has signed.
+ * Who is invited next. In parallel order every client is invited at once, and the studio once they have all signed.
+ * In sequential order the clients go first and the studio countersigns last, one at a time: the next signer only once
+ * everyone before them has signed.
  */
 export function signersToInvite(order: Doc<'signatureRequests'>['order'], signers: Signer[]): Signer[] {
   const waiting = signers.filter((signer) => signer.status === 'waiting');
-  if (order === 'parallel') return waiting;
+  if (order === 'parallel') {
+    // Every client at once; the studio still countersigns last, once all of them have signed.
+    const clientsDone = signers.every((signer) => signer.kind !== 'client_contact' || signer.status === 'signed');
+    return waiting.filter((signer) => signer.kind === 'client_contact' || clientsDone);
+  }
   const outstanding = signers.filter((signer) => signer.status !== 'signed');
   if (outstanding.some((signer) => signer.status === 'invited' || signer.status === 'locked')) return [];
   const next = [...waiting].sort((a, b) => a.order - b.order)[0];
@@ -96,7 +101,7 @@ export function assertCanAct(request: Doc<'signatureRequests'>, signer: Signer, 
 }
 
 /** A document has a request still being signed. */
-export async function hasOpenRequest(ctx: { db: MutationCtx['db'] }, documentId: Id<'documents'>) {
+export async function hasOpenRequest(ctx: { db: QueryCtx['db'] }, documentId: Id<'documents'>) {
   const requests = await ctx.db
     .query('signatureRequests')
     .withIndex('by_document', (q) => q.eq('documentId', documentId))

@@ -175,7 +175,9 @@ confirmed the process; templates carry their own approval. See `18-open-question
 - **Nothing goes out with a blank** (studio, 2026-09-22). A document whose wording uses a variable the app has no value
   for cannot be sent: the send is refused in the mutation and again in the send action, and the document page lists
   each missing detail with where to fill it in (Settings → Organisation, the client's page, the project, the draft).
-  The Send button stays off until the list is empty. A sent document can take a corrected version while it is with the client, expired, or waiting
+  The Send button stays off until the list is empty. On a draft, whoever may edit it can put some right on the spot:
+  a missing deal or project is linked from a list of the client's own (`documents.link`), and the payment schedule is
+  written in place (`documents.setPaymentSchedule`); anything else links to the page where it is filled in. A sent document can take a corrected version while it is with the client, expired, or waiting
   to be signed, since sending moves the signed types straight to waiting. Only a draft shows a dash in place of a missing value, and only
   the number, assigned on first send, is exempt.
 - **The payment schedule** is written on the draft, as a line of words ("50% on signature, 50% on completion"), and
@@ -189,12 +191,12 @@ confirmed the process; templates carry their own approval. See `18-open-question
   timeline records; whoever set up the request is notified of the lock. A signer may ask for 5 codes an hour, and one
   address for 20. After the code is checked the signer has 30 minutes to sign or decline; declining needs the same
   check, so a forwarded link cannot turn a document down.
-- **The studio countersigns inside the app**, not through an emailed link. The member's two-factor sign-in stands in
+- **The studio countersigns inside the app**, not through an emailed link, typing a name or drawing, as a client can. The member's two-factor sign-in stands in
   for the emailed code, and the signature records when that sign-in happened (`verification: app_session`).
 - **Which documents**: quotes and proposals are accepted, not signed. Every other type can have a request: the signed
   types by default, an SLA or change request when the studio chooses to. A request needs a sent document (a version, a
   stored PDF and its hash), at least one active contact at the document's client, and a countersigner, if any, who is an
-  active member holding `documents.countersign`. The studio signs last. Only one request per document is open at a time,
+  active member holding `documents.countersign`. The studio signs last, in either order: in parallel every client is invited at once, and the countersigner once they have all signed. Only one request per document is open at a time,
   and while it is, the document cannot be re-sent, since a new version would not match what is being signed. Voiding
   the document cancels the request.
 - **Links**: the token is minted inside the action that emails it, so it never passes through stored scheduler
@@ -212,13 +214,25 @@ confirmed the process; templates carry their own approval. See `18-open-question
   types, sent otherwise, ready for a new request. Requests expire hourly; a link is refused the moment its date passes,
   whether or not the job has run. Reminders go out daily at 09:00 Lagos, at most one per signer per day.
 - **Completion** runs in a Node action. It loads the stored PDF and refuses to go on unless its hash still matches the
-  one the request locked; renders the certificate on its own; and appends it with pdf-lib, so the pages the signers read
-  stay byte for byte what they signed. The signed PDF is stored on the document, client-visible, with its own hash, which
-  storage's own hash must agree with. Every signer is emailed a copy. If any step fails, the signatures stay recorded,
-  the reason is kept on the request, whoever set it up is told, and `documents.send` holders can run it again. The
-  downstream actions (billing `on_signature` items, project status) arrive with billing.
+  one the request locked. The signed copy carries the signatures on the document's own lines (studio, 2026-09-22): each
+  side's names on the Name line, the drawn or typed signatures and the date on the signature line. To do that the
+  document is drawn again from the payload kept with its version at send; drawn without signatures it must reproduce
+  the locked hash exactly, and only then is it drawn with them, in the space above each line so nothing moves. A version
+  sent before the payload was kept, or before the renderer changed, keeps its pages as they are. Either way the
+  certificate (rendered on its own) is appended with pdf-lib, says whether the signatures are also on the lines, and
+  records the hash of the document as signed. The stored original is never changed. The signed PDF is stored on the
+  document, client-visible, with its own hash, which storage's own hash must agree with. Every signer is emailed a copy.
+  If any step fails, the signatures stay recorded, the reason is kept on the request, whoever set it up is told, and
+  `documents.send` holders can run it again. The downstream actions (billing `on_signature` items, project status)
+  arrive with billing.
+- **The PDF footer** ("page x of y") is anchored from the top of the A4 page: with a line height on the page, react-pdf
+  drops a footer placed from the bottom.
 - **Verify** (anyone who can read the document) recomputes the hashes of the stored original and the signed PDF in an
   action and records the result on the request; a mismatch notifies the asker and the Owner.
+- **Typed signatures** are drawn in Dancing Script (SIL Open Font License, embedded in the PDF and shown the same on
+  the signing screens), so a typed name reads as signed beside a drawn one; the certificate still says "Typed name".
+  Uploading an image of a signature was considered and left out: it proves no more than drawing, and would mean holding
+  scans of people's real signatures.
 - **Evidence** is written once: nothing patches or deletes a `signatures` row. Audit entries for requests and links
   redact the signers and token hashes, since a six-digit code is quick to recover from its hash.
 
@@ -247,6 +261,21 @@ confirmed the process; templates carry their own approval. See `18-open-question
 - **Settings → Clauses** (`templates.documents.manage`): clauses grouped by category; add one, reword it (which makes
   the next version), retire or bring it back. A clause an active template uses cannot be retired, and the page says
   which templates are holding it.
+- **Signatures** on the document page, for every type but quotes and proposals once it has been sent: the current
+  request with each signer's status (waiting, invited, signed, declined, locked), when they opened and signed, and any
+  reason given; earlier requests folded away below.
+  - `documents.send`: "Send for signature" (client contacts, the primary ticked; a countersigner from the members who
+    may countersign; the order; how many days it stays open), off while details are missing. Send a signer a new link,
+    which is also how a locked link is unlocked. Cancel the request with a reason. Run completion again after a failure.
+    While a request is open, "Send the next version" is not offered.
+  - `documents.countersign`: "Countersign" appears only to the member named on the request, once it is their turn: a
+    typed name and the consent statement.
+  - Anyone who can read it: download the signed PDF, see its fingerprint, and Verify, with the last result shown.
+- **`/sign/[token]`**, on either host without a session: the document in full with its PDF, then "Email me a code" and
+  the six boxes; a wrong code says how many tries are left, and the lock says to ask the studio. Then type a name or
+  draw a signature, tick the consent statement, and Sign; or decline with a reason. A link whose request has closed, or
+  whose signer has signed, is locked or not yet due, says so in plain words and shows no document. The page sends no
+  referrer and is not indexed, since the token is in its address.
 - The client page's and the project's **Documents** tabs list that client's or project's documents, and can start one
   already pointed at them.
 

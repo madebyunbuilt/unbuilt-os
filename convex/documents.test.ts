@@ -82,6 +82,13 @@ describe('creating a document', () => {
 
     const document = await as.query(api.documents.get, { documentId });
     expect(document?.title).toBe('Quote for Glossup');
+    // The number comes with the first send; until then the draft says so instead of printing a dash.
+    await t.run((ctx) =>
+      ctx.db.patch('documents', documentId, { blocks: [{ kind: 'heading', text: 'Quote {{document.number}}' }] }),
+    );
+    const numbered = await as.query(api.documents.get, { documentId });
+    expect(numbered?.blocks).toEqual([{ kind: 'heading', text: 'Quote (numbered when sent)' }]);
+    expect(numbered?.missing).toEqual([]);
     expect(document?.status).toBe('draft');
     expect(document?.number).toBeUndefined();
     // 1 × 10,000 + 2 × 5,000 = 20,000; VAT 7.5% on the taxable line only; WHT 5% of the net.
@@ -452,11 +459,64 @@ describe('sending', () => {
     expect(await as.mutation(api.documents.send, { documentId })).toEqual({ sendingTo: ['ada@glossup.com'] });
   });
 
+  it('links a draft to its own client’s deal or project, and writes the payment schedule on its own', async () => {
+    const { as, memberId } = await signedIn('owner');
+    const documentId = await as.mutation(api.documents.create, { type: 'quote', clientId, lineItems: twoLines });
+    const { dealId, otherDealId } = await t.run(async (ctx) => {
+      const stage = (await ctx.db.query('pipelineStages').first())!;
+      const deal = (client: Id<'clients'>) =>
+        ctx.db.insert('deals', {
+          title: 'Glossup app',
+          clientId: client,
+          stageId: stage._id,
+          ownerMemberId: memberId,
+          currency: 'NGN',
+          valueMinor: 0,
+          probabilityBps: 0,
+          services: [],
+          lastActivityAt: Date.now(),
+        });
+      const otherClient = await ctx.db.insert('clients', {
+        displayName: 'Other',
+        kind: 'company',
+        status: 'active',
+        country: 'NG',
+        vatTreatment: 'standard',
+        whtApplies: false,
+        defaultCurrency: 'NGN',
+        timezone: 'Africa/Lagos',
+        tags: [],
+        portalEnabled: false,
+      });
+      return { dealId: await deal(clientId), otherDealId: await deal(otherClient) };
+    });
+
+    await expectCode(as.mutation(api.documents.link, { documentId, dealId: otherDealId }), 'documents.invalid');
+    await as.mutation(api.documents.link, { documentId, dealId });
+    expect((await t.run((ctx) => ctx.db.get('documents', documentId)))?.dealId).toBe(dealId);
+
+    await expectCode(
+      as.mutation(api.documents.setPaymentSchedule, { documentId, paymentScheduleSummary: '  ' }),
+      'crm.invalid',
+    );
+    await as.mutation(api.documents.setPaymentSchedule, { documentId, paymentScheduleSummary: '100% upfront' });
+    expect((await as.query(api.documents.get, { documentId }))!.missing).toEqual([]);
+
+    // Only while it is a draft, and only for those who may edit it.
+    const finance = await signedIn('finance');
+    await expectCode(finance.as.mutation(api.documents.link, { documentId, dealId }), 'auth.forbidden');
+    await t.run((ctx) => ctx.db.patch('documents', documentId, { status: 'sent' }));
+    await expectCode(
+      as.mutation(api.documents.setPaymentSchedule, { documentId, paymentScheduleSummary: 'x' }),
+      'documents.notDraft',
+    );
+  });
+
   it('fills the payment schedule from the draft’s own line, and asks for it until it is written', async () => {
     const { as } = await signedIn('owner');
     const documentId = await as.mutation(api.documents.create, { type: 'quote', clientId, lineItems: twoLines });
     expect((await as.query(api.documents.get, { documentId }))!.missing).toEqual([
-      expect.objectContaining({ where: 'the draft’s payment schedule line' }),
+      expect.objectContaining({ fix: 'paymentSchedule' }),
     ]);
     const draft = await as.query(api.documents.get, { documentId });
     await as.mutation(api.documents.update, {

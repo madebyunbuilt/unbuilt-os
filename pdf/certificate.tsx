@@ -1,4 +1,5 @@
 import { Document, Image, Page, StyleSheet, Text, View } from '@react-pdf/renderer';
+import { SIGNATURE_FONT_FAMILY } from './fonts/register';
 import { type CertificatePdfProps } from './types';
 
 export type { CertificatePdfProps } from './types';
@@ -20,20 +21,23 @@ const styles = StyleSheet.create({
   studio: { fontSize: 11, fontFamily: 'Helvetica-Bold' },
   bold: { fontFamily: 'Helvetica-Bold' },
   muted: { color: '#6B7280' },
-  title: { fontSize: 16, fontFamily: 'Helvetica-Bold', marginBottom: 4 },
+  // Larger text needs its own line height; the page's is sized for the body text.
+  title: { fontSize: 16, fontFamily: 'Helvetica-Bold', lineHeight: 1.25, marginBottom: 8 },
   intro: { marginBottom: 14 },
   hash: { fontFamily: 'Courier', fontSize: 8 },
   signer: { borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 4, padding: 10, marginBottom: 10 },
-  signerName: { fontSize: 11, fontFamily: 'Helvetica-Bold', marginBottom: 6 },
+  signerName: { fontSize: 11, fontFamily: 'Helvetica-Bold', lineHeight: 1.3, marginBottom: 6 },
   mark: { height: 40, marginBottom: 6 },
-  typedMark: { fontSize: 16, fontFamily: 'Times-Italic', marginBottom: 6 },
+  typedMark: { fontSize: 20, fontFamily: SIGNATURE_FONT_FAMILY, fontWeight: 500, lineHeight: 1.3, marginBottom: 6 },
   row: { flexDirection: 'row', paddingVertical: 1 },
   label: { width: 120, color: '#6B7280' },
   value: { flex: 1 },
   consent: { marginTop: 8, color: '#374151' },
+  // Anchored from the top: with a line height on the page, react-pdf drops a footer placed with `bottom`. Pages are
+  // always A4 (841.89pt tall), so this sits 24pt above the bottom edge.
   footer: {
     position: 'absolute',
-    bottom: 24,
+    top: 802,
     left: 48,
     right: 48,
     flexDirection: 'row',
@@ -59,6 +63,7 @@ function Row({ label, value }: { label: string; value?: string }) {
 }
 
 export function CertificatePdf({
+  signaturesInPlace,
   org,
   typeLabel,
   number,
@@ -93,6 +98,12 @@ export function CertificatePdf({
             {title} ({typeLabel} {number}) was signed electronically by everyone listed below. Completed{' '}
             {stamp(completedAt)}.
           </Text>
+          {signaturesInPlace && (
+            <Text style={{ marginTop: 6 }}>
+              The signatures are also shown on the document’s own signature lines. The document as it was signed, before
+              they were added, is kept unchanged.
+            </Text>
+          )}
           <Text style={[styles.muted, { marginTop: 6 }]}>SHA-256 of the document every signer signed:</Text>
           <Text style={styles.hash}>{documentSha256}</Text>
         </View>

@@ -133,7 +133,9 @@ export const code: Endpoint = endpoint('code', async (ctx, { token }, from) => {
 });
 
 export const verify: Endpoint = endpoint('verify', async (ctx, { token, code }, from) => {
-  return await ctx.runMutation(internal.signatures.verifyCode, { token, code, ...from });
+  const result = await ctx.runMutation(internal.signatures.verifyCode, { token, code, ...from });
+  // A wrong code is an answer, not a failure of the request: the tries it used are already recorded.
+  return result.ok ? { verified: true } : { verified: false, locked: result.locked, attemptsLeft: result.attemptsLeft };
 });
 
 export const upload: Endpoint = endpoint('upload', async (ctx, { token }) => {

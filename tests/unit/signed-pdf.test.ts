@@ -93,4 +93,24 @@ describe('the signed PDF', () => {
     const changed = await renderCertificatePdf({ ...props, documentSha256: 'b'.repeat(64) });
     expect(sha256(changed)).not.toBe(sha256(first));
   }, 30_000);
+
+  it('redraws a payload kept as JSON to the very same bytes, which is what lets the signatures go on the lines', async () => {
+    const original = await renderDocumentPdf(document);
+    const again = await renderDocumentPdf(JSON.parse(JSON.stringify(document)) as DocumentPdfPayload);
+    expect(sha256(again)).toBe(sha256(original));
+  }, 30_000);
+
+  it('draws the signatures on the lines without moving anything', async () => {
+    const unsigned = await PDFDocument.load(await renderDocumentPdf(document));
+    const signedBytes = await renderDocumentPdf({
+      ...document,
+      signatures: {
+        client: [{ name: 'Ada Obi', imageDataUri: PNG, signedAt: Date.parse('2026-09-23T09:57:00Z') }],
+        studio: [{ name: 'Kemi Bello', typedName: 'Kemi Bello', signedAt: Date.parse('2026-09-23T10:00:00Z') }],
+      },
+    });
+    const signed = await PDFDocument.load(signedBytes);
+    expect(signed.getPageCount()).toBe(unsigned.getPageCount());
+    expect(sha256(signedBytes)).not.toBe(sha256(await renderDocumentPdf(document)));
+  }, 30_000);
 });

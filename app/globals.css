@@ -67,6 +67,7 @@
 @theme inline {
   --font-display: var(--font-anybody), ui-sans-serif, system-ui, sans-serif;
   --font-sans: var(--font-instrument), ui-sans-serif, system-ui, sans-serif;
+  --font-signature: var(--font-dancing-script), cursive;
 
   --color-ink: var(--ink);
   --color-paper: var(--paper);
@@ -117,6 +118,14 @@
   ::selection {
     background: var(--hi-vis);
     color: var(--ink);
+  }
+  /* On a yellow surface the yellow selection would vanish, so it turns black there. */
+  .bg-attention::selection,
+  .bg-attention ::selection,
+  .bg-hi-vis::selection,
+  .bg-hi-vis ::selection {
+    background: var(--ink);
+    color: var(--hi-vis);
   }
   @media (prefers-reduced-motion: reduce) {
     *,

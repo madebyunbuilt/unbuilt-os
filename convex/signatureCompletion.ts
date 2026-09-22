@@ -5,12 +5,14 @@ import { v } from 'convex/values';
 import { internal } from './_generated/api';
 import { type Id } from './_generated/dataModel';
 import { internalAction } from './lib/functions';
-import { appendPdf, renderCertificatePdf } from './lib/renderDocumentPdf';
+import { type CertificateSigner, type DocumentPdfPayload } from '../pdf/types';
+import { appendPdf, renderCertificatePdf, renderDocumentPdf } from './lib/renderDocumentPdf';
 import { sendSignatureEmail } from './lib/signatureEmails';
 
-// Completion (07-documents-and-esign.md, Completion). When the last signer signs, this builds the signed PDF from the
-// stored original, whose hash must still match the one the request locked, plus the certificate page; stores it with its
-// own hash; and emails every signer a copy. The signatures are already recorded, so a failure here only delays the PDF,
+// Completion (07-documents-and-esign.md, Completion). When the last signer signs, this builds the signed PDF: the
+// document with the signatures on its own lines (drawn again from the payload kept at send, and only if that redraws to
+// the locked hash), then the certificate page. The stored original, whose hash must still match, is never changed. The
+// signed PDF is stored with its own hash and emailed to every signer. The signatures are already recorded, so a failure here only delays the PDF,
 // and whoever set up the request is told and can run it again.
 
 const sha256 = (bytes: Uint8Array) => createHash('sha256').update(bytes).digest('hex');
@@ -33,15 +35,38 @@ export const complete = internalAction({
         throw new Error('The stored PDF no longer matches the one that was signed');
       }
 
-      const signers = [];
-      for (const { imageStorageId, ...signer } of data.signers) {
+      const signers: CertificateSigner[] = [];
+      for (const { imageStorageId, party: _party, ...signer } of data.signers) {
         const imageDataUri = imageStorageId
           ? `data:image/png;base64,${Buffer.from(await bytesOf(ctx, imageStorageId)).toString('base64')}`
           : undefined;
         signers.push({ ...signer, imageDataUri });
       }
-      const certificate = await renderCertificatePdf({ ...data.certificate, signers });
-      const signed = await appendPdf(original, new Uint8Array(certificate));
+
+      // The signatures go on the document's own lines only when the document can be drawn again exactly as it was
+      // signed: redrawn without them, it must match the locked hash. Otherwise (a version sent before its payload was
+      // kept, or before the renderer changed) the pages stay as they are and the certificate alone carries them.
+      let pages = original;
+      let signaturesInPlace = false;
+      if (data.pdfPayload) {
+        const payload = JSON.parse(data.pdfPayload) as DocumentPdfPayload;
+        if (sha256(new Uint8Array(await renderDocumentPdf(payload))) === data.pdfSha256) {
+          const signatures: DocumentPdfPayload['signatures'] = { client: [], studio: [] };
+          data.signers.forEach((signer, index) =>
+            signatures[signer.party]!.push({
+              name: signer.name,
+              typedName: signer.typedName,
+              imageDataUri: signers[index].imageDataUri,
+              signedAt: signer.signedAt,
+            }),
+          );
+          pages = new Uint8Array(await renderDocumentPdf({ ...payload, signatures }));
+          signaturesInPlace = true;
+        }
+      }
+
+      const certificate = await renderCertificatePdf({ ...data.certificate, signers, signaturesInPlace });
+      const signed = await appendPdf(pages, new Uint8Array(certificate));
       const signedSha256 = sha256(signed);
 
       const storageId = await ctx.storage.store(

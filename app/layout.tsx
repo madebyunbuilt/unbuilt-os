@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from 'next';
-import { Anybody, Instrument_Sans } from 'next/font/google';
+import { Anybody, Dancing_Script, Instrument_Sans } from 'next/font/google';
 import { ThemeProvider } from '@/components/app/theme-provider';
 import { themeScript } from '@/lib/theme';
 import './globals.css';
@@ -18,6 +18,16 @@ const body = Instrument_Sans({
   display: 'swap',
 });
 
+// Typed signatures, matching the face the signed PDF draws them in (pdf/fonts). Not preloaded: only the signing
+// screens use it.
+const signature = Dancing_Script({
+  subsets: ['latin'],
+  weight: '500',
+  variable: '--font-dancing-script',
+  display: 'swap',
+  preload: false,
+});
+
 export const metadata: Metadata = {
   title: { default: 'Unbuilt OS', template: '%s | Unbuilt OS' },
   robots: { index: false, follow: false },
@@ -32,7 +42,11 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: LayoutProps<'/'>) {
   return (
-    <html lang="en-NG" className={`${display.variable} ${body.variable} h-full`} suppressHydrationWarning>
+    <html
+      lang="en-NG"
+      className={`${display.variable} ${body.variable} ${signature.variable} h-full`}
+      suppressHydrationWarning
+    >
       <head>
         {/* Sets the theme before first paint. A static string, never user input. */}
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />

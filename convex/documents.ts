@@ -215,6 +215,8 @@ export const get = teamQuery(null)({
       templateId: document.templateId,
       templateVersion: document.templateVersion,
       paymentScheduleSummary: document.paymentScheduleSummary,
+      // A signing request is under way, so a new version cannot be sent until it is cancelled.
+      signingOpen: await hasOpenRequest(ctx, document._id),
       createdByName: (await ctx.db.get('teamMembers', document.createdByMemberId))?.name ?? 'Former member',
       chain: inChain
         .map((row) => ({
@@ -351,7 +353,9 @@ async function reading(ctx: Ctx, document: Doc<'documents'>, contact?: Doc<'cont
     await studioToday(ctx),
   );
   const missing = missingVariables(document.blocks, values).filter((name) => name !== 'document.number');
-  return { blocks: fillBlocks(document.blocks, values), missing: describeMissing(missing, document) };
+  // Until the first send there is no number; the draft says so rather than showing a dash.
+  const shown = { ...values, 'document.number': values['document.number'] ?? '(numbered when sent)' };
+  return { blocks: fillBlocks(document.blocks, shown), missing: describeMissing(missing, document) };
 }
 
 /** Refuses to send a document that would print a dash where a detail was promised. */
@@ -495,6 +499,47 @@ export const update = teamMutation('documents.update')({
       validUntilDate: checkedDate(args.validUntilDate, 'The valid until date'),
       paymentScheduleSummary: text(args.paymentScheduleSummary, 'Payment schedule', { max: 300 }),
       blocks: args.blocks ?? document.blocks,
+    });
+  },
+});
+
+/** Links a draft to a deal or project of its own client, which is what fills {{deal.*}} and {{project.*}}. */
+export const link = teamMutation('documents.update')({
+  args: {
+    documentId: v.id('documents'),
+    dealId: v.optional(v.id('deals')),
+    projectId: v.optional(v.id('projects')),
+  },
+  handler: async (ctx, { documentId, dealId, projectId }) => {
+    const document = await visibleDocument(ctx, documentId);
+    assertEditable(document);
+    if (dealId) {
+      const deal = await ctx.db.get('deals', dealId);
+      if (!deal || deal.clientId !== document.clientId) {
+        throw documentError('documents.invalid', 'That deal belongs to another client');
+      }
+    }
+    if (projectId) {
+      const project = await ctx.db.get('projects', projectId);
+      if (!project || project.clientId !== document.clientId) {
+        throw documentError('documents.invalid', 'That project belongs to another client');
+      }
+    }
+    await ctx.db.patch('documents', documentId, {
+      ...(dealId ? { dealId } : {}),
+      ...(projectId ? { projectId } : {}),
+    });
+  },
+});
+
+/** Writes a draft's payment schedule, the line {{schedule.summary}} prints, on its own. */
+export const setPaymentSchedule = teamMutation('documents.update')({
+  args: { documentId: v.id('documents'), paymentScheduleSummary: v.string() },
+  handler: async (ctx, { documentId, paymentScheduleSummary }) => {
+    const document = await visibleDocument(ctx, documentId);
+    assertEditable(document);
+    await ctx.db.patch('documents', documentId, {
+      paymentScheduleSummary: text(paymentScheduleSummary, 'Payment schedule', { required: true, max: 300 }),
     });
   },
 });
@@ -830,6 +875,8 @@ export const attachPdf = internalMutation({
     storageId: v.id('_storage'),
     fileName: v.string(),
     memberId: v.id('teamMembers'),
+    // The payload the PDF was rendered from, as JSON.
+    pdfPayload: v.optional(v.string()),
   },
   handler: async (ctx, args): Promise<AttachedPdf> => {
     const document = await getDocument(ctx, args.documentId);
@@ -853,7 +900,11 @@ export const attachPdf = internalMutation({
       .withIndex('by_document_version', (q) => q.eq('documentId', args.documentId).eq('version', args.version))
       .unique();
     if (versionRow) {
-      await ctx.db.patch('documentVersions', versionRow._id, { pdfFileId: file._id, pdfSha256: file.sha256 });
+      await ctx.db.patch('documentVersions', versionRow._id, {
+        pdfFileId: file._id,
+        pdfSha256: file.sha256,
+        pdfPayload: args.pdfPayload,
+      });
     }
     await ctx.db.patch('documents', args.documentId, { pdfFileId: file._id, pdfSha256: file.sha256 });
     return { ok: true as const, fileId: file._id, sha256: file.sha256 };

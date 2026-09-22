@@ -30,10 +30,18 @@ vi.mock('@/convex/_generated/api', () => {
   const functions = (name: string) => new Proxy({}, { get: (_, fn: string) => ({ _name: `${name}.${fn}` }) });
   return {
     api: Object.fromEntries(
-      ['documents', 'documentTemplates', 'clients', 'contacts', 'rateCard', 'files'].map((name) => [
-        name,
-        functions(name),
-      ]),
+      [
+        'documents',
+        'documentTemplates',
+        'clients',
+        'contacts',
+        'rateCard',
+        'files',
+        'signatures',
+        'team',
+        'deals',
+        'projects',
+      ].map((name) => [name, functions(name)]),
     ),
   };
 });
@@ -269,20 +277,72 @@ describe('DocumentPage', () => {
       currentVersion: 0,
       versions: [],
       missing: [
-        { label: 'The studio’s registered name', where: 'Settings → Organisation', href: '/settings/organisation' },
-        { label: 'The payment schedule in words', where: 'the draft’s payment schedule line' },
+        {
+          label: 'The studio’s registered name',
+          where: 'Add it in Settings → Organisation.',
+          href: '/settings/organisation',
+        },
       ],
     });
     render(<DocumentPage documentId={'d1' as never} permissions={FULL} />);
 
     const notice = screen.getByRole('status');
     expect(notice).toHaveTextContent('Fill these in before sending');
-    expect(within(notice).getByRole('link', { name: 'Settings → Organisation' })).toHaveAttribute(
-      'href',
-      '/settings/organisation',
-    );
-    expect(notice).toHaveTextContent('the draft’s payment schedule line');
+    expect(notice).toHaveTextContent('The studio’s registered name. Add it in Settings → Organisation.');
+    expect(within(notice).getByRole('link', { name: 'Go there' })).toHaveAttribute('href', '/settings/organisation');
     expect(screen.getByRole('button', { name: 'Send to the client' })).toBeDisabled();
+  });
+
+  it('puts a missing deal, project or payment schedule right from the notice', async () => {
+    state.queries['documents.get'] = document({
+      status: 'draft',
+      number: undefined,
+      currentVersion: 0,
+      versions: [],
+      missing: [
+        { label: 'The deal this came from', where: 'This document is not linked to a deal.', fix: 'linkDeal' },
+        { label: 'The project’s name', where: 'This document is not linked to a project.', fix: 'linkProject' },
+        { label: 'The payment schedule in words', where: 'Write it as it should read.', fix: 'paymentSchedule' },
+      ],
+    });
+    state.queries['deals.list'] = [{ id: 'dl1', title: 'Glossup app' }];
+    state.queries['projects.list'] = [{ id: 'p1', code: 'UNB-P-0001', name: 'Glossup app' }];
+    render(<DocumentPage documentId={'d1' as never} permissions={[...FULL, 'deals.view']} />);
+
+    await userEvent.selectOptions(screen.getByLabelText('Choose a deal'), 'dl1');
+    await userEvent.click(screen.getAllByRole('button', { name: 'Link' })[0]);
+    await waitFor(() =>
+      expect(state.mutations['documents.link']).toHaveBeenCalledWith({ documentId: 'd1', dealId: 'dl1' }),
+    );
+    expect(state.queryArgs['deals.list']).toEqual({ clientId: 'c1', status: 'all' });
+
+    await userEvent.selectOptions(screen.getByLabelText('Choose a project'), 'p1');
+    await userEvent.click(screen.getAllByRole('button', { name: 'Link' })[1]);
+    await waitFor(() =>
+      expect(state.mutations['documents.link']).toHaveBeenCalledWith({ documentId: 'd1', projectId: 'p1' }),
+    );
+
+    await userEvent.type(screen.getByLabelText('Payment schedule'), '50% on signature, 50% on completion');
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }));
+    await waitFor(() =>
+      expect(state.mutations['documents.setPaymentSchedule']).toHaveBeenCalledWith({
+        documentId: 'd1',
+        paymentScheduleSummary: '50% on signature, 50% on completion',
+      }),
+    );
+  });
+
+  it('only offers the fixes to someone who may edit the draft', () => {
+    state.queries['documents.get'] = document({
+      status: 'draft',
+      number: undefined,
+      currentVersion: 0,
+      versions: [],
+      missing: [{ label: 'The payment schedule in words', where: 'Write it.', fix: 'paymentSchedule' }],
+    });
+    render(<DocumentPage documentId={'d1' as never} permissions={READER} />);
+    expect(screen.getByRole('status')).toHaveTextContent('The payment schedule in words');
+    expect(screen.queryByLabelText('Payment schedule')).not.toBeInTheDocument();
   });
 
   it('offers a corrected version of an agreement waiting to be signed, and says what it still lacks', () => {
@@ -368,5 +428,148 @@ describe('DocumentPage', () => {
     render(<DocumentPage documentId={'d1' as never} permissions={FULL} />);
     expect(screen.queryByRole('button', { name: 'Void' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Edit the draft' })).not.toBeInTheDocument();
+  });
+});
+
+describe('SignaturesPanel', () => {
+  const nda = (overrides: object = {}) =>
+    document({ type: 'nda', typeLabel: 'Non-disclosure agreement', status: 'awaiting_signature', ...overrides });
+
+  const request = (overrides: object = {}) => ({
+    id: 'r1',
+    createdAt: Date.parse('2026-09-22T09:00:00Z'),
+    documentId: 'd1',
+    documentVersion: 1,
+    pdfSha256: 'a'.repeat(64),
+    order: 'sequential',
+    status: 'pending',
+    expiresAt: Date.parse('2026-10-06T09:00:00Z'),
+    signers: [
+      {
+        id: 'c1',
+        name: 'Ada Obi',
+        email: 'ada@glossup.com',
+        kind: 'client_contact',
+        order: 0,
+        status: 'locked',
+        isViewer: false,
+      },
+      {
+        id: 's1',
+        name: 'Kemi Bello',
+        email: 'kemi@unbuilt.studio',
+        kind: 'team_member',
+        memberId: 'm1',
+        order: 1,
+        status: 'invited',
+        isViewer: true,
+      },
+    ],
+    ...overrides,
+  });
+
+  it('sets up a request with the primary contact ticked, a countersigner and the order', async () => {
+    state.queries['documents.get'] = nda();
+    state.queries['signatures.listForDocument'] = [];
+    state.queries['signatures.countersigners'] = [{ id: 'm1', name: 'Kemi Bello', email: 'kemi@unbuilt.studio' }];
+    render(<DocumentPage documentId={'d1' as never} permissions={FULL} />);
+
+    expect(screen.getByText('Nobody has been asked to sign this yet.')).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Send for signature' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Send for signature' });
+    await userEvent.selectOptions(within(dialog).getByLabelText('Countersigned by the studio'), 'm1');
+    await userEvent.selectOptions(within(dialog).getByLabelText('Order'), 'parallel');
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Send the links' }));
+
+    await waitFor(() =>
+      expect(state.mutations['signatures.createRequest']).toHaveBeenCalledWith({
+        documentId: 'd1',
+        contactIds: ['ct1'],
+        countersignerMemberId: 'm1',
+        order: 'parallel',
+        expiresInDays: 14,
+      }),
+    );
+  });
+
+  it('follows each signer, unlocks a locked link, and offers the countersignature only to its member', async () => {
+    state.queries['documents.get'] = nda({ signingOpen: true });
+    state.queries['signatures.listForDocument'] = [request()];
+    render(<DocumentPage documentId={'d1' as never} permissions={[...FULL, 'documents.countersign']} />);
+
+    expect(screen.getByText('Locked: too many wrong codes')).toBeInTheDocument();
+    // A new version cannot go out while signing is under way, and no second request can start.
+    expect(screen.queryByRole('button', { name: 'Send the next version' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Send for signature' })).not.toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole('button', { name: 'Unlock with a new link' }));
+    await userEvent.click(await screen.findByRole('button', { name: 'Send it' }));
+    await waitFor(() =>
+      expect(state.mutations['signatures.resendLink']).toHaveBeenCalledWith({ requestId: 'r1', signerId: 'c1' }),
+    );
+
+    expect(screen.getByRole('button', { name: 'Countersign' })).toBeInTheDocument();
+  });
+
+  it('keeps the countersignature from anyone else, and the controls from a reader', () => {
+    state.queries['documents.get'] = nda({ signingOpen: true });
+    state.queries['signatures.listForDocument'] = [
+      request({ signers: request().signers.map((signer) => ({ ...signer, isViewer: false })) }),
+    ];
+    render(<DocumentPage documentId={'d1' as never} permissions={READER} />);
+    expect(screen.queryByRole('button', { name: 'Countersign' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /new link/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Cancel the request' })).not.toBeInTheDocument();
+  });
+
+  it('countersigns with a typed name and consent', async () => {
+    state.queries['documents.get'] = nda({ signingOpen: true });
+    state.queries['signatures.listForDocument'] = [request()];
+    state.queries['team.me'] = { name: 'Kemi Bello' };
+    render(<DocumentPage documentId={'d1' as never} permissions={[...FULL, 'documents.countersign']} />);
+
+    await userEvent.click(screen.getByRole('button', { name: 'Countersign' }));
+    const dialog = await screen.findByRole('alertdialog');
+    const sign = within(dialog).getByRole('button', { name: 'Sign' });
+    expect(sign).toBeDisabled();
+    // Drawing is offered too; typing is the default.
+    expect(within(dialog).getByRole('radio', { name: 'Draw it' })).toHaveAttribute('aria-checked', 'false');
+    await userEvent.click(within(dialog).getByLabelText(/legal equivalent of my handwritten signature/));
+    await userEvent.click(sign);
+    await waitFor(() =>
+      expect(state.mutations['signatures.countersign']).toHaveBeenCalledWith({
+        requestId: 'r1',
+        method: 'typed',
+        typedName: 'Kemi Bello',
+        imageStorageId: undefined,
+        consent: true,
+      }),
+    );
+  });
+
+  it('offers the signed PDF and the tamper check once everyone has signed', async () => {
+    state.queries['documents.get'] = nda({ status: 'signed' });
+    state.queries['signatures.listForDocument'] = [
+      request({
+        status: 'completed',
+        completedAt: Date.parse('2026-09-23T10:00:00Z'),
+        finalPdfFileId: 'f9',
+        finalPdfSha256: 'b'.repeat(64),
+        lastVerification: { checkedAt: Date.parse('2026-09-24T10:00:00Z'), ok: true, byMemberId: 'm1' },
+        signers: request().signers.map((signer) => ({ ...signer, status: 'signed', isViewer: false })),
+      }),
+    ];
+    render(<DocumentPage documentId={'d1' as never} permissions={FULL} />);
+
+    expect(screen.getByRole('button', { name: /Download the signed PDF/ })).toBeInTheDocument();
+    expect(screen.getByText(/the stored files are unchanged/)).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Verify' }));
+    await waitFor(() => expect(state.mutations['signatures.verify']).toHaveBeenCalledWith({ requestId: 'r1' }));
+  });
+
+  it('is not shown on a quote, which is accepted rather than signed', () => {
+    state.queries['signatures.listForDocument'] = [];
+    render(<DocumentPage documentId={'d1' as never} permissions={FULL} />);
+    expect(screen.queryByRole('heading', { name: 'Signatures' })).not.toBeInTheDocument();
   });
 });
