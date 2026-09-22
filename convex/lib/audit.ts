@@ -11,6 +11,9 @@ export const SENSITIVE_FIELDS: Partial<Record<TableNames, readonly string[]>> = 
   teamMembers: ['costRateMinor', 'billRateMinor'],
   timeEntries: ['costRateMinor', 'billRateMinor'],
   orgSettings: ['bankAccounts'],
+  // Signers carry the hash of their emailed code, and six digits are quick to recover from a hash.
+  signatureRequests: ['signers'],
+  signingLinks: ['tokenHash'],
 };
 
 export const REDACTED = '[redacted]';

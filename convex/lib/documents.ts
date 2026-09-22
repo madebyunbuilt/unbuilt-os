@@ -10,7 +10,11 @@ import {
   TYPE_LABELS,
   VARIABLES,
 } from './documentBlocks';
+import { notifyTeamMembers } from './notify';
 import { type NumberedRecord } from './numbering';
+import { requirePermission } from './crm';
+import { type TeamPrincipal } from './principals';
+import { inProjectScope } from './projects';
 import { getOrgSettings } from './settings';
 
 export { TYPE_LABELS };
@@ -247,4 +251,66 @@ export function describeMissing(
     }
     return { label, where: 'the draft' };
   });
+}
+
+/**
+ * Who may see a document. Anyone with documents.view sees them all; documents.view.assigned reaches the ones on a
+ * project the caller belongs to. A document outside that scope is "not found", as everywhere else.
+ */
+export async function visibleDocument(
+  ctx: (QueryCtx | MutationCtx) & { principal: TeamPrincipal },
+  documentId: Id<'documents'>,
+) {
+  const document = await getDocument(ctx, documentId);
+  if (ctx.principal.permissions.has('documents.view')) return document;
+  requirePermission(ctx.principal, 'documents.view.assigned');
+  const inScope = document.projectId ? await inProjectScope(ctx, ctx.principal, document.projectId) : false;
+  if (!inScope) throw documentError('documents.notFound', 'Document not found');
+  return document;
+}
+
+/**
+ * A client's look at a document, through the portal or a signing link. The first one moves a sent document to viewed
+ * and tells whoever drafted it, once; later ones only raise the count.
+ */
+export async function recordClientViewOf(
+  ctx: { db: MutationCtx['db'] },
+  args: {
+    documentId: Id<'documents'>;
+    contactId?: Id<'contacts'>;
+    viewerKind: 'contact' | 'token';
+    ip?: string;
+    userAgent?: string;
+  },
+) {
+  const document = await ctx.db.get('documents', args.documentId);
+  if (!document) throw documentError('documents.notFound', 'Document not found');
+  const now = Date.now();
+  await ctx.db.insert('documentViews', {
+    documentId: args.documentId,
+    version: document.currentVersion,
+    viewerKind: args.viewerKind,
+    viewerId: args.contactId,
+    ip: args.ip,
+    userAgent: args.userAgent,
+    viewedAt: now,
+  });
+  const first = document.firstViewedAt === undefined;
+  await ctx.db.patch('documents', args.documentId, {
+    status: document.status === 'sent' ? 'viewed' : document.status,
+    firstViewedAt: document.firstViewedAt ?? now,
+    lastViewedAt: now,
+    viewCount: document.viewCount + 1,
+  });
+  if (first) {
+    const owner = await ctx.db.get('teamMembers', document.createdByMemberId);
+    if (owner?.status === 'active') {
+      await notifyTeamMembers(ctx, [owner._id], {
+        event: 'document_viewed',
+        title: `${document.number ?? TYPE_LABELS[document.type]} was opened by the client`,
+        body: document.title,
+        link: `/documents/${document._id}`,
+      });
+    }
+  }
 }

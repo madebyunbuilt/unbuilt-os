@@ -21,4 +21,10 @@ crons.daily('expire quotes and proposals', { hourUTC: 5, minuteUTC: 0 }, interna
 // 04:30 Lagos: forget old rate-limit windows for public endpoints.
 crons.daily('clear old rate limits', { hourUTC: 3, minuteUTC: 30 }, internal.enquiries.cleanupRateLimits, {});
 
+// 09:00 Lagos: remind signers who have not signed yet (3 and 7 days in, and the day before the link expires).
+crons.daily('signing reminders', { hourUTC: 8, minuteUTC: 0 }, internal.signatures.sendReminders, {});
+
+// Hourly: close signing requests whose date has passed, so an expired link stops working on time.
+crons.hourly('expire signing requests', { minuteUTC: 15 }, internal.signatures.expireRequests, {});
+
 export default crons;

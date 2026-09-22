@@ -21,12 +21,14 @@ import {
   FINAL_STATUSES,
   getDocument,
   type LineItem,
+  visibleDocument,
   copyClausesIn,
   describeMissing,
   fillBlocks,
   type MissingDetail,
   numberedRecordFor,
   type PreparedSend,
+  recordClientViewOf,
   taxSettingsFor,
   TYPE_LABELS,
   variableValues,
@@ -41,6 +43,7 @@ import { type TeamPrincipal } from './lib/principals';
 import { inProjectScope } from './lib/projects';
 import { getOrgSettings } from './lib/settings';
 import { localDateString } from './lib/businessTime';
+import { closeOpenRequests, hasOpenRequest } from './lib/signatures';
 import { isIsoDate } from './lib/validation';
 
 // Documents (07-documents-and-esign.md). A draft is created from a template and owns its text from then on. Sending,
@@ -65,19 +68,6 @@ const discountValidator = v.object({
   bps: v.optional(v.number()),
   amountMinor: v.optional(v.number()),
 });
-
-/**
- * Who may see a document. Anyone with documents.view sees them all; documents.view.assigned reaches the ones on a
- * project the caller belongs to. A document outside that scope is "not found", as everywhere else.
- */
-async function visibleDocument(ctx: Ctx & Principal, documentId: Id<'documents'>) {
-  const document = await getDocument(ctx, documentId);
-  if (ctx.principal.permissions.has('documents.view')) return document;
-  requirePermission(ctx.principal, 'documents.view.assigned');
-  const inScope = document.projectId ? await inProjectScope(ctx, ctx.principal, document.projectId) : false;
-  if (!inScope) throw documentError('documents.notFound', 'Document not found');
-  return document;
-}
 
 /** The same rule for a list: every document, or only those on the caller's projects. */
 async function visibleDocuments(ctx: Ctx & Principal, documents: Doc<'documents'>[]) {
@@ -598,6 +588,7 @@ export const voidDocument = teamMutation('documents.void')({
       throw documentError('documents.signed', 'A signed document cannot be voided. Issue an amendment instead.');
     }
     if (document.status === 'void') return;
+    await closeOpenRequests(ctx, documentId, 'cancelled');
     await ctx.db.patch('documents', documentId, {
       status: 'void',
       voidReason: text(reason, 'Reason', { required: true, max: 500 })!,
@@ -649,6 +640,10 @@ export const send = teamMutation('documents.send')({
   },
   handler: async (ctx, args) => {
     const document = await visibleDocument(ctx, args.documentId);
+    if (await hasOpenRequest(ctx, document._id)) {
+      // A new version would no longer match the PDF the signers are signing.
+      throw documentError('documents.signing', 'Cancel the signing request before sending a new version');
+    }
     if (document.status === 'signed' || document.status === 'void') {
       throw documentError(
         document.status === 'signed' ? 'documents.signed' : 'documents.void',
@@ -704,6 +699,10 @@ export const prepareSend = internalMutation({
   },
   handler: async (ctx, args): Promise<PreparedSend> => {
     const document = await getDocument(ctx, args.documentId);
+    if (await hasOpenRequest(ctx, document._id)) {
+      // A new version would no longer match the PDF the signers are signing.
+      throw documentError('documents.signing', 'Cancel the signing request before sending a new version');
+    }
     if (document.status === 'signed' || document.status === 'void') {
       throw documentError(
         document.status === 'signed' ? 'documents.signed' : 'documents.void',
@@ -928,35 +927,7 @@ export const recordClientView = internalMutation({
     userAgent: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    const document = await getDocument(ctx, args.documentId);
-    const now = Date.now();
-    await ctx.db.insert('documentViews', {
-      documentId: args.documentId,
-      version: document.currentVersion,
-      viewerKind: args.viewerKind,
-      viewerId: args.contactId,
-      ip: args.ip,
-      userAgent: args.userAgent,
-      viewedAt: now,
-    });
-    const first = document.firstViewedAt === undefined;
-    await ctx.db.patch('documents', args.documentId, {
-      status: document.status === 'sent' ? 'viewed' : document.status,
-      firstViewedAt: document.firstViewedAt ?? now,
-      lastViewedAt: now,
-      viewCount: document.viewCount + 1,
-    });
-    if (first) {
-      const owner = await ctx.db.get('teamMembers', document.createdByMemberId);
-      if (owner?.status === 'active') {
-        await notifyTeamMembers(ctx, [owner._id], {
-          event: 'document_viewed',
-          title: `${document.number ?? TYPE_LABELS[document.type]} was opened by the client`,
-          body: document.title,
-          link: `/documents/${document._id}`,
-        });
-      }
-    }
+    await recordClientViewOf(ctx, args);
   },
 });
 

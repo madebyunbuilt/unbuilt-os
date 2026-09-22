@@ -182,6 +182,46 @@ confirmed the process; templates carry their own approval. See `18-open-question
   fills `{{schedule.summary}}`. The draft asks for it only when its wording prints it, and a document drafted from
   another carries it across. Billing schedules will fill it once they exist.
 
+## E-signature decisions (studio, 2026-09-22)
+
+- **The code** works for 10 minutes. Five wrong tries lock the link, counted across every code the signer asks for, so
+  asking for new codes buys no extra guesses. A locked link opens again only when the studio sends a new one, which the
+  timeline records; whoever set up the request is notified of the lock. A signer may ask for 5 codes an hour, and one
+  address for 20. After the code is checked the signer has 30 minutes to sign or decline; declining needs the same
+  check, so a forwarded link cannot turn a document down.
+- **The studio countersigns inside the app**, not through an emailed link. The member's two-factor sign-in stands in
+  for the emailed code, and the signature records when that sign-in happened (`verification: app_session`).
+- **Which documents**: quotes and proposals are accepted, not signed. Every other type can have a request: the signed
+  types by default, an SLA or change request when the studio chooses to. A request needs a sent document (a version, a
+  stored PDF and its hash), at least one active contact at the document's client, and a countersigner, if any, who is an
+  active member holding `documents.countersign`. The studio signs last. Only one request per document is open at a time,
+  and while it is, the document cannot be re-sent, since a new version would not match what is being signed. Voiding
+  the document cancels the request.
+- **Links**: the token is minted inside the action that emails it, so it never passes through stored scheduler
+  arguments; only its hash is stored, in `signingLinks`, which finds a signer without scanning every request. Sending a
+  signer a link (a resend or a reminder) replaces their earlier one, and the email says so. If the deployment cannot send
+  email the old link is left working, and whoever set up the request is told the link did not go out. A link outlives
+  its request so the signer can see what happened, but the document is shown only while it is still theirs to sign.
+  Opening it records a client view (`viewerKind: token`).
+- **Public endpoints**: the `/sign/[token]` page calls `POST /public/sign/{view,code,verify,upload,sign,decline}` on the
+  Convex site, with the token in the body so it stays out of URLs and logs. Only the app's own hosts may call them. A
+  drawn signature is uploaded as a PNG only after the code is checked; it belongs to the request and only
+  `documents.view` holders may fetch it on its own.
+- **Closing unsigned**: a decline (with its reason) sets the document to declined and notifies whoever set up the
+  request. A cancel (with a reason) or an expiry returns it to where sending left it: awaiting signature for the signed
+  types, sent otherwise, ready for a new request. Requests expire hourly; a link is refused the moment its date passes,
+  whether or not the job has run. Reminders go out daily at 09:00 Lagos, at most one per signer per day.
+- **Completion** runs in a Node action. It loads the stored PDF and refuses to go on unless its hash still matches the
+  one the request locked; renders the certificate on its own; and appends it with pdf-lib, so the pages the signers read
+  stay byte for byte what they signed. The signed PDF is stored on the document, client-visible, with its own hash, which
+  storage's own hash must agree with. Every signer is emailed a copy. If any step fails, the signatures stay recorded,
+  the reason is kept on the request, whoever set it up is told, and `documents.send` holders can run it again. The
+  downstream actions (billing `on_signature` items, project status) arrive with billing.
+- **Verify** (anyone who can read the document) recomputes the hashes of the stored original and the signed PDF in an
+  action and records the result on the request; a mismatch notifies the asker and the Owner.
+- **Evidence** is written once: nothing patches or deletes a `signatures` row. Audit entries for requests and links
+  redact the signers and token hashes, since a six-digit code is quick to recover from its hash.
+
 ## Screens
 
 - `/documents` (`documents.view` or `documents.view.assigned`): every document the viewer can see, newest first, with
