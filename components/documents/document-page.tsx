@@ -10,6 +10,7 @@ import { DecisionDialog, DownloadPdfButton, SendDialog, VoidDialog } from '@/com
 import { DocumentDraftEditor } from '@/components/documents/document-draft-editor';
 import { DocumentFormDialog } from '@/components/documents/document-form-dialog';
 import { SignaturesPanel } from '@/components/documents/signatures-panel';
+import { ConfirmDialog } from '@/components/app/confirm-dialog';
 import { ToneBadge } from '@/components/team/status-badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -44,6 +45,8 @@ export function DocumentPage({ documentId, permissions }: { documentId: Id<'docu
   // Out with the client and still open to a corrected version: sending moves the signed types straight to waiting.
   // A signing request under way holds the version still: it is cancelled first, then a new one can go.
   const resendable = (withClient || status === 'expired' || status === 'awaiting_signature') && !document.signingOpen;
+  // A draft, or a document with the client that nobody is signing: the server allows the same.
+  const editable = isDraft || resendable;
   const next = NEXT_IN_CHAIN[document.type as DocumentType] ?? [];
 
   return (
@@ -61,7 +64,7 @@ export function DocumentPage({ documentId, permissions }: { documentId: Id<'docu
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-3">
               <h1 className="font-display text-3xl font-bold">{document.title}</h1>
-              <ToneBadge {...documentStatus(status)} />
+              <ToneBadge {...documentStatus(status, { signingOpen: document.signingOpen })} />
             </div>
             <p className="mt-1 text-muted-foreground">
               {document.typeLabel}
@@ -96,14 +99,23 @@ export function DocumentPage({ documentId, permissions }: { documentId: Id<'docu
         )}
         {document.decisionNote && status === 'accepted' && (
           <p className="rounded-md border p-3 text-sm text-muted-foreground">
-            Accepted, recorded by the studio: {document.decisionNote}
+            Accepted{document.decidedVersion ? ` (version ${document.decidedVersion})` : ''}, recorded by the studio:{' '}
+            {document.decisionNote}
           </p>
         )}
 
-        {document.missing.length > 0 && (isDraft || resendable) && (
+        {document.unsentChanges && (
+          <UnsentChanges
+            document={document}
+            canDiscard={document.canDiscard && permissions.includes('documents.update')}
+            onDiscarded={() => setEditing(false)}
+          />
+        )}
+
+        {document.missing.length > 0 && editable && (
           <MissingDetails
             document={document}
-            canFix={isDraft && permissions.includes('documents.update')}
+            canFix={editable && permissions.includes('documents.update')}
             canSeeDeals={permissions.includes('deals.view')}
           />
         )}
@@ -113,12 +125,14 @@ export function DocumentPage({ documentId, permissions }: { documentId: Id<'docu
             <SendDialog document={document} onSent={() => setEditing(false)} />
           )}
           {permissions.includes('documents.send') && withClient && <DecisionDialog document={document} />}
-          {permissions.includes('documents.update') && isDraft && (
+          {permissions.includes('documents.update') && editable && (
             <Button variant="outline" onClick={() => setEditing((open) => !open)}>
-              {editing ? 'Stop editing' : 'Edit the draft'}
+              {editing ? 'Stop editing' : isDraft ? 'Edit the draft' : 'Edit for the next version'}
             </Button>
           )}
-          {permissions.includes('documents.send') && resendable && <SendDialog document={document} />}
+          {permissions.includes('documents.send') && resendable && (
+            <SendDialog document={document} onSent={() => setEditing(false)} />
+          )}
           {document.pdfFileId && <DownloadPdfButton fileId={document.pdfFileId} />}
           {permissions.includes('documents.create') &&
             next.map((type) => (
@@ -137,7 +151,7 @@ export function DocumentPage({ documentId, permissions }: { documentId: Id<'docu
         </div>
       </div>
 
-      {editing && isDraft ? (
+      {editing && editable ? (
         <DocumentDraftEditor
           document={document}
           canUseRateCard={permissions.includes('ratecard.view')}
@@ -376,5 +390,47 @@ function PaymentScheduleFix({ documentId }: { documentId: Id<'documents'> }) {
         </p>
       )}
     </form>
+  );
+}
+
+/**
+ * A sent document edited since its last version went out. The client still has that version; the changes reach them
+ * only with the next send, or are thrown away.
+ */
+function UnsentChanges({
+  document,
+  canDiscard,
+  onDiscarded,
+}: {
+  document: NonNullable<typeof api.documents.get._returnType>;
+  canDiscard: boolean;
+  onDiscarded: () => void;
+}) {
+  const discard = useMutation(api.documents.discardChanges);
+  const last = document.versions[0];
+  return (
+    <div role="status" className="flex flex-wrap items-center gap-3 rounded-md border border-foreground p-3 text-sm">
+      <p className="min-w-0 flex-1">
+        <span className="font-medium">Unsent changes.</span> The client still has version {document.currentVersion}
+        {last ? `, sent ${dateTime.format(last.createdAt)}` : ''}. What you see below goes out as version{' '}
+        {document.currentVersion + 1} when you send it.
+      </p>
+      {canDiscard && (
+        <ConfirmDialog
+          trigger={
+            <Button variant="ghost" size="sm">
+              Discard changes
+            </Button>
+          }
+          title="Discard the unsent changes?"
+          description={`The document goes back to exactly what version ${document.currentVersion} said. This cannot be undone.`}
+          confirmLabel="Discard them"
+          onConfirm={async () => {
+            await discard({ documentId: document.id });
+            onDiscarded();
+          }}
+        />
+      )}
+    </div>
   );
 }

@@ -63,8 +63,13 @@
   4. Store it with its SHA-256.
   5. Assign the number if this is the first send.
   6. Email the client (and WhatsApp, by preference) with a portal link.
-- **Editing a sent document** creates a new version and re-sends. The previous version stays viewable, marked superseded.
-  A signed document cannot be edited; changes require a new document (typically a change request or amendment).
+- **Editing a sent document** prepares its next version (studio, 2026-09-22). A document can be edited while it is a
+  draft, or sent, opened, expired or with the client for signing, **as long as no signing request is running**: the
+  signers hold a locked version, so the request is cancelled first. Editing a sent document marks it as having unsent
+  changes; the client keeps the last version sent until "Send version N" goes out, and the page says so. The changes
+  can be discarded back to exactly what the last version said, because each version keeps the editable source it was
+  sent from. An accepted, declined, partly signed, signed or void document never changes; a signed one needs a new
+  document (typically a change request or amendment). A decision recorded by the studio notes the version it was for.
 - **Expiry**: quotes and proposals have `validUntilDate` (default from settings). A daily cron marks expired ones and
   notifies the owner. Expired documents can be re-issued as a new version with a new date.
 - **Void**: requires a reason, keeps the number, and is watermarked "Void" on the PDF.
@@ -140,6 +145,8 @@ confirmed the process; templates carry their own approval. See `18-open-question
 - **Accepting and declining**: until the client portal exists, `documents.send` holders record the decision the client
   gave elsewhere. The document keeps who recorded it and the note, so a recorded acceptance is never mistaken for one
   the client clicked. A decline needs a reason. Only a document with the client (sent or viewed) can be decided.
+- **"Waiting to be signed"** is shown only once someone has been asked to sign. A signed type that has been sent but
+  has no signing request running reads "With the client, not sent for signing".
 - **Void** needs a reason, keeps the number, and is refused on a signed document. A draft that was never sent can be
   deleted instead, unless another document was made from it.
 - **Expiry** runs daily at 06:00 Lagos and covers quotes and proposals only. Whoever drafted it is notified.
