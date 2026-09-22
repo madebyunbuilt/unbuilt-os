@@ -37,6 +37,8 @@ export function DocumentPage({ documentId, permissions }: { documentId: Id<'docu
   const status = document.status as DocumentStatus;
   const isDraft = status === 'draft';
   const withClient = status === 'sent' || status === 'viewed';
+  // Out with the client and still open to a corrected version: sending moves the signed types straight to waiting.
+  const resendable = withClient || status === 'expired' || status === 'awaiting_signature';
   const next = NEXT_IN_CHAIN[document.type as DocumentType] ?? [];
 
   return (
@@ -93,9 +95,7 @@ export function DocumentPage({ documentId, permissions }: { documentId: Id<'docu
           </p>
         )}
 
-        {document.missing.length > 0 && (isDraft || withClient || status === 'expired') && (
-          <MissingDetails missing={document.missing} />
-        )}
+        {document.missing.length > 0 && (isDraft || resendable) && <MissingDetails missing={document.missing} />}
 
         <div className="flex flex-wrap gap-2">
           {permissions.includes('documents.send') && isDraft && (
@@ -107,9 +107,7 @@ export function DocumentPage({ documentId, permissions }: { documentId: Id<'docu
               {editing ? 'Stop editing' : 'Edit the draft'}
             </Button>
           )}
-          {permissions.includes('documents.send') && (withClient || status === 'expired') && (
-            <SendDialog document={document} />
-          )}
+          {permissions.includes('documents.send') && resendable && <SendDialog document={document} />}
           {document.pdfFileId && <DownloadPdfButton fileId={document.pdfFileId} />}
           {permissions.includes('documents.create') &&
             next.map((type) => (

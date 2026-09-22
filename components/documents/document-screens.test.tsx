@@ -285,6 +285,27 @@ describe('DocumentPage', () => {
     expect(screen.getByRole('button', { name: 'Send to the client' })).toBeDisabled();
   });
 
+  it('offers a corrected version of an agreement waiting to be signed, and says what it still lacks', () => {
+    state.queries['documents.get'] = document({
+      type: 'nda',
+      typeLabel: 'Non-disclosure agreement',
+      status: 'awaiting_signature',
+      missing: [
+        {
+          label: 'The studio’s address, on one line',
+          where: 'Settings → Organisation',
+          href: '/settings/organisation',
+        },
+      ],
+    });
+    render(<DocumentPage documentId={'d1' as never} permissions={FULL} />);
+
+    expect(screen.getByRole('status')).toHaveTextContent('The studio’s address, on one line');
+    expect(screen.getByRole('button', { name: 'Send the next version' })).toBeDisabled();
+    // An agreement is signed, not accepted: there is no decision to record.
+    expect(screen.queryByRole('button', { name: 'Record acceptance' })).not.toBeInTheDocument();
+  });
+
   it('records what the client said while it is with them', async () => {
     render(<DocumentPage documentId={'d1' as never} permissions={FULL} />);
 
