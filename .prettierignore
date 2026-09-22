@@ -12,3 +12,6 @@ next-env.d.ts
 test-results
 playwright-report
 .claude
+
+# Generated: the embedded signature font
+pdf/fonts/dancing-script.ts

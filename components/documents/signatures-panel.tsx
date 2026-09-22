@@ -5,6 +5,7 @@ import { PenLine, ShieldCheck } from 'lucide-react';
 import { useState } from 'react';
 import { ConfirmDialog } from '@/components/app/confirm-dialog';
 import { DownloadPdfButton } from '@/components/documents/document-actions';
+import { SignaturePad } from '@/components/signing/signature-pad';
 import { ToneBadge } from '@/components/team/status-badge';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -23,7 +24,8 @@ import { Textarea } from '@/components/ui/textarea';
 import { api } from '@/convex/_generated/api';
 import { type Id } from '@/convex/_generated/dataModel';
 import { CONSENT_TEXT, DEFAULT_EXPIRY_DAYS } from '@/convex/lib/signatures';
-import { errorMessage } from '@/lib/convex-error';
+import { errorMessage, InputError } from '@/lib/convex-error';
+import { uploadSignature } from '@/lib/signing-client';
 import { type StatusTone } from '@/lib/team-display';
 
 // Signatures on the document page (07-documents-and-esign.md, E-signatures): set up a request, follow each signer,
@@ -368,10 +370,26 @@ function CancelDialog({ requestId }: { requestId: Id<'signatureRequests'> }) {
 
 function CountersignDialog({ requestId }: { requestId: Id<'signatureRequests'> }) {
   const countersign = useMutation(api.signatures.countersign);
+  const uploadUrl = useMutation(api.signatures.countersignUploadUrl);
   const me = useQuery(api.team.me, {});
   const [typedName, setTypedName] = useState<string | null>(null);
+  const [method, setMethod] = useState<'typed' | 'drawn'>('typed');
+  const [image, setImage] = useState<Blob | null>(null);
   const [agreed, setAgreed] = useState(false);
   const name = typedName ?? me?.name ?? '';
+  const ready = agreed && name.trim().length > 0 && (method === 'typed' || image !== null);
+
+  const sign = async () => {
+    let imageStorageId: Id<'_storage'> | undefined;
+    if (method === 'drawn' && image) {
+      const stored = await uploadSignature(await uploadUrl({ requestId }), image);
+      if (!stored) throw new InputError('Your drawing could not be saved. Try again.');
+      imageStorageId = stored as Id<'_storage'>;
+    }
+    const result = await countersign({ requestId, method, typedName: name, imageStorageId, consent: agreed });
+    if (result && !result.ok) throw new InputError(result.message);
+  };
+
   return (
     <ConfirmDialog
       trigger={
@@ -383,14 +401,34 @@ function CountersignDialog({ requestId }: { requestId: Id<'signatureRequests'> }
       title="Countersign for the studio"
       description="Your two-factor sign-in confirms it is you. Your signature is recorded with the time and this device."
       confirmLabel="Sign"
-      canConfirm={agreed && name.trim().length > 0}
-      onConfirm={() => countersign({ requestId, typedName: name, consent: agreed })}
+      canConfirm={ready}
+      onConfirm={sign}
     >
       <div className="space-y-4">
         <div className="space-y-2">
           <Label htmlFor="countersign-name">Your full name</Label>
           <Input id="countersign-name" value={name} onChange={(event) => setTypedName(event.target.value)} />
         </div>
+        <div className="flex gap-2" role="radiogroup" aria-label="How would you like to sign?">
+          {(['typed', 'drawn'] as const).map((option) => (
+            <Button
+              key={option}
+              type="button"
+              role="radio"
+              aria-checked={method === option}
+              variant={method === option ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => setMethod(option)}
+            >
+              {option === 'typed' ? 'Type my name' : 'Draw it'}
+            </Button>
+          ))}
+        </div>
+        {method === 'typed' ? (
+          name.trim() && <p className="font-signature text-3xl">{name}</p>
+        ) : (
+          <SignaturePad onChange={setImage} />
+        )}
         <div className="flex items-start gap-3">
           <Checkbox id="countersign-consent" checked={agreed} onCheckedChange={(value) => setAgreed(value === true)} />
           <Label htmlFor="countersign-consent" className="font-normal leading-relaxed">

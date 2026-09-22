@@ -311,26 +311,68 @@ export const resendLink = teamMutation('documents.send')({
  * The studio's countersignature, given inside the app. The signed-in session already passed the member's two-factor
  * check, which is what the certificate records in place of an emailed code.
  */
-export const countersign = teamMutation('documents.countersign')({
-  args: { requestId: v.id('signatureRequests'), typedName: v.string(), consent: v.boolean() },
-  handler: async (ctx, { requestId, typedName, consent }) => {
+/** Where the countersigner's drawn signature is uploaded, before countersign records it. */
+export const countersignUploadUrl = teamMutation('documents.countersign')({
+  args: { requestId: v.id('signatureRequests') },
+  handler: async (ctx, { requestId }) => {
     const { request } = await openRequest(ctx, requestId);
+    const signer = request.signers.find(
+      (candidate) => candidate.kind === 'team_member' && candidate.memberId === ctx.principal.member._id,
+    );
+    if (!signer) throw signatureError('signatures.notYours', 'You are not the countersigner on this request');
+    assertCanAct(request, signer, Date.now());
+    return await ctx.storage.generateUploadUrl();
+  },
+});
+
+export const countersign = teamMutation('documents.countersign')({
+  args: {
+    requestId: v.id('signatureRequests'),
+    method: v.optional(v.union(v.literal('typed'), v.literal('drawn'))),
+    typedName: v.string(),
+    imageStorageId: v.optional(v.id('_storage')),
+    consent: v.boolean(),
+  },
+  handler: async (ctx, args): Promise<{ ok: true } | { ok: false; message: string }> => {
+    const { request, document } = await openRequest(ctx, args.requestId);
     const signer = request.signers.find(
       (candidate) => candidate.kind === 'team_member' && candidate.memberId === ctx.principal.member._id,
     );
     if (!signer) throw signatureError('signatures.notYours', 'You are not the countersigner on this request');
     const now = Date.now();
     assertCanAct(request, signer, now);
-    if (!consent) throw signatureError('signatures.consent', 'Tick the consent statement to sign');
+    if (!args.consent) throw signatureError('signatures.consent', 'Tick the consent statement to sign');
+    const method = args.method ?? 'typed';
+    // The name is kept either way: it is what the Name line and the certificate carry.
+    const typedName = text(args.typedName, 'Your full name', { required: true, max: 120 })!;
+    let imageFileId: Id<'files'> | undefined;
+    if (method === 'drawn') {
+      if (!args.imageStorageId) throw signatureError('signatures.invalid', 'Draw your signature to sign');
+      const upload = await recordUpload(ctx, {
+        storageId: args.imageStorageId,
+        name: `signature-${signer.id}.png`,
+        contentType: 'image/png',
+        context: 'image',
+        owner: { table: 'signatureRequests', id: request._id },
+        visibility: 'internal',
+        clientId: document.clientId,
+        uploadedBy: { kind: 'team', id: ctx.principal.member._id },
+      });
+      // Returned, not thrown: throwing would roll back the upload's removal from storage.
+      if (!upload.ok) return { ok: false, message: upload.message };
+      imageFileId = upload.fileId;
+    }
     await recordSignature(ctx, request, signer, {
-      method: 'typed',
-      typedName: text(typedName, 'Your full name', { required: true, max: 120 })!,
+      method,
+      typedName,
+      imageFileId,
       otpVerifiedAt: ctx.principal.session.signedInAt,
       verification: 'app_session',
       ip: ctx.principal.session.ip,
       userAgent: ctx.principal.session.userAgent,
       now,
     });
+    return { ok: true };
   },
 });
 

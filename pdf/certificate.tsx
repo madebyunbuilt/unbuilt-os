@@ -1,4 +1,5 @@
 import { Document, Image, Page, StyleSheet, Text, View } from '@react-pdf/renderer';
+import { SIGNATURE_FONT_FAMILY } from './fonts/register';
 import { type CertificatePdfProps } from './types';
 
 export type { CertificatePdfProps } from './types';
@@ -27,7 +28,7 @@ const styles = StyleSheet.create({
   signer: { borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 4, padding: 10, marginBottom: 10 },
   signerName: { fontSize: 11, fontFamily: 'Helvetica-Bold', lineHeight: 1.3, marginBottom: 6 },
   mark: { height: 40, marginBottom: 6 },
-  typedMark: { fontSize: 16, fontFamily: 'Times-Italic', lineHeight: 1.3, marginBottom: 6 },
+  typedMark: { fontSize: 20, fontFamily: SIGNATURE_FONT_FAMILY, fontWeight: 500, lineHeight: 1.3, marginBottom: 6 },
   row: { flexDirection: 'row', paddingVertical: 1 },
   label: { width: 120, color: '#6B7280' },
   value: { flex: 1 },

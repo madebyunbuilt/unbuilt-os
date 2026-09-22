@@ -1,4 +1,5 @@
 import { Document, Image, Page, StyleSheet, Text, View } from '@react-pdf/renderer';
+import { SIGNATURE_FONT_FAMILY } from './fonts/register';
 import { type DocumentBlock } from '@/convex/lib/documentBlocks';
 import { type Currency, formatMoneyWithCode } from '@/convex/lib/money';
 import { type DocumentPdfProps, type PdfLineItem, type PdfTotals } from './types';
@@ -62,7 +63,7 @@ const styles = StyleSheet.create({
   signatureMarks: { flexDirection: 'row', justifyContent: 'flex-start', alignItems: 'flex-end', gap: 12 },
   signatureDate: { marginLeft: 'auto' },
   signatureImage: { height: 28, maxWidth: 140, objectFit: 'contain' },
-  signatureTyped: { fontSize: 14, fontFamily: 'Times-Italic', lineHeight: 1.2 },
+  signatureTyped: { fontSize: 18, fontFamily: SIGNATURE_FONT_FAMILY, fontWeight: 500, lineHeight: 1.2 },
   // Anchored from the top: with a line height on the page, react-pdf drops a footer placed with `bottom`. Pages are
   // always A4 (841.89pt tall), so this sits 24pt above the bottom edge.
   footer: {

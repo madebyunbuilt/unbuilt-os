@@ -66,12 +66,17 @@ export function constantTimeEqual(a: string, b: string): boolean {
 }
 
 /**
- * Who is invited next. In parallel order everyone is invited at once. In sequential order the clients go first and the
- * studio countersigns last, one at a time: the next signer only once everyone before them has signed.
+ * Who is invited next. In parallel order every client is invited at once, and the studio once they have all signed.
+ * In sequential order the clients go first and the studio countersigns last, one at a time: the next signer only once
+ * everyone before them has signed.
  */
 export function signersToInvite(order: Doc<'signatureRequests'>['order'], signers: Signer[]): Signer[] {
   const waiting = signers.filter((signer) => signer.status === 'waiting');
-  if (order === 'parallel') return waiting;
+  if (order === 'parallel') {
+    // Every client at once; the studio still countersigns last, once all of them have signed.
+    const clientsDone = signers.every((signer) => signer.kind !== 'client_contact' || signer.status === 'signed');
+    return waiting.filter((signer) => signer.kind === 'client_contact' || clientsDone);
+  }
   const outstanding = signers.filter((signer) => signer.status !== 'signed');
   if (outstanding.some((signer) => signer.status === 'invited' || signer.status === 'locked')) return [];
   const next = [...waiting].sort((a, b) => a.order - b.order)[0];

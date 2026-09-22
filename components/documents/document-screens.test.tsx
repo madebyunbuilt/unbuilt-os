@@ -471,12 +471,16 @@ describe('SignaturesPanel', () => {
     const dialog = await screen.findByRole('alertdialog');
     const sign = within(dialog).getByRole('button', { name: 'Sign' });
     expect(sign).toBeDisabled();
+    // Drawing is offered too; typing is the default.
+    expect(within(dialog).getByRole('radio', { name: 'Draw it' })).toHaveAttribute('aria-checked', 'false');
     await userEvent.click(within(dialog).getByLabelText(/legal equivalent of my handwritten signature/));
     await userEvent.click(sign);
     await waitFor(() =>
       expect(state.mutations['signatures.countersign']).toHaveBeenCalledWith({
         requestId: 'r1',
+        method: 'typed',
         typedName: 'Kemi Bello',
+        imageStorageId: undefined,
         consent: true,
       }),
     );

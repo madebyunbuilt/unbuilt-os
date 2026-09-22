@@ -376,7 +376,11 @@ function SignStep({
             autoComplete="name"
             onChange={(event) => setTypedName(event.target.value)}
           />
-          {typedName.trim() && <p className="font-serif text-2xl italic">{typedName}</p>}
+          {typedName.trim() && (
+            <p className="font-signature text-3xl" aria-label={`Your signature will read ${typedName}`}>
+              {typedName}
+            </p>
+          )}
         </div>
       ) : (
         <SignaturePad onChange={setImage} />

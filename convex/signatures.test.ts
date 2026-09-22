@@ -152,15 +152,23 @@ describe('setting up a request', () => {
     expect(document?.status).toBe('awaiting_signature');
   });
 
-  it('invites every client at once in parallel order', async () => {
+  it('invites every client at once in parallel order, and the studio once they have signed', async () => {
     const { as, memberId } = await owner();
     const documentId = await sentContract(memberId, as);
     const requestId = await as.mutation(api.signatures.createRequest, {
       documentId,
       contactIds: [adaId, bayoId],
+      countersignerMemberId: memberId,
       order: 'parallel',
     });
-    expect((await request(requestId))?.signers.map((s) => s.status)).toEqual(['invited', 'invited']);
+    // The studio still signs last.
+    expect((await request(requestId))?.signers.map((s) => s.status)).toEqual(['invited', 'invited', 'waiting']);
+    for (const signerId of ['c1', 'c2']) {
+      const token = await linkFor(requestId, signerId);
+      await verified(token);
+      await signTyped(token, signerId);
+    }
+    expect((await signer(requestId, 's1')).status).toBe('invited');
   });
 
   it('refuses a draft, a quote, a second open request, and a contact from another client', async () => {
@@ -465,6 +473,62 @@ describe('signing', () => {
         consent: true,
         ...FROM,
       }),
+      'signatures.invalid',
+    );
+  });
+
+  it('lets the countersigner draw, keeping the drawing as evidence belonging to the request', async () => {
+    const { as, memberId } = await owner();
+    const documentId = await sentContract(memberId, as);
+    const requestId = await as.mutation(api.signatures.createRequest, {
+      documentId,
+      contactIds: [adaId],
+      countersignerMemberId: memberId,
+      order: 'parallel',
+    });
+    const ada = await linkFor(requestId, 'c1');
+    await verified(ada);
+    await signTyped(ada, 'Ada Obi');
+
+    await as.mutation(api.signatures.countersignUploadUrl, { requestId });
+    const imageStorageId = await t.run(async (ctx) =>
+      ctx.storage.store(new Blob([new Uint8Array([137, 80, 78, 71])], { type: 'image/png' })),
+    );
+    expect(
+      await as.mutation(api.signatures.countersign, {
+        requestId,
+        method: 'drawn',
+        typedName: 'Kemi Bello',
+        imageStorageId,
+        consent: true,
+      }),
+    ).toEqual({ ok: true });
+
+    const evidence = (await t.run((ctx) => ctx.db.query('signatures').collect())).find((s) => s.signerId === 's1');
+    expect(evidence).toMatchObject({ method: 'drawn', typedName: 'Kemi Bello', verification: 'app_session' });
+    const file = await t.run((ctx) => ctx.db.get('files', evidence!.imageFileId!));
+    expect(file).toMatchObject({ visibility: 'internal', owner: { table: 'signatureRequests', id: requestId } });
+    expect((await request(requestId))?.status).toBe('completed');
+  });
+
+  it('refuses a drawn countersignature with nothing drawn', async () => {
+    const { as, memberId } = await owner();
+    const documentId = await sentContract(memberId, as);
+    const requestId = await as.mutation(api.signatures.createRequest, {
+      documentId,
+      contactIds: [adaId],
+      countersignerMemberId: memberId,
+      order: 'parallel',
+    });
+    await expectCode(
+      as.mutation(api.signatures.countersign, { requestId, method: 'drawn', typedName: 'Kemi', consent: true }),
+      'signatures.notYet',
+    );
+    const ada = await linkFor(requestId, 'c1');
+    await verified(ada);
+    await signTyped(ada, 'Ada Obi');
+    await expectCode(
+      as.mutation(api.signatures.countersign, { requestId, method: 'drawn', typedName: 'Kemi', consent: true }),
       'signatures.invalid',
     );
   });

@@ -189,12 +189,12 @@ confirmed the process; templates carry their own approval. See `18-open-question
   timeline records; whoever set up the request is notified of the lock. A signer may ask for 5 codes an hour, and one
   address for 20. After the code is checked the signer has 30 minutes to sign or decline; declining needs the same
   check, so a forwarded link cannot turn a document down.
-- **The studio countersigns inside the app**, not through an emailed link. The member's two-factor sign-in stands in
+- **The studio countersigns inside the app**, not through an emailed link, typing a name or drawing, as a client can. The member's two-factor sign-in stands in
   for the emailed code, and the signature records when that sign-in happened (`verification: app_session`).
 - **Which documents**: quotes and proposals are accepted, not signed. Every other type can have a request: the signed
   types by default, an SLA or change request when the studio chooses to. A request needs a sent document (a version, a
   stored PDF and its hash), at least one active contact at the document's client, and a countersigner, if any, who is an
-  active member holding `documents.countersign`. The studio signs last. Only one request per document is open at a time,
+  active member holding `documents.countersign`. The studio signs last, in either order: in parallel every client is invited at once, and the countersigner once they have all signed. Only one request per document is open at a time,
   and while it is, the document cannot be re-sent, since a new version would not match what is being signed. Voiding
   the document cancels the request.
 - **Links**: the token is minted inside the action that emails it, so it never passes through stored scheduler
@@ -227,6 +227,10 @@ confirmed the process; templates carry their own approval. See `18-open-question
   drops a footer placed from the bottom.
 - **Verify** (anyone who can read the document) recomputes the hashes of the stored original and the signed PDF in an
   action and records the result on the request; a mismatch notifies the asker and the Owner.
+- **Typed signatures** are drawn in Dancing Script (SIL Open Font License, embedded in the PDF and shown the same on
+  the signing screens), so a typed name reads as signed beside a drawn one; the certificate still says "Typed name".
+  Uploading an image of a signature was considered and left out: it proves no more than drawing, and would mean holding
+  scans of people's real signatures.
 - **Evidence** is written once: nothing patches or deletes a `signatures` row. Audit entries for requests and links
   redact the signers and token hashes, since a six-digit code is quick to recover from its hash.
 
