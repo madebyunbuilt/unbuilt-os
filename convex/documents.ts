@@ -353,7 +353,9 @@ async function reading(ctx: Ctx, document: Doc<'documents'>, contact?: Doc<'cont
     await studioToday(ctx),
   );
   const missing = missingVariables(document.blocks, values).filter((name) => name !== 'document.number');
-  return { blocks: fillBlocks(document.blocks, values), missing: describeMissing(missing, document) };
+  // Until the first send there is no number; the draft says so rather than showing a dash.
+  const shown = { ...values, 'document.number': values['document.number'] ?? '(numbered when sent)' };
+  return { blocks: fillBlocks(document.blocks, shown), missing: describeMissing(missing, document) };
 }
 
 /** Refuses to send a document that would print a dash where a detail was promised. */

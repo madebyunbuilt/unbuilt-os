@@ -82,6 +82,13 @@ describe('creating a document', () => {
 
     const document = await as.query(api.documents.get, { documentId });
     expect(document?.title).toBe('Quote for Glossup');
+    // The number comes with the first send; until then the draft says so instead of printing a dash.
+    await t.run((ctx) =>
+      ctx.db.patch('documents', documentId, { blocks: [{ kind: 'heading', text: 'Quote {{document.number}}' }] }),
+    );
+    const numbered = await as.query(api.documents.get, { documentId });
+    expect(numbered?.blocks).toEqual([{ kind: 'heading', text: 'Quote (numbered when sent)' }]);
+    expect(numbered?.missing).toEqual([]);
     expect(document?.status).toBe('draft');
     expect(document?.number).toBeUndefined();
     // 1 × 10,000 + 2 × 5,000 = 20,000; VAT 7.5% on the taxable line only; WHT 5% of the net.
