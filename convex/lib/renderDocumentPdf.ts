@@ -2,7 +2,13 @@
 
 import { PDFDocument } from 'pdf-lib';
 import { createElement } from 'react';
-import { type CertificatePdfProps, type DocumentPdfPayload, type InvoicePdfPayload } from '../../pdf/types';
+import {
+  type CertificatePdfProps,
+  type CreditNotePdfPayload,
+  type DocumentPdfPayload,
+  type InvoicePdfPayload,
+  type ReceiptPdfPayload,
+} from '../../pdf/types';
 
 // Rendering runs in a Node action (07-documents-and-esign.md, PDF rendering).
 //
@@ -53,3 +59,17 @@ export async function renderInvoicePdf(payload: InvoicePdfPayload): Promise<Buff
   if (!renderToBuffer) throw new Error('The PDF renderer is not available in this runtime');
   return await renderToBuffer(createElement(template.InvoicePdf, payload));
 }
+
+async function renderWith<P extends object>(load: () => Promise<Record<string, unknown>>, name: string, props: P) {
+  const [renderer, template] = await Promise.all([import('@react-pdf/renderer'), load()]);
+  const loaded = renderer as unknown as Renderer & { default?: Renderer };
+  const renderToBuffer = loaded.renderToBuffer ?? loaded.default?.renderToBuffer;
+  if (!renderToBuffer) throw new Error('The PDF renderer is not available in this runtime');
+  return await renderToBuffer(createElement(template[name] as (props: P) => null, props));
+}
+
+export const renderReceiptPdf = (payload: ReceiptPdfPayload) =>
+  renderWith(() => import('../../pdf/receipt'), 'ReceiptPdf', payload);
+
+export const renderCreditNotePdf = (payload: CreditNotePdfPayload) =>
+  renderWith(() => import('../../pdf/credit-note'), 'CreditNotePdf', payload);

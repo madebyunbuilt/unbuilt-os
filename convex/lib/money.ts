@@ -241,3 +241,28 @@ export function formatBpsAsPercent(bps: number): string {
     .replace(/0+$/, '');
   return fraction ? `${whole}.${fraction}` : String(whole);
 }
+
+/**
+ * The VAT inside a credit note, in the invoice's own proportion (studio, 2026-09-22): crediting part of an invoice
+ * reverses net and VAT in the same share as the invoice charged them.
+ */
+export function creditNoteVatSplit(
+  amountMinor: number,
+  invoice: { vatMinor: number; totalMinor: number },
+): { netMinor: number; vatMinor: number } {
+  assertNonNegativeInteger(amountMinor, 'credit');
+  if (invoice.totalMinor === 0 || invoice.vatMinor === 0) return { netMinor: amountMinor, vatMinor: 0 };
+  const vatMinor = mulDivRoundHalfUp(amountMinor, invoice.vatMinor, invoice.totalMinor);
+  return { netMinor: amountMinor - vatMinor, vatMinor };
+}
+
+/**
+ * A credit note clears what its invoice still owes, and the rest is held as client credit (studio, 2026-09-22): a
+ * ₦50,000 credit on an invoice with ₦40,000 left applies ₦40,000 and holds ₦10,000.
+ */
+export function splitCredit(amountMinor: number, balanceMinor: number): { appliedMinor: number; heldMinor: number } {
+  assertNonNegativeInteger(amountMinor, 'credit');
+  assertNonNegativeInteger(balanceMinor, 'balance');
+  const appliedMinor = Math.min(amountMinor, balanceMinor);
+  return { appliedMinor, heldMinor: amountMinor - appliedMinor };
+}

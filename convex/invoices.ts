@@ -24,6 +24,7 @@ import {
   latestFxRate,
   lineItemValidator,
   paymentTermsFor,
+  settle,
   studioToday,
   taxDefaultsFor,
 } from './lib/invoices';
@@ -120,6 +121,8 @@ export const get = teamQuery('invoices.view')({
       voidReason: invoice.voidReason,
       voidedAt: invoice.voidedAt,
       paidAt: invoice.paidAt,
+      writtenOffMinor: invoice.writtenOffMinor,
+      writeOffReason: invoice.writeOffReason,
       noReminders: invoice.noReminders ?? false,
       createdByName: creator?.name ?? 'Former member',
     };
@@ -515,6 +518,64 @@ export const voidInvoice = teamMutation('invoices.void')({
       type: 'status_change',
       title: `${invoice.number} voided`,
       body: why,
+      actor: { kind: 'team', id: ctx.principal.member._id },
+      meta: { invoiceId },
+    });
+  },
+});
+
+// Write-offs -----------------------------------------------------------------------------------------------------------
+
+/** Gives up on what is still owed: the balance moves to bad debt, keeping every payment already made. */
+export const writeOff = teamMutation('invoices.writeoff')({
+  args: { invoiceId: v.id('invoices'), reason: v.string() },
+  handler: async (ctx, { invoiceId, reason }) => {
+    const invoice = await getInvoice(ctx, invoiceId);
+    if (!OPEN_STATUSES.has(invoice.status) || invoice.balanceMinor === 0) {
+      throw invoiceError('invoices.notOpen', 'Only an invoice with money still owed can be written off');
+    }
+    const why = text(reason, 'Reason', { required: true, max: 500 })!;
+    await ctx.db.patch('invoices', invoiceId, {
+      status: 'written_off',
+      writtenOffMinor: invoice.balanceMinor,
+      writeOffReason: why,
+      writtenOffAt: Date.now(),
+      balanceMinor: 0,
+    });
+    await recordActivity(ctx, {
+      subject: { table: 'clients', id: invoice.clientId },
+      clientId: invoice.clientId,
+      type: 'status_change',
+      title: `${invoice.number} written off`,
+      body: why,
+      actor: { kind: 'team', id: ctx.principal.member._id },
+      meta: { invoiceId, writtenOffMinor: invoice.balanceMinor },
+    });
+  },
+});
+
+/** Undoes a write-off, for when the client pays after all: the balance is owed again. */
+export const reverseWriteOff = teamMutation('invoices.writeoff')({
+  args: { invoiceId: v.id('invoices') },
+  handler: async (ctx, { invoiceId }) => {
+    const invoice = await getInvoice(ctx, invoiceId);
+    if (invoice.status !== 'written_off')
+      throw invoiceError('invoices.notWrittenOff', 'This invoice is not written off');
+    await ctx.db.patch('invoices', invoiceId, {
+      ...(await settle(ctx, invoice, {
+        paidMinor: invoice.paidMinor,
+        whtCreditedMinor: invoice.whtCreditedMinor,
+        creditedMinor: invoice.creditedMinor,
+      })),
+      writtenOffMinor: undefined,
+      writeOffReason: undefined,
+      writtenOffAt: undefined,
+    });
+    await recordActivity(ctx, {
+      subject: { table: 'clients', id: invoice.clientId },
+      clientId: invoice.clientId,
+      type: 'status_change',
+      title: `${invoice.number} write-off reversed`,
       actor: { kind: 'team', id: ctx.principal.member._id },
       meta: { invoiceId },
     });

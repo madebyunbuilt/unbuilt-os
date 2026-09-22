@@ -211,6 +211,27 @@ studio's behalf.
   client's VAT treatment when none is charged, and the expected WHT as a note under the total, which it never reduces.
   Its file belongs to the invoice, is client-visible, and is read by `invoices.view` holders.
 
+- **A credit note bigger than what is still owed** (because the client had already paid part) clears the balance, and
+  the rest is held as client credit: on a ₦100,000 invoice with ₦60,000 paid, a ₦50,000 credit applies ₦40,000 (the
+  invoice is paid) and holds ₦10,000. One credit note records the whole correction.
+- **Credit notes** are raised against a sent invoice (not a draft, void or written-off one) by lines, priced at the
+  invoice's VAT rate, or by one amount including VAT. The total credited on an invoice never exceeds its total. Each
+  gets its PDF and is emailed to the billing contacts unless unticked.
+- **Held credit** is applied to another open invoice of the same client in the same currency by `payments.record`
+  holders, never more than it or the invoice's balance, or refunded (`payments.refund`) without touching any invoice.
+- **Payments** are recorded against a sent, opened, partly paid or overdue invoice, dated today or earlier, with any
+  WHT withheld; payment + WHT above the balance is refused. Each one numbers a receipt in the same transaction; its PDF
+  is emailed to the billing contacts unless "Email the receipt" was unticked. A failed PDF or email leaves the money
+  recorded and tells whoever recorded it.
+- **A refund of a payment** reopens the invoice's balance by the same amount.
+- **WHT credits** start expected, move to certificate received (with the number and file), or can be flagged
+  disputed. A disputed deduction can be **reversed**: it goes back onto the invoice as owed, reopening it, with the
+  reason kept (studio, 2026-09-22).
+- **Write-off** moves the remaining balance to bad debt with a reason, keeping every payment; money cannot be recorded
+  on it until the write-off is reversed, which makes the balance owed again.
+- **The invoice's status** after any of these comes from one rule: balance 0 is paid, part settled is partly paid,
+  otherwise overdue, opened or sent.
+
 ## Acceptance criteria
 
 - Totals match a table of fixture cases covering discount (percent and fixed), VAT on and off, WHT on and off, multiple

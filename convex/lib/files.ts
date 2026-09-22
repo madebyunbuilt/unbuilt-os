@@ -199,6 +199,12 @@ export const FILE_ACCESS: Partial<Record<TableNames, FileAccessRule>> = {
   signatureRequests: { team: (_ctx, principal) => principal.permissions.has('documents.view') },
   // An invoice's PDF follows invoices.view; the client reads it in the portal through the shared client-visible rule.
   invoices: { team: (_ctx, principal) => principal.permissions.has('invoices.view'), portal: () => true },
+  // Receipts and credit notes are the client's to read, like the invoice; proof of payment and WHT certificates are the
+  // team's only.
+  receipts: { team: (_ctx, principal) => principal.permissions.has('invoices.view'), portal: () => true },
+  creditNotes: { team: (_ctx, principal) => principal.permissions.has('invoices.view'), portal: () => true },
+  payments: { team: (_ctx, principal) => principal.permissions.has('invoices.view') },
+  whtCredits: { team: (_ctx, principal) => principal.permissions.has('invoices.view') },
   // Deliverable versions follow project scope. The portal rule arrives with the client portal.
   deliverables: {
     team: async (ctx, principal, file) => {

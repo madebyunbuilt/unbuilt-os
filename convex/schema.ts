@@ -991,12 +991,157 @@ export default defineSchema({
     voidReason: v.optional(v.string()),
     voidedAt: v.optional(v.number()),
     writtenOffAt: v.optional(v.number()),
+    // The balance written off as bad debt, and why; restored if the write-off is reversed.
+    writtenOffMinor: v.optional(v.number()),
+    writeOffReason: v.optional(v.string()),
     createdByMemberId: v.id('teamMembers'),
   })
     .index('by_client_status', ['clientId', 'status'])
     .index('by_status_due', ['status', 'dueDate'])
     .index('by_project', ['projectId'])
     .searchIndex('search_number', { searchField: 'number' }),
+
+  // Money received against an invoice. Manual for now; Paystack payments arrive with step 8.
+  payments: defineTable({
+    invoiceId: v.id('invoices'),
+    clientId: v.id('clients'),
+    amountMinor: v.number(),
+    currency,
+    method: v.union(v.literal('paystack'), v.literal('bank_transfer'), v.literal('cash'), v.literal('other')),
+    status: v.union(
+      v.literal('pending'),
+      v.literal('succeeded'),
+      v.literal('failed'),
+      v.literal('refunded'),
+      v.literal('partially_refunded'),
+    ),
+    // The studio's date the money arrived.
+    receivedOn: v.string(),
+    reference: v.optional(v.string()),
+    paystackTransactionId: v.optional(v.string()),
+    feesMinor: v.optional(v.number()),
+    refundedMinor: v.number(),
+    proofFileId: v.optional(v.id('files')),
+    recordedByMemberId: v.optional(v.id('teamMembers')),
+    receiptId: v.optional(v.id('receipts')),
+    notes: v.optional(v.string()),
+  })
+    .index('by_invoice', ['invoiceId'])
+    .index('by_reference', ['reference'])
+    .index('by_client', ['clientId']),
+
+  // Tax a client withheld from a payment and pays to the tax authority on the studio's behalf. It settles the invoice
+  // like money; the certificate proving it is chased until it arrives.
+  whtCredits: defineTable({
+    invoiceId: v.id('invoices'),
+    clientId: v.id('clients'),
+    paymentId: v.optional(v.id('payments')),
+    amountMinor: v.number(),
+    currency,
+    status: v.union(
+      v.literal('expected'),
+      v.literal('certificate_received'),
+      v.literal('disputed'),
+      v.literal('reversed'),
+    ),
+    certificateFileId: v.optional(v.id('files')),
+    certificateNumber: v.optional(v.string()),
+    receivedAt: v.optional(v.number()),
+    disputeNote: v.optional(v.string()),
+    reversedReason: v.optional(v.string()),
+    reversedAt: v.optional(v.number()),
+  })
+    .index('by_status', ['status'])
+    .index('by_invoice', ['invoiceId'])
+    .index('by_client', ['clientId']),
+
+  receipts: defineTable({
+    number: v.string(),
+    paymentId: v.id('payments'),
+    invoiceId: v.id('invoices'),
+    clientId: v.id('clients'),
+    pdfFileId: v.optional(v.id('files')),
+    pdfSha256: v.optional(v.string()),
+    sentAt: v.optional(v.number()),
+    // Unticked when the payment was recorded: the PDF is made, but nobody is emailed.
+    emailed: v.boolean(),
+  })
+    .index('by_payment', ['paymentId'])
+    .index('by_invoice', ['invoiceId']),
+
+  // A correction to what an invoice charged. Its amount includes VAT in the invoice's own proportion (studio,
+  // 2026-09-22). The part that fits the invoice's balance is applied to it; the rest is held as client credit.
+  creditNotes: defineTable({
+    number: v.string(),
+    invoiceId: v.id('invoices'),
+    clientId: v.id('clients'),
+    currency,
+    issueDate: v.string(),
+    reason: v.string(),
+    lineItems: v.array(
+      v.object({
+        description: v.string(),
+        quantityMilli: v.number(),
+        unitPriceMinor: v.number(),
+        amountMinor: v.number(),
+      }),
+    ),
+    netMinor: v.number(),
+    vatMinor: v.number(),
+    amountMinor: v.number(),
+    appliedToInvoiceMinor: v.number(),
+    heldMinor: v.number(),
+    status: v.union(v.literal('issued'), v.literal('applied'), v.literal('refunded')),
+    fxRateToNgnMicro: v.number(),
+    pdfFileId: v.optional(v.id('files')),
+    pdfSha256: v.optional(v.string()),
+    sentAt: v.optional(v.number()),
+    createdByMemberId: v.id('teamMembers'),
+  })
+    .index('by_invoice', ['invoiceId'])
+    .index('by_client', ['clientId']),
+
+  // Credit held for a client, from a credit note bigger than what its invoice still owed. Applied to a later invoice in
+  // the same currency by hand, or refunded (studio, 2026-09-22).
+  clientCredits: defineTable({
+    clientId: v.id('clients'),
+    currency,
+    creditNoteId: v.id('creditNotes'),
+    amountMinor: v.number(),
+    remainingMinor: v.number(),
+  })
+    .index('by_client', ['clientId'])
+    .index('by_credit_note', ['creditNoteId']),
+
+  // Where held credit went: each application to an invoice, kept for the statement and the audit trail.
+  creditApplications: defineTable({
+    clientCreditId: v.id('clientCredits'),
+    invoiceId: v.id('invoices'),
+    clientId: v.id('clients'),
+    amountMinor: v.number(),
+    appliedByMemberId: v.id('teamMembers'),
+    appliedAt: v.number(),
+  })
+    .index('by_invoice', ['invoiceId'])
+    .index('by_credit', ['clientCreditId']),
+
+  // Money given back: against a payment (which reopens its invoice's balance) or from held credit (which does not).
+  refunds: defineTable({
+    paymentId: v.optional(v.id('payments')),
+    clientCreditId: v.optional(v.id('clientCredits')),
+    clientId: v.id('clients'),
+    amountMinor: v.number(),
+    currency,
+    reason: v.string(),
+    method: v.union(v.literal('paystack'), v.literal('bank_transfer'), v.literal('cash'), v.literal('other')),
+    reference: v.optional(v.string()),
+    paystackRefundId: v.optional(v.string()),
+    status: v.union(v.literal('pending'), v.literal('processed'), v.literal('failed')),
+    processedAt: v.optional(v.number()),
+    recordedByMemberId: v.id('teamMembers'),
+  })
+    .index('by_payment', ['paymentId'])
+    .index('by_client', ['clientId']),
 
   // Manual rates (08-billing-and-finance.md, Foreign exchange): NGN per one unit, × 1,000,000, by day.
   fxRates: defineTable({
