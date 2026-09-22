@@ -215,6 +215,8 @@ export const get = teamQuery(null)({
       templateId: document.templateId,
       templateVersion: document.templateVersion,
       paymentScheduleSummary: document.paymentScheduleSummary,
+      // A signing request is under way, so a new version cannot be sent until it is cancelled.
+      signingOpen: await hasOpenRequest(ctx, document._id),
       createdByName: (await ctx.db.get('teamMembers', document.createdByMemberId))?.name ?? 'Former member',
       chain: inChain
         .map((row) => ({

@@ -610,3 +610,28 @@ describe('who can do what', () => {
     expect(JSON.stringify(audit)).not.toContain((await signer(requestId, 'c1')).codeHash!);
   });
 });
+
+describe('what the document page reads', () => {
+  it('lists who may countersign to documents.send holders, and marks the viewer’s own countersignature', async () => {
+    const { as, memberId } = await owner();
+    const admin = await createTeamMember(t, roles.admin, { email: 'admin@unbuilt.studio', name: 'Bola Admin' });
+    await createTeamMember(t, roles.project_manager, { email: 'pm@unbuilt.studio', name: 'Pat PM' });
+
+    const names = (await as.query(api.signatures.countersigners, {})).map((member) => member.name);
+    expect(names).toEqual(['Bola Admin', 'Kemi Bello']);
+    const finance = await createTeamMember(t, roles.finance, { email: 'finance@unbuilt.studio' });
+    await expectCode(finance.as.query(api.signatures.countersigners, {}), 'auth.forbidden');
+
+    const documentId = await sentContract(memberId, as);
+    await as.mutation(api.signatures.createRequest, {
+      documentId,
+      contactIds: [adaId],
+      countersignerMemberId: memberId,
+    });
+    const mine = (await as.query(api.signatures.listForDocument, { documentId }))[0].signers;
+    expect(mine.map((signer) => signer.isViewer)).toEqual([false, true]);
+    const theirs = (await admin.as.query(api.signatures.listForDocument, { documentId }))[0].signers;
+    expect(theirs.map((signer) => signer.isViewer)).toEqual([false, false]);
+    expect((await as.query(api.documents.get, { documentId }))?.signingOpen).toBe(true);
+  });
+});

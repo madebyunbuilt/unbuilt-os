@@ -247,6 +247,21 @@ confirmed the process; templates carry their own approval. See `18-open-question
 - **Settings → Clauses** (`templates.documents.manage`): clauses grouped by category; add one, reword it (which makes
   the next version), retire or bring it back. A clause an active template uses cannot be retired, and the page says
   which templates are holding it.
+- **Signatures** on the document page, for every type but quotes and proposals once it has been sent: the current
+  request with each signer's status (waiting, invited, signed, declined, locked), when they opened and signed, and any
+  reason given; earlier requests folded away below.
+  - `documents.send`: "Send for signature" (client contacts, the primary ticked; a countersigner from the members who
+    may countersign; the order; how many days it stays open), off while details are missing. Send a signer a new link,
+    which is also how a locked link is unlocked. Cancel the request with a reason. Run completion again after a failure.
+    While a request is open, "Send the next version" is not offered.
+  - `documents.countersign`: "Countersign" appears only to the member named on the request, once it is their turn: a
+    typed name and the consent statement.
+  - Anyone who can read it: download the signed PDF, see its fingerprint, and Verify, with the last result shown.
+- **`/sign/[token]`**, on either host without a session: the document in full with its PDF, then "Email me a code" and
+  the six boxes; a wrong code says how many tries are left, and the lock says to ask the studio. Then type a name or
+  draw a signature, tick the consent statement, and Sign; or decline with a reason. A link whose request has closed, or
+  whose signer has signed, is locked or not yet due, says so in plain words and shows no document. The page sends no
+  referrer and is not indexed, since the token is in its address.
 - The client page's and the project's **Documents** tabs list that client's or project's documents, and can start one
   already pointed at them.
 

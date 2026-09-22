@@ -1,6 +1,6 @@
 import { ConvexError } from 'convex/values';
 import { type Doc, type Id } from '../_generated/dataModel';
-import { type MutationCtx } from '../_generated/server';
+import { type MutationCtx, type QueryCtx } from '../_generated/server';
 
 // E-signature rules (07-documents-and-esign.md, E-signatures; decisions of 2026-09-22). The code limits and the
 // studio countersigning inside the app were chosen by the studio; the consent text is versioned so each signature
@@ -96,7 +96,7 @@ export function assertCanAct(request: Doc<'signatureRequests'>, signer: Signer, 
 }
 
 /** A document has a request still being signed. */
-export async function hasOpenRequest(ctx: { db: MutationCtx['db'] }, documentId: Id<'documents'>) {
+export async function hasOpenRequest(ctx: { db: QueryCtx['db'] }, documentId: Id<'documents'>) {
   const requests = await ctx.db
     .query('signatureRequests')
     .withIndex('by_document', (q) => q.eq('documentId', documentId))

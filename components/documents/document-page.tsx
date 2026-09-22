@@ -9,6 +9,7 @@ import { DocumentBlocks } from '@/components/documents/document-blocks';
 import { DecisionDialog, DownloadPdfButton, SendDialog, VoidDialog } from '@/components/documents/document-actions';
 import { DocumentDraftEditor } from '@/components/documents/document-draft-editor';
 import { DocumentFormDialog } from '@/components/documents/document-form-dialog';
+import { SignaturesPanel } from '@/components/documents/signatures-panel';
 import { ToneBadge } from '@/components/team/status-badge';
 import { Button } from '@/components/ui/button';
 import { api } from '@/convex/_generated/api';
@@ -38,7 +39,8 @@ export function DocumentPage({ documentId, permissions }: { documentId: Id<'docu
   const isDraft = status === 'draft';
   const withClient = status === 'sent' || status === 'viewed';
   // Out with the client and still open to a corrected version: sending moves the signed types straight to waiting.
-  const resendable = withClient || status === 'expired' || status === 'awaiting_signature';
+  // A signing request under way holds the version still: it is cancelled first, then a new one can go.
+  const resendable = (withClient || status === 'expired' || status === 'awaiting_signature') && !document.signingOpen;
   const next = NEXT_IN_CHAIN[document.type as DocumentType] ?? [];
 
   return (
@@ -140,6 +142,8 @@ export function DocumentPage({ documentId, permissions }: { documentId: Id<'docu
           currency={document.currency ?? 'NGN'}
         />
       )}
+
+      <SignaturesPanel document={document} permissions={permissions} />
 
       <div className="grid gap-6 lg:grid-cols-2">
         <section className="space-y-3">

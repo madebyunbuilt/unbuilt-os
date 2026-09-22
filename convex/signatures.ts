@@ -10,7 +10,7 @@ import { getDocument, recordClientViewOf, TYPE_LABELS, visibleDocument } from '.
 import { consumeRateLimit } from './lib/enquiries';
 import { recordUpload } from './lib/files';
 import { internalMutation, internalQuery, teamMutation, teamQuery } from './lib/functions';
-import { notifyTeamMembers } from './lib/notify';
+import { activeMembersWith, notifyTeamMembers } from './lib/notify';
 import { getOrgSettings } from './lib/settings';
 import { isOwner } from './lib/team';
 import {
@@ -58,9 +58,10 @@ const unsignedStatus = (document: Doc<'documents'>) =>
 const studioNameOf = (settings: { legalName?: string; tradingName?: string }) =>
   settings.tradingName ?? settings.legalName ?? 'Unbuilt Studio';
 
-function requestView(request: Request) {
+function requestView(request: Request, viewerId: Id<'teamMembers'>) {
   return {
     id: request._id,
+    createdAt: request._creationTime,
     documentId: request.documentId,
     documentVersion: request.documentVersion,
     pdfSha256: request.pdfSha256,
@@ -69,6 +70,9 @@ function requestView(request: Request) {
     expiresAt: request.expiresAt,
     completedAt: request.completedAt,
     finalPdfFileId: request.finalPdfFileId,
+    finalPdfSha256: request.finalPdfSha256,
+    completionError: request.completionError,
+    lastVerification: request.lastVerification,
     signers: request.signers.map((signer) => ({
       id: signer.id,
       name: signer.name,
@@ -82,6 +86,8 @@ function requestView(request: Request) {
       signedAt: signer.signedAt,
       declinedAt: signer.declinedAt,
       declineReason: signer.declineReason,
+      // So the page can offer the countersignature to the one member it belongs to.
+      isViewer: signer.memberId === viewerId,
     })),
   };
 }
@@ -94,7 +100,22 @@ export const listForDocument = teamQuery(null)({
       .query('signatureRequests')
       .withIndex('by_document', (q) => q.eq('documentId', documentId))
       .collect();
-    return requests.map(requestView).sort((a, b) => b.expiresAt - a.expiresAt);
+    return requests
+      .map((request) => requestView(request, ctx.principal.member._id))
+      .sort((a, b) => b.createdAt - a.createdAt);
+  },
+});
+
+/** Who may be chosen to countersign: active members whose role holds documents.countersign. */
+export const countersigners = teamQuery('documents.send')({
+  args: {},
+  handler: async (ctx) => {
+    const ids = await activeMembersWith(ctx, 'documents.countersign');
+    const members = await Promise.all(ids.map((id) => ctx.db.get('teamMembers', id)));
+    return members
+      .filter((member) => member !== null)
+      .map((member) => ({ id: member._id, name: member.name, email: member.email }))
+      .sort((a, b) => a.name.localeCompare(b.name));
   },
 });
 

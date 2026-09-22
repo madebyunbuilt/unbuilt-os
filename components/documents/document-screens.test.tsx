@@ -30,10 +30,9 @@ vi.mock('@/convex/_generated/api', () => {
   const functions = (name: string) => new Proxy({}, { get: (_, fn: string) => ({ _name: `${name}.${fn}` }) });
   return {
     api: Object.fromEntries(
-      ['documents', 'documentTemplates', 'clients', 'contacts', 'rateCard', 'files'].map((name) => [
-        name,
-        functions(name),
-      ]),
+      ['documents', 'documentTemplates', 'clients', 'contacts', 'rateCard', 'files', 'signatures', 'team'].map(
+        (name) => [name, functions(name)],
+      ),
     ),
   };
 });
@@ -368,5 +367,144 @@ describe('DocumentPage', () => {
     render(<DocumentPage documentId={'d1' as never} permissions={FULL} />);
     expect(screen.queryByRole('button', { name: 'Void' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Edit the draft' })).not.toBeInTheDocument();
+  });
+});
+
+describe('SignaturesPanel', () => {
+  const nda = (overrides: object = {}) =>
+    document({ type: 'nda', typeLabel: 'Non-disclosure agreement', status: 'awaiting_signature', ...overrides });
+
+  const request = (overrides: object = {}) => ({
+    id: 'r1',
+    createdAt: Date.parse('2026-09-22T09:00:00Z'),
+    documentId: 'd1',
+    documentVersion: 1,
+    pdfSha256: 'a'.repeat(64),
+    order: 'sequential',
+    status: 'pending',
+    expiresAt: Date.parse('2026-10-06T09:00:00Z'),
+    signers: [
+      {
+        id: 'c1',
+        name: 'Ada Obi',
+        email: 'ada@glossup.com',
+        kind: 'client_contact',
+        order: 0,
+        status: 'locked',
+        isViewer: false,
+      },
+      {
+        id: 's1',
+        name: 'Kemi Bello',
+        email: 'kemi@unbuilt.studio',
+        kind: 'team_member',
+        memberId: 'm1',
+        order: 1,
+        status: 'invited',
+        isViewer: true,
+      },
+    ],
+    ...overrides,
+  });
+
+  it('sets up a request with the primary contact ticked, a countersigner and the order', async () => {
+    state.queries['documents.get'] = nda();
+    state.queries['signatures.listForDocument'] = [];
+    state.queries['signatures.countersigners'] = [{ id: 'm1', name: 'Kemi Bello', email: 'kemi@unbuilt.studio' }];
+    render(<DocumentPage documentId={'d1' as never} permissions={FULL} />);
+
+    expect(screen.getByText('Nobody has been asked to sign this yet.')).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Send for signature' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Send for signature' });
+    await userEvent.selectOptions(within(dialog).getByLabelText('Countersigned by the studio'), 'm1');
+    await userEvent.selectOptions(within(dialog).getByLabelText('Order'), 'parallel');
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Send the links' }));
+
+    await waitFor(() =>
+      expect(state.mutations['signatures.createRequest']).toHaveBeenCalledWith({
+        documentId: 'd1',
+        contactIds: ['ct1'],
+        countersignerMemberId: 'm1',
+        order: 'parallel',
+        expiresInDays: 14,
+      }),
+    );
+  });
+
+  it('follows each signer, unlocks a locked link, and offers the countersignature only to its member', async () => {
+    state.queries['documents.get'] = nda({ signingOpen: true });
+    state.queries['signatures.listForDocument'] = [request()];
+    render(<DocumentPage documentId={'d1' as never} permissions={[...FULL, 'documents.countersign']} />);
+
+    expect(screen.getByText('Locked: too many wrong codes')).toBeInTheDocument();
+    // A new version cannot go out while signing is under way, and no second request can start.
+    expect(screen.queryByRole('button', { name: 'Send the next version' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Send for signature' })).not.toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole('button', { name: 'Unlock with a new link' }));
+    await userEvent.click(await screen.findByRole('button', { name: 'Send it' }));
+    await waitFor(() =>
+      expect(state.mutations['signatures.resendLink']).toHaveBeenCalledWith({ requestId: 'r1', signerId: 'c1' }),
+    );
+
+    expect(screen.getByRole('button', { name: 'Countersign' })).toBeInTheDocument();
+  });
+
+  it('keeps the countersignature from anyone else, and the controls from a reader', () => {
+    state.queries['documents.get'] = nda({ signingOpen: true });
+    state.queries['signatures.listForDocument'] = [
+      request({ signers: request().signers.map((signer) => ({ ...signer, isViewer: false })) }),
+    ];
+    render(<DocumentPage documentId={'d1' as never} permissions={READER} />);
+    expect(screen.queryByRole('button', { name: 'Countersign' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /new link/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Cancel the request' })).not.toBeInTheDocument();
+  });
+
+  it('countersigns with a typed name and consent', async () => {
+    state.queries['documents.get'] = nda({ signingOpen: true });
+    state.queries['signatures.listForDocument'] = [request()];
+    state.queries['team.me'] = { name: 'Kemi Bello' };
+    render(<DocumentPage documentId={'d1' as never} permissions={[...FULL, 'documents.countersign']} />);
+
+    await userEvent.click(screen.getByRole('button', { name: 'Countersign' }));
+    const dialog = await screen.findByRole('alertdialog');
+    const sign = within(dialog).getByRole('button', { name: 'Sign' });
+    expect(sign).toBeDisabled();
+    await userEvent.click(within(dialog).getByLabelText(/legal equivalent of my handwritten signature/));
+    await userEvent.click(sign);
+    await waitFor(() =>
+      expect(state.mutations['signatures.countersign']).toHaveBeenCalledWith({
+        requestId: 'r1',
+        typedName: 'Kemi Bello',
+        consent: true,
+      }),
+    );
+  });
+
+  it('offers the signed PDF and the tamper check once everyone has signed', async () => {
+    state.queries['documents.get'] = nda({ status: 'signed' });
+    state.queries['signatures.listForDocument'] = [
+      request({
+        status: 'completed',
+        completedAt: Date.parse('2026-09-23T10:00:00Z'),
+        finalPdfFileId: 'f9',
+        finalPdfSha256: 'b'.repeat(64),
+        lastVerification: { checkedAt: Date.parse('2026-09-24T10:00:00Z'), ok: true, byMemberId: 'm1' },
+        signers: request().signers.map((signer) => ({ ...signer, status: 'signed', isViewer: false })),
+      }),
+    ];
+    render(<DocumentPage documentId={'d1' as never} permissions={FULL} />);
+
+    expect(screen.getByRole('button', { name: /Download the signed PDF/ })).toBeInTheDocument();
+    expect(screen.getByText(/the stored files are unchanged/)).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Verify' }));
+    await waitFor(() => expect(state.mutations['signatures.verify']).toHaveBeenCalledWith({ requestId: 'r1' }));
+  });
+
+  it('is not shown on a quote, which is accepted rather than signed', () => {
+    state.queries['signatures.listForDocument'] = [];
+    render(<DocumentPage documentId={'d1' as never} permissions={FULL} />);
+    expect(screen.queryByRole('heading', { name: 'Signatures' })).not.toBeInTheDocument();
   });
 });
