@@ -20,7 +20,7 @@ import { NativeSelect } from '@/components/ui/native-select';
 import { Textarea } from '@/components/ui/textarea';
 import { api } from '@/convex/_generated/api';
 import { type Id } from '@/convex/_generated/dataModel';
-import { type Currency, formatMoney, parseMoneyInput, whtExpectedOnBalance } from '@/convex/lib/money';
+import { type Currency, formatMoney, parseMoneyInput, whtExpectedOnBalance, whtForPayment } from '@/convex/lib/money';
 import { errorMessage } from '@/lib/convex-error';
 import { toAmountInput } from '@/lib/crm-display';
 import { lagosToday, PAYMENT_METHODS, type PaymentMethod } from '@/lib/invoices-display';
@@ -202,6 +202,19 @@ export function RecordPaymentDialog({ invoice }: { invoice: Invoice }) {
   const whtDefault = expectsWht ? whtExpectedOnBalance(invoice.totals, invoice.balanceMinor) : 0;
   const [amount, setAmount] = useState(toAmountInput(invoice.balanceMinor - whtDefault));
   const [wht, setWht] = useState(whtDefault ? toAmountInput(whtDefault) : '');
+  // The WHT follows the amount, in the invoice's proportion, until the person types their own figure.
+  const [whtTyped, setWhtTyped] = useState(false);
+  const followAmount = (value: string) => {
+    setAmount(value);
+    if (whtTyped || !invoice.wht.applies) return;
+    try {
+      const cash = parseMoneyInput(value || '0', invoice.currency);
+      const withheld = whtForPayment(cash, invoice.totals, invoice.balanceMinor);
+      setWht(withheld ? toAmountInput(withheld) : '');
+    } catch {
+      // Half-typed amounts leave the WHT as it was.
+    }
+  };
   const [receivedOn, setReceivedOn] = useState(lagosToday());
   const [method, setMethod] = useState<PaymentMethod>('bank_transfer');
   const [reference, setReference] = useState('');
@@ -230,16 +243,23 @@ export function RecordPaymentDialog({ invoice }: { invoice: Invoice }) {
         id="payment-amount"
         label="Amount received"
         value={amount}
-        onChange={setAmount}
+        onChange={followAmount}
         currency={invoice.currency}
       />
       <MoneyField
         id="payment-wht"
         label="WHT the client withheld"
         value={wht}
-        onChange={setWht}
+        onChange={(value) => {
+          setWhtTyped(true);
+          setWht(value);
+        }}
         currency={invoice.currency}
-        hint="Leave empty if they paid in full."
+        hint={
+          invoice.wht.applies
+            ? 'Worked out from the amount; change it to match the client’s remittance advice. Leave empty if they paid in full.'
+            : 'Leave empty if they paid in full.'
+        }
       />
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="space-y-2">

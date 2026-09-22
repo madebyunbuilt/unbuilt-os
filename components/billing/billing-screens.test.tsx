@@ -207,6 +207,31 @@ describe('InvoicePage', () => {
     expect(within(dialog).getByLabelText('WHT the client withheld (NGN)')).toHaveValue('5000');
   });
 
+  it('works the WHT out from the amount until a figure is typed into it', async () => {
+    state.queries['invoices.get'] = invoice({
+      status: 'sent',
+      totals: { ...totals, totalMinor: 21_500_000, vatMinor: 1_500_000, whtExpectedMinor: 600_000 },
+      paidMinor: 0,
+      creditedMinor: 11_600_000,
+      balanceMinor: 9_900_000,
+    });
+    render(<InvoicePage invoiceId={'i1' as never} permissions={FINANCE} />);
+    await userEvent.click(screen.getByRole('button', { name: 'Record a payment' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Record a payment' });
+    const amount = within(dialog).getByLabelText('Amount received (NGN)');
+    const wht = within(dialog).getByLabelText('WHT the client withheld (NGN)');
+    expect(amount).toHaveValue('96237.21');
+    expect(wht).toHaveValue('2762.79');
+    await userEvent.clear(amount);
+    await userEvent.type(amount, '10000');
+    expect(wht).toHaveValue('287.08');
+    await userEvent.clear(wht);
+    await userEvent.type(wht, '300');
+    await userEvent.clear(amount);
+    await userEvent.type(amount, '20000');
+    expect(wht).toHaveValue('300');
+  });
+
   it('issues a credit note and says what will be held when it exceeds the balance', async () => {
     render(<InvoicePage invoiceId={'i1' as never} permissions={FINANCE} />);
     await userEvent.click(screen.getByRole('button', { name: 'Issue a credit note' }));

@@ -234,6 +234,9 @@ studio's behalf.
   so they never make it partly paid, and one settled entirely by credit is shown as "Credited in full".
 - **Expected WHT after a credit** is scaled to what is still owed (`money.whtExpectedOnBalance`): the invoice keeps the
   figure it was sent with, and the page and the payment form use the scaled one.
+- **The WHT box on a payment follows the amount** received, in the invoice's proportion (`money.whtForPayment`: ₦10,000
+  received on an invoice expecting ₦6,000 WHT on ₦215,000 comes with ₦287.08), never taking the two past what is owed,
+  until a figure is typed into it; the client's remittance advice is the authority.
 
 - **Overdue**: past its due date with money still owed is overdue, whether or not part was paid (studio, 2026-09-22).
   The daily run at 09:00 Lagos marks it; a payment that leaves money owed keeps it overdue.
