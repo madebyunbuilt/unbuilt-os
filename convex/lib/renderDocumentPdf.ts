@@ -2,7 +2,7 @@
 
 import { PDFDocument } from 'pdf-lib';
 import { createElement } from 'react';
-import { type CertificatePdfProps, type DocumentPdfPayload } from '../../pdf/types';
+import { type CertificatePdfProps, type DocumentPdfPayload, type InvoicePdfPayload } from '../../pdf/types';
 
 // Rendering runs in a Node action (07-documents-and-esign.md, PDF rendering).
 //
@@ -43,4 +43,13 @@ export async function appendPdf(original: Uint8Array, appended: Uint8Array): Pro
   const pages = await signed.copyPages(extra, extra.getPageIndices());
   for (const page of pages) signed.addPage(page);
   return await signed.save({ updateFieldAppearances: false });
+}
+
+/** An invoice as PDF bytes, rendered the same way; the same payload always gives the same bytes. */
+export async function renderInvoicePdf(payload: InvoicePdfPayload): Promise<Buffer> {
+  const [renderer, template] = await Promise.all([import('@react-pdf/renderer'), import('../../pdf/invoice')]);
+  const loaded = renderer as unknown as Renderer & { default?: Renderer };
+  const renderToBuffer = loaded.renderToBuffer ?? loaded.default?.renderToBuffer;
+  if (!renderToBuffer) throw new Error('The PDF renderer is not available in this runtime');
+  return await renderToBuffer(createElement(template.InvoicePdf, payload));
 }

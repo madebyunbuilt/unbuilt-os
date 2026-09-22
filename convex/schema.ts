@@ -877,4 +877,112 @@ export default defineSchema({
     signedAt: v.number(),
     documentSha256: v.string(),
   }).index('by_request', ['signatureRequestId']),
+
+  // Billing (08-billing-and-finance.md). Every amount is integer minor units in the invoice's currency; totals come only
+  // from convex/lib/money.ts. A sent invoice is immutable: corrections are credit notes, or a void while nothing is paid.
+  invoices: defineTable({
+    number: v.optional(v.string()),
+    clientId: v.id('clients'),
+    projectId: v.optional(v.id('projects')),
+    contractDocumentId: v.optional(v.id('documents')),
+    type: v.union(
+      v.literal('standard'),
+      v.literal('deposit'),
+      v.literal('milestone'),
+      v.literal('retainer'),
+      v.literal('time_and_materials'),
+      v.literal('renewal'),
+      v.literal('late_fee'),
+      v.literal('change_request'),
+    ),
+    status: v.union(
+      v.literal('draft'),
+      v.literal('scheduled'),
+      v.literal('sent'),
+      v.literal('viewed'),
+      v.literal('partially_paid'),
+      v.literal('paid'),
+      v.literal('overdue'),
+      v.literal('void'),
+      v.literal('written_off'),
+    ),
+    // Set when it is sent: the studio's date that day, and that date plus the payment terms.
+    issueDate: v.optional(v.string()),
+    dueDate: v.optional(v.string()),
+    paymentTermsDays: v.number(),
+    currency,
+    // NGN per one unit of the currency, × 1,000,000. Taken from the latest rate until sent, then frozen.
+    fxRateToNgnMicro: v.number(),
+    // A rate typed on this invoice rather than taken from the rates table; kept at send instead of refreshed.
+    fxRateOverridden: v.optional(v.boolean()),
+    lineItems: v.array(
+      v.object({
+        description: v.string(),
+        quantityMilli: v.number(),
+        unitPriceMinor: v.number(),
+        amountMinor: v.number(),
+        rateCardItemId: v.optional(v.id('rateCardItems')),
+        timeEntryIds: v.optional(v.array(v.id('timeEntries'))),
+        taxable: v.boolean(),
+      }),
+    ),
+    discount: v.object({
+      kind: v.union(v.literal('none'), v.literal('percent'), v.literal('fixed')),
+      bps: v.optional(v.number()),
+      amountMinor: v.optional(v.number()),
+    }),
+    vat: v.object({ applies: v.boolean(), bps: v.number() }),
+    wht: v.object({ applies: v.boolean(), bps: v.number() }),
+    totals: v.object({
+      subtotalMinor: v.number(),
+      discountMinor: v.number(),
+      taxableMinor: v.number(),
+      vatMinor: v.number(),
+      totalMinor: v.number(),
+      whtExpectedMinor: v.number(),
+    }),
+    paidMinor: v.number(),
+    whtCreditedMinor: v.number(),
+    creditedMinor: v.number(),
+    balanceMinor: v.number(),
+    // Hash of the pay link's token, and the Paystack transaction: filled in with payments (step 8).
+    payToken: v.optional(v.string()),
+    paystack: v.optional(
+      v.object({
+        reference: v.optional(v.string()),
+        accessCode: v.optional(v.string()),
+        authorizationUrl: v.optional(v.string()),
+        linkExpiresAt: v.optional(v.number()),
+      }),
+    ),
+    reminders: v.array(v.object({ kind: v.string(), sentAt: v.number() })),
+    noReminders: v.optional(v.boolean()),
+    lateFeeParentInvoiceId: v.optional(v.id('invoices')),
+    notes: v.optional(v.string()),
+    terms: v.optional(v.string()),
+    // Who it went to on the last send.
+    recipientContactIds: v.optional(v.array(v.id('contacts'))),
+    pdfFileId: v.optional(v.id('files')),
+    pdfSha256: v.optional(v.string()),
+    sentAt: v.optional(v.number()),
+    firstViewedAt: v.optional(v.number()),
+    paidAt: v.optional(v.number()),
+    voidReason: v.optional(v.string()),
+    voidedAt: v.optional(v.number()),
+    writtenOffAt: v.optional(v.number()),
+    createdByMemberId: v.id('teamMembers'),
+  })
+    .index('by_client_status', ['clientId', 'status'])
+    .index('by_status_due', ['status', 'dueDate'])
+    .index('by_project', ['projectId'])
+    .searchIndex('search_number', { searchField: 'number' }),
+
+  // Manual rates (08-billing-and-finance.md, Foreign exchange): NGN per one unit, × 1,000,000, by day.
+  fxRates: defineTable({
+    currency: v.union(v.literal('USD'), v.literal('EUR')),
+    date: v.string(),
+    rateToNgnMicro: v.number(),
+    source: v.literal('manual'),
+    enteredByMemberId: v.id('teamMembers'),
+  }).index('by_currency_date', ['currency', 'date']),
 });

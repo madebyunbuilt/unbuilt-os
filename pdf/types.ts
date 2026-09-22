@@ -86,3 +86,45 @@ export type CertificatePdfProps = {
   /** The signatures are also drawn on the document's own signature lines, before this page. */
   signaturesInPlace?: boolean;
 };
+
+/** What the invoice PDF needs (08-billing-and-finance.md). Everything is already worked out; the PDF only lays it out. */
+export type InvoicePdfPayload = {
+  number: string;
+  typeLabel: string;
+  issueDate: string;
+  dueDate: string;
+  currency: Currency;
+  org: {
+    name: string;
+    addressLines: string[];
+    email?: string;
+    phone?: string;
+    website?: string;
+    tin?: string;
+    vatNumber?: string;
+  };
+  client: { name: string; addressLines: string[]; tin?: string };
+  lineItems: PdfLineItem[];
+  totals: PdfTotals;
+  vat: { applies: boolean; bps: number };
+  /** The client's VAT treatment, printed instead of VAT when none is charged. */
+  vatTreatment: 'standard' | 'zero_rated' | 'exempt';
+  wht: { applies: boolean; bps: number };
+  /** The studio's accounts in the invoice's currency. */
+  bankAccounts: {
+    label: string;
+    bankName: string;
+    accountName: string;
+    accountNumber: string;
+    swift?: string;
+    iban?: string;
+  }[];
+  notes?: string;
+  terms?: string;
+  footer?: string;
+  /** Watermarked across every page when the invoice is void. */
+  voided?: boolean;
+  brand: { primary: string; accent: string };
+  /** Fixed so the same invoice always renders to the same bytes. */
+  createdAtMs: number;
+};
