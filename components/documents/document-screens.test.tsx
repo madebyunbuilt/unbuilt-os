@@ -30,9 +30,18 @@ vi.mock('@/convex/_generated/api', () => {
   const functions = (name: string) => new Proxy({}, { get: (_, fn: string) => ({ _name: `${name}.${fn}` }) });
   return {
     api: Object.fromEntries(
-      ['documents', 'documentTemplates', 'clients', 'contacts', 'rateCard', 'files', 'signatures', 'team'].map(
-        (name) => [name, functions(name)],
-      ),
+      [
+        'documents',
+        'documentTemplates',
+        'clients',
+        'contacts',
+        'rateCard',
+        'files',
+        'signatures',
+        'team',
+        'deals',
+        'projects',
+      ].map((name) => [name, functions(name)]),
     ),
   };
 });
@@ -268,20 +277,72 @@ describe('DocumentPage', () => {
       currentVersion: 0,
       versions: [],
       missing: [
-        { label: 'The studio’s registered name', where: 'Settings → Organisation', href: '/settings/organisation' },
-        { label: 'The payment schedule in words', where: 'the draft’s payment schedule line' },
+        {
+          label: 'The studio’s registered name',
+          where: 'Add it in Settings → Organisation.',
+          href: '/settings/organisation',
+        },
       ],
     });
     render(<DocumentPage documentId={'d1' as never} permissions={FULL} />);
 
     const notice = screen.getByRole('status');
     expect(notice).toHaveTextContent('Fill these in before sending');
-    expect(within(notice).getByRole('link', { name: 'Settings → Organisation' })).toHaveAttribute(
-      'href',
-      '/settings/organisation',
-    );
-    expect(notice).toHaveTextContent('the draft’s payment schedule line');
+    expect(notice).toHaveTextContent('The studio’s registered name. Add it in Settings → Organisation.');
+    expect(within(notice).getByRole('link', { name: 'Go there' })).toHaveAttribute('href', '/settings/organisation');
     expect(screen.getByRole('button', { name: 'Send to the client' })).toBeDisabled();
+  });
+
+  it('puts a missing deal, project or payment schedule right from the notice', async () => {
+    state.queries['documents.get'] = document({
+      status: 'draft',
+      number: undefined,
+      currentVersion: 0,
+      versions: [],
+      missing: [
+        { label: 'The deal this came from', where: 'This document is not linked to a deal.', fix: 'linkDeal' },
+        { label: 'The project’s name', where: 'This document is not linked to a project.', fix: 'linkProject' },
+        { label: 'The payment schedule in words', where: 'Write it as it should read.', fix: 'paymentSchedule' },
+      ],
+    });
+    state.queries['deals.list'] = [{ id: 'dl1', title: 'Glossup app' }];
+    state.queries['projects.list'] = [{ id: 'p1', code: 'UNB-P-0001', name: 'Glossup app' }];
+    render(<DocumentPage documentId={'d1' as never} permissions={[...FULL, 'deals.view']} />);
+
+    await userEvent.selectOptions(screen.getByLabelText('Choose a deal'), 'dl1');
+    await userEvent.click(screen.getAllByRole('button', { name: 'Link' })[0]);
+    await waitFor(() =>
+      expect(state.mutations['documents.link']).toHaveBeenCalledWith({ documentId: 'd1', dealId: 'dl1' }),
+    );
+    expect(state.queryArgs['deals.list']).toEqual({ clientId: 'c1', status: 'all' });
+
+    await userEvent.selectOptions(screen.getByLabelText('Choose a project'), 'p1');
+    await userEvent.click(screen.getAllByRole('button', { name: 'Link' })[1]);
+    await waitFor(() =>
+      expect(state.mutations['documents.link']).toHaveBeenCalledWith({ documentId: 'd1', projectId: 'p1' }),
+    );
+
+    await userEvent.type(screen.getByLabelText('Payment schedule'), '50% on signature, 50% on completion');
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }));
+    await waitFor(() =>
+      expect(state.mutations['documents.setPaymentSchedule']).toHaveBeenCalledWith({
+        documentId: 'd1',
+        paymentScheduleSummary: '50% on signature, 50% on completion',
+      }),
+    );
+  });
+
+  it('only offers the fixes to someone who may edit the draft', () => {
+    state.queries['documents.get'] = document({
+      status: 'draft',
+      number: undefined,
+      currentVersion: 0,
+      versions: [],
+      missing: [{ label: 'The payment schedule in words', where: 'Write it.', fix: 'paymentSchedule' }],
+    });
+    render(<DocumentPage documentId={'d1' as never} permissions={READER} />);
+    expect(screen.getByRole('status')).toHaveTextContent('The payment schedule in words');
+    expect(screen.queryByLabelText('Payment schedule')).not.toBeInTheDocument();
   });
 
   it('offers a corrected version of an agreement waiting to be signed, and says what it still lacks', () => {

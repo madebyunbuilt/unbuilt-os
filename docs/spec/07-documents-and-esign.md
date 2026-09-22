@@ -175,7 +175,9 @@ confirmed the process; templates carry their own approval. See `18-open-question
 - **Nothing goes out with a blank** (studio, 2026-09-22). A document whose wording uses a variable the app has no value
   for cannot be sent: the send is refused in the mutation and again in the send action, and the document page lists
   each missing detail with where to fill it in (Settings → Organisation, the client's page, the project, the draft).
-  The Send button stays off until the list is empty. A sent document can take a corrected version while it is with the client, expired, or waiting
+  The Send button stays off until the list is empty. On a draft, whoever may edit it can put some right on the spot:
+  a missing deal or project is linked from a list of the client's own (`documents.link`), and the payment schedule is
+  written in place (`documents.setPaymentSchedule`); anything else links to the page where it is filled in. A sent document can take a corrected version while it is with the client, expired, or waiting
   to be signed, since sending moves the signed types straight to waiting. Only a draft shows a dash in place of a missing value, and only
   the number, assigned on first send, is exempt.
 - **The payment schedule** is written on the draft, as a line of words ("50% on signature, 50% on completion"), and

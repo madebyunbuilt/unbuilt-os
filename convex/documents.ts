@@ -501,6 +501,47 @@ export const update = teamMutation('documents.update')({
   },
 });
 
+/** Links a draft to a deal or project of its own client, which is what fills {{deal.*}} and {{project.*}}. */
+export const link = teamMutation('documents.update')({
+  args: {
+    documentId: v.id('documents'),
+    dealId: v.optional(v.id('deals')),
+    projectId: v.optional(v.id('projects')),
+  },
+  handler: async (ctx, { documentId, dealId, projectId }) => {
+    const document = await visibleDocument(ctx, documentId);
+    assertEditable(document);
+    if (dealId) {
+      const deal = await ctx.db.get('deals', dealId);
+      if (!deal || deal.clientId !== document.clientId) {
+        throw documentError('documents.invalid', 'That deal belongs to another client');
+      }
+    }
+    if (projectId) {
+      const project = await ctx.db.get('projects', projectId);
+      if (!project || project.clientId !== document.clientId) {
+        throw documentError('documents.invalid', 'That project belongs to another client');
+      }
+    }
+    await ctx.db.patch('documents', documentId, {
+      ...(dealId ? { dealId } : {}),
+      ...(projectId ? { projectId } : {}),
+    });
+  },
+});
+
+/** Writes a draft's payment schedule, the line {{schedule.summary}} prints, on its own. */
+export const setPaymentSchedule = teamMutation('documents.update')({
+  args: { documentId: v.id('documents'), paymentScheduleSummary: v.string() },
+  handler: async (ctx, { documentId, paymentScheduleSummary }) => {
+    const document = await visibleDocument(ctx, documentId);
+    assertEditable(document);
+    await ctx.db.patch('documents', documentId, {
+      paymentScheduleSummary: text(paymentScheduleSummary, 'Payment schedule', { required: true, max: 300 }),
+    });
+  },
+});
+
 /** Re-reads the client, project and totals into the text, for a draft edited after those changed. */
 export const refreshText = teamMutation('documents.update')({
   args: { documentId: v.id('documents') },

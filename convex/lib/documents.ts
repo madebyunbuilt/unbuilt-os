@@ -213,43 +213,58 @@ export function fillBlocks(blocks: DocumentBlock[], values: Record<string, strin
 export type MissingDetail = {
   /** What is missing, in words, such as "The studio’s registered name". */
   label: string;
-  /** Where to fill it in. */
+  /** How to put it right, in a sentence. */
   where: string;
-  /** A link to that place, when there is one. */
+  /** A page to put it right on, when there is one. */
   href?: string;
+  /** A fix the document page can offer in place: link a deal or project, or write the payment schedule. */
+  fix?: 'linkDeal' | 'linkProject' | 'paymentSchedule';
 };
 
-/**
- * Says, for each missing variable, what it is and where to put it right. Grouped by place, so the page can say
- * "the studio's registered name and address (Settings → Organisation)" rather than one line per field.
- */
+/** Says, for each missing variable, what it is and how to put it right, in the studio's own words. */
 export function describeMissing(
   names: string[],
   document: { _id: Id<'documents'>; clientId: Id<'clients'>; projectId?: Id<'projects'>; dealId?: Id<'deals'> },
 ): MissingDetail[] {
-  return names.map((name) => {
+  return names.map((name): MissingDetail => {
     const label = VARIABLES[name] ?? name;
-    if (name.startsWith('org.')) return { label, where: 'Settings → Organisation', href: '/settings/organisation' };
-    if (name.startsWith('client.'))
-      return { label, where: 'the client’s page', href: `/crm/clients/${document.clientId}` };
+    const placeholder = `{{${name}}}`;
+    if (name.startsWith('org.')) {
+      return { label, where: 'Add it in Settings → Organisation.', href: '/settings/organisation' };
+    }
+    if (name.startsWith('client.')) {
+      return { label, where: 'Add it on the client’s page.', href: `/crm/clients/${document.clientId}` };
+    }
     if (name.startsWith('contact.')) {
-      return { label, where: 'the contact, on the client’s page', href: `/crm/clients/${document.clientId}` };
+      return {
+        label,
+        where: 'Add it to the contact, on the client’s page.',
+        href: `/crm/clients/${document.clientId}`,
+      };
     }
     if (name.startsWith('project.')) {
       return document.projectId
-        ? { label, where: 'the project', href: `/projects/${document.projectId}` }
-        : { label, where: 'this document has no project: link one, or take the variable out of the wording' };
+        ? { label, where: 'Add it on the project.', href: `/projects/${document.projectId}` }
+        : {
+            label,
+            where: `This document is not linked to a project. Link one, or remove ${placeholder} from the wording.`,
+            fix: 'linkProject',
+          };
     }
     if (name.startsWith('deal.')) {
       return document.dealId
-        ? { label, where: 'the deal', href: `/crm/deals/${document.dealId}` }
-        : { label, where: 'this document has no deal: take the variable out of the wording' };
+        ? { label, where: 'Add it on the deal.', href: `/crm/deals/${document.dealId}` }
+        : {
+            label,
+            where: `This document is not linked to a deal. Link one, or remove ${placeholder} from the wording.`,
+            fix: 'linkDeal',
+          };
     }
-    if (name === 'validUntil') return { label, where: 'the draft’s valid-until date' };
+    if (name === 'validUntil') return { label, where: 'Set the date it is open until, in the draft.' };
     if (name === 'schedule.summary') {
-      return { label, where: 'the draft’s payment schedule line' };
+      return { label, where: 'Write it as it should read in the document.', fix: 'paymentSchedule' };
     }
-    return { label, where: 'the draft' };
+    return { label, where: `Edit the draft, or remove ${placeholder} from the wording.` };
   });
 }
 

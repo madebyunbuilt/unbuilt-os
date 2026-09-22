@@ -12,9 +12,12 @@ import { DocumentFormDialog } from '@/components/documents/document-form-dialog'
 import { SignaturesPanel } from '@/components/documents/signatures-panel';
 import { ToneBadge } from '@/components/team/status-badge';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { NativeSelect } from '@/components/ui/native-select';
 import { api } from '@/convex/_generated/api';
 import { type Id } from '@/convex/_generated/dataModel';
 import { type DocumentType } from '@/convex/lib/documentBlocks';
+import { errorMessage } from '@/lib/convex-error';
 import { formatDay } from '@/lib/crm-display';
 import { DOCUMENT_TYPE_LABELS, type DocumentStatus, documentStatus, NEXT_IN_CHAIN } from '@/lib/documents-display';
 
@@ -97,7 +100,13 @@ export function DocumentPage({ documentId, permissions }: { documentId: Id<'docu
           </p>
         )}
 
-        {document.missing.length > 0 && (isDraft || resendable) && <MissingDetails missing={document.missing} />}
+        {document.missing.length > 0 && (isDraft || resendable) && (
+          <MissingDetails
+            document={document}
+            canFix={isDraft && permissions.includes('documents.update')}
+            canSeeDeals={permissions.includes('deals.view')}
+          />
+        )}
 
         <div className="flex flex-wrap gap-2">
           {permissions.includes('documents.send') && isDraft && (
@@ -198,26 +207,174 @@ export function DocumentPage({ documentId, permissions }: { documentId: Id<'docu
 
 /**
  * What the wording promises but the app does not have yet. Sending is refused until each is filled in, so the client
- * never reads a dash where a name or address should be.
+ * never reads a dash where a name or address should be. Where it can, the notice puts it right on the spot: link a deal
+ * or project, or write the payment schedule.
  */
-function MissingDetails({ missing }: { missing: { label: string; where: string; href?: string }[] }) {
+function MissingDetails({
+  document,
+  canFix,
+  canSeeDeals,
+}: {
+  document: NonNullable<typeof api.documents.get._returnType>;
+  canFix: boolean;
+  canSeeDeals: boolean;
+}) {
   return (
     <div role="status" className="rounded-md bg-attention p-3 text-sm text-attention-foreground">
       <p className="font-medium">Fill these in before sending:</p>
-      <ul className="mt-1 list-disc space-y-0.5 pl-5">
-        {missing.map((detail) => (
-          <li key={`${detail.label}-${detail.where}`}>
-            {detail.label}:{' '}
-            {detail.href ? (
-              <Link href={detail.href} className="underline underline-offset-4">
-                {detail.where}
-              </Link>
-            ) : (
-              detail.where
-            )}
+      <ul className="mt-2 space-y-3">
+        {document.missing.map((detail) => (
+          <li key={`${detail.label}-${detail.where}`} className="space-y-1.5">
+            <p>
+              <span className="font-medium">{detail.label}.</span> {detail.where}{' '}
+              {detail.href && (
+                <Link href={detail.href} className="underline underline-offset-4">
+                  Go there
+                </Link>
+              )}
+            </p>
+            {canFix && detail.fix === 'linkDeal' && canSeeDeals && <LinkDeal document={document} />}
+            {canFix && detail.fix === 'linkProject' && <LinkProject document={document} />}
+            {canFix && detail.fix === 'paymentSchedule' && <PaymentScheduleFix documentId={document.id} />}
           </li>
         ))}
       </ul>
     </div>
+  );
+}
+
+type LinkedDocument = NonNullable<typeof api.documents.get._returnType>;
+
+function InlineFix({
+  label,
+  id,
+  options,
+  empty,
+  onLink,
+}: {
+  label: string;
+  id: string;
+  options: { id: string; name: string }[] | undefined;
+  empty: string;
+  onLink: (id: string) => Promise<unknown>;
+}) {
+  const [chosen, setChosen] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  if (options === undefined) return null;
+  if (options.length === 0) return <p className="text-xs">{empty}</p>;
+  return (
+    <form
+      className="flex flex-wrap items-center gap-2"
+      onSubmit={async (event) => {
+        event.preventDefault();
+        if (!chosen) return;
+        setSaving(true);
+        setError(null);
+        try {
+          await onLink(chosen);
+        } catch (caught) {
+          setError(errorMessage(caught));
+        } finally {
+          setSaving(false);
+        }
+      }}
+    >
+      <label htmlFor={id} className="sr-only">
+        {label}
+      </label>
+      <NativeSelect
+        id={id}
+        value={chosen}
+        onChange={(event) => setChosen(event.target.value)}
+        className="h-8 min-w-56 bg-background text-foreground"
+      >
+        <option value="">{label}…</option>
+        {options.map((option) => (
+          <option key={option.id} value={option.id}>
+            {option.name}
+          </option>
+        ))}
+      </NativeSelect>
+      <Button type="submit" size="sm" disabled={!chosen || saving}>
+        {saving ? 'Linking…' : 'Link'}
+      </Button>
+      {error && (
+        <p role="alert" className="w-full text-xs">
+          {error}
+        </p>
+      )}
+    </form>
+  );
+}
+
+function LinkDeal({ document }: { document: LinkedDocument }) {
+  const link = useMutation(api.documents.link);
+  const deals = useQuery(api.deals.list, { clientId: document.clientId, status: 'all' });
+  return (
+    <InlineFix
+      label="Choose a deal"
+      id="link-deal"
+      options={deals?.map((deal) => ({ id: deal.id, name: deal.title }))}
+      empty="This client has no deals to link."
+      onLink={(dealId) => link({ documentId: document.id, dealId: dealId as Id<'deals'> })}
+    />
+  );
+}
+
+function LinkProject({ document }: { document: LinkedDocument }) {
+  const link = useMutation(api.documents.link);
+  const projects = useQuery(api.projects.list, { clientId: document.clientId, status: 'all' });
+  return (
+    <InlineFix
+      label="Choose a project"
+      id="link-project"
+      options={projects?.map((project) => ({ id: project.id, name: `${project.code} · ${project.name}` }))}
+      empty="This client has no projects to link."
+      onLink={(projectId) => link({ documentId: document.id, projectId: projectId as Id<'projects'> })}
+    />
+  );
+}
+
+function PaymentScheduleFix({ documentId }: { documentId: Id<'documents'> }) {
+  const save = useMutation(api.documents.setPaymentSchedule);
+  const [value, setValue] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  return (
+    <form
+      className="flex flex-wrap items-center gap-2"
+      onSubmit={async (event) => {
+        event.preventDefault();
+        setSaving(true);
+        setError(null);
+        try {
+          await save({ documentId, paymentScheduleSummary: value });
+        } catch (caught) {
+          setError(errorMessage(caught));
+        } finally {
+          setSaving(false);
+        }
+      }}
+    >
+      <label htmlFor="fix-payment-schedule" className="sr-only">
+        Payment schedule
+      </label>
+      <Input
+        id="fix-payment-schedule"
+        value={value}
+        placeholder="50% on signature, 50% on completion"
+        onChange={(event) => setValue(event.target.value)}
+        className="h-8 min-w-72 flex-1 bg-background text-foreground"
+      />
+      <Button type="submit" size="sm" disabled={!value.trim() || saving}>
+        {saving ? 'Saving…' : 'Save'}
+      </Button>
+      {error && (
+        <p role="alert" className="w-full text-xs">
+          {error}
+        </p>
+      )}
+    </form>
   );
 }
