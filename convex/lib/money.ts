@@ -266,3 +266,22 @@ export function splitCredit(amountMinor: number, balanceMinor: number): { applie
   const appliedMinor = Math.min(amountMinor, balanceMinor);
   return { appliedMinor, heldMinor: amountMinor - appliedMinor };
 }
+
+export type Movement = { debitMinor: number; creditMinor: number };
+
+/**
+ * A statement's running balance: each line adds its debit and takes off its credit. The balance can go below zero,
+ * which means the client is in credit.
+ */
+export function runningBalances(openingMinor: number, moves: Movement[]): { balances: number[]; closingMinor: number } {
+  if (!Number.isSafeInteger(openingMinor)) throw new MoneyError('opening balance must be a whole number');
+  let balance = openingMinor;
+  const balances = moves.map((move) => {
+    assertNonNegativeInteger(move.debitMinor, 'debit');
+    assertNonNegativeInteger(move.creditMinor, 'credit');
+    balance += move.debitMinor - move.creditMinor;
+    if (!Number.isSafeInteger(balance)) throw new MoneyError('amount is too large');
+    return balance;
+  });
+  return { balances, closingMinor: balance };
+}

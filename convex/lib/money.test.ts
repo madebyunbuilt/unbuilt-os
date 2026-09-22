@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  runningBalances,
   creditNoteVatSplit,
   splitCredit,
   type Discount,
@@ -372,5 +373,16 @@ describe('credit notes (studio, 2026-09-22)', () => {
     expect(splitCredit(5_000_000, 4_000_000)).toEqual({ appliedMinor: 4_000_000, heldMinor: 1_000_000 });
     expect(splitCredit(1_000_000, 4_000_000)).toEqual({ appliedMinor: 1_000_000, heldMinor: 0 });
     expect(splitCredit(3_000_000, 0)).toEqual({ appliedMinor: 0, heldMinor: 3_000_000 });
+  });
+});
+
+describe('runningBalances', () => {
+  it('adds debits, takes off credits, and can go into credit', () => {
+    expect(
+      runningBalances(4_000_000, [
+        { debitMinor: 0, creditMinor: 5_000_000 },
+        { debitMinor: 8_000_000, creditMinor: 0 },
+      ]),
+    ).toEqual({ balances: [-1_000_000, 7_000_000], closingMinor: 7_000_000 });
   });
 });

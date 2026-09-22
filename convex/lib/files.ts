@@ -205,6 +205,7 @@ export const FILE_ACCESS: Partial<Record<TableNames, FileAccessRule>> = {
   creditNotes: { team: (_ctx, principal) => principal.permissions.has('invoices.view'), portal: () => true },
   payments: { team: (_ctx, principal) => principal.permissions.has('invoices.view') },
   whtCredits: { team: (_ctx, principal) => principal.permissions.has('invoices.view') },
+  statements: { team: (_ctx, principal) => principal.permissions.has('invoices.view'), portal: () => true },
   // Deliverable versions follow project scope. The portal rule arrives with the client portal.
   deliverables: {
     team: async (ctx, principal, file) => {

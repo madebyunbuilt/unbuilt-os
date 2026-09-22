@@ -206,8 +206,8 @@ type Settlement = Pick<Doc<'invoices'>, 'paidMinor' | 'whtCreditedMinor' | 'cred
 
 /**
  * The balance and status after money moves on an invoice, from the money library's settlement rule: paid + WHT
- * credited + credits = total means paid. A partly settled one is partly paid; one reopened to nothing settled goes back
- * to overdue, opened or sent. Throws if the money would exceed the total.
+ * credited + credits = total means paid. Otherwise past due is overdue, part settled is partly paid, and the rest is
+ * opened or sent. Throws if the money would exceed the total.
  */
 export async function settle(ctx: QueryCtx | MutationCtx, invoice: Doc<'invoices'>, next: Settlement) {
   const { balanceMinor, settled, partiallySettled } = invoiceBalance({
@@ -215,12 +215,13 @@ export async function settle(ctx: QueryCtx | MutationCtx, invoice: Doc<'invoices
     ...next,
   });
   const today = await studioToday(ctx);
+  // Past due with money still owed is overdue, even when part was paid (studio, 2026-09-22).
   const status: Doc<'invoices'>['status'] = settled
     ? 'paid'
-    : partiallySettled
-      ? 'partially_paid'
-      : invoice.dueDate && invoice.dueDate < today
-        ? 'overdue'
+    : invoice.dueDate && invoice.dueDate < today
+      ? 'overdue'
+      : partiallySettled
+        ? 'partially_paid'
         : invoice.firstViewedAt
           ? 'viewed'
           : 'sent';
@@ -240,4 +241,30 @@ export function assertAcceptsMoney(invoice: Doc<'invoices'>) {
   if (!OPEN_STATUSES.has(invoice.status)) {
     throw invoiceError('invoices.notOpen', `A ${invoice.status.replace('_', ' ')} invoice takes no more money`);
   }
+}
+
+const dayNumber = (date: string) => Math.round(Date.parse(`${date}T00:00:00Z`) / 86_400_000);
+
+/**
+ * Which reminder is due today, if any (08-billing-and-finance.md, Reminders): 3 days before the due date, on it, 3, 7
+ * and 14 days after, then every 7 days. Each is sent once. If the daily run missed a day, only the latest reminder that
+ * has come due is sent, so a client never gets "due in 3 days" once it is already late.
+ */
+export function reminderDue(dueDate: string, today: string, sentKinds: readonly string[]): string | null {
+  const late = dayNumber(today) - dayNumber(dueDate);
+  let kind: string | null = null;
+  if (late >= -3) kind = 'before_3';
+  if (late >= 0) kind = 'due';
+  if (late >= 3) kind = 'after_3';
+  if (late >= 7) kind = 'after_7';
+  if (late >= 14) kind = 'after_14';
+  if (late >= 21) kind = `weekly_${Math.floor((late - 14) / 7)}`;
+  return kind && !sentKinds.includes(kind) ? kind : null;
+}
+
+/** How a reminder describes itself to the client. */
+export function reminderWording(kind: string): 'soon' | 'today' | 'late' {
+  if (kind === 'before_3') return 'soon';
+  if (kind === 'due') return 'today';
+  return 'late';
 }
