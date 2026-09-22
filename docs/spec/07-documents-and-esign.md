@@ -172,6 +172,14 @@ confirmed the process; templates carry their own approval. See `18-open-question
 - **Variables** are limited to fields the app actually holds, so a document can never print a blank where a value was
   promised. The studio's email, phone and website are part of that set: they are settings, checked the same way a
   contact's are (a real address, an international number, a resolvable site), and they belong on a letterhead.
+- **Nothing goes out with a blank** (studio, 2026-09-22). A document whose wording uses a variable the app has no value
+  for cannot be sent: the send is refused in the mutation and again in the send action, and the document page lists
+  each missing detail with where to fill it in (Settings → Organisation, the client's page, the project, the draft).
+  The Send button stays off until the list is empty. Only a draft shows a dash in place of a missing value, and only
+  the number, assigned on first send, is exempt.
+- **The payment schedule** is written on the draft, as a line of words ("50% on signature, 50% on completion"), and
+  fills `{{schedule.summary}}`. The draft asks for it only when its wording prints it, and a document drafted from
+  another carries it across. Billing schedules will fill it once they exist.
 
 ## Screens
 

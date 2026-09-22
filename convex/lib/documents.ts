@@ -2,7 +2,14 @@ import { type Doc, type Id } from '../_generated/dataModel';
 import { type MutationCtx, type QueryCtx } from '../_generated/server';
 import { type Currency, calculateTotals, type Discount, formatMoney, type LineInput, type TaxSetting } from './money';
 import { type DocumentPdfPayload } from '../../pdf/types';
-import { type DocumentBlock, documentError, type DocumentType, fillVariables, TYPE_LABELS } from './documentBlocks';
+import {
+  type DocumentBlock,
+  documentError,
+  type DocumentType,
+  fillVariables,
+  TYPE_LABELS,
+  VARIABLES,
+} from './documentBlocks';
 import { type NumberedRecord } from './numbering';
 import { getOrgSettings } from './settings';
 
@@ -115,6 +122,7 @@ export async function variableValues(
     currency?: Currency;
     totals?: Doc<'documents'>['totals'];
     sentAt?: number;
+    paymentScheduleSummary?: string;
   },
   refs: {
     client: Doc<'clients'>;
@@ -161,7 +169,8 @@ export async function variableValues(
     'totals.wht': money(document.totals?.whtExpectedMinor),
     'totals.total': money(document.totals?.totalMinor),
     'totals.currency': currency,
-    'schedule.summary': undefined,
+    // Written on the draft for now; billing schedules will fill it once they exist.
+    'schedule.summary': document.paymentScheduleSummary,
   };
 }
 
@@ -195,4 +204,47 @@ export function fillBlocks(blocks: DocumentBlock[], values: Record<string, strin
       ? { ...block, text: fillVariables(block.text, values) }
       : block,
   );
+}
+
+export type MissingDetail = {
+  /** What is missing, in words, such as "The studio’s registered name". */
+  label: string;
+  /** Where to fill it in. */
+  where: string;
+  /** A link to that place, when there is one. */
+  href?: string;
+};
+
+/**
+ * Says, for each missing variable, what it is and where to put it right. Grouped by place, so the page can say
+ * "the studio's registered name and address (Settings → Organisation)" rather than one line per field.
+ */
+export function describeMissing(
+  names: string[],
+  document: { _id: Id<'documents'>; clientId: Id<'clients'>; projectId?: Id<'projects'>; dealId?: Id<'deals'> },
+): MissingDetail[] {
+  return names.map((name) => {
+    const label = VARIABLES[name] ?? name;
+    if (name.startsWith('org.')) return { label, where: 'Settings → Organisation', href: '/settings/organisation' };
+    if (name.startsWith('client.'))
+      return { label, where: 'the client’s page', href: `/crm/clients/${document.clientId}` };
+    if (name.startsWith('contact.')) {
+      return { label, where: 'the contact, on the client’s page', href: `/crm/clients/${document.clientId}` };
+    }
+    if (name.startsWith('project.')) {
+      return document.projectId
+        ? { label, where: 'the project', href: `/projects/${document.projectId}` }
+        : { label, where: 'this document has no project: link one, or take the variable out of the wording' };
+    }
+    if (name.startsWith('deal.')) {
+      return document.dealId
+        ? { label, where: 'the deal', href: `/crm/deals/${document.dealId}` }
+        : { label, where: 'this document has no deal: take the variable out of the wording' };
+    }
+    if (name === 'validUntil') return { label, where: 'the draft’s valid-until date' };
+    if (name === 'schedule.summary') {
+      return { label, where: 'the draft’s payment schedule line' };
+    }
+    return { label, where: 'the draft' };
+  });
 }
