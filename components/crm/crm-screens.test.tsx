@@ -94,7 +94,7 @@ const contact = (overrides: object = {}) => ({
 });
 
 const PM = ['clients.view', 'clients.create', 'clients.update', 'contacts.manage', 'deals.view', 'team.view'];
-const FINANCE = ['clients.view', 'deals.view', 'invoices.update', 'team.view'];
+const FINANCE = ['clients.view', 'deals.view', 'invoices.view', 'invoices.update', 'team.view'];
 
 beforeEach(() => {
   state.queries = {
@@ -164,8 +164,10 @@ describe('ClientHeader', () => {
     const nav = screen.getByRole('navigation', { name: 'Client sections' });
     expect(within(nav).getByRole('link', { name: 'Contacts' })).toHaveAttribute('aria-current', 'page');
     expect(within(nav).getByRole('link', { name: 'Overview' })).not.toHaveAttribute('aria-current');
-    expect(within(nav).queryByRole('link', { name: 'Invoices and payments' })).not.toBeInTheDocument();
-    expect(within(nav).getByText('Invoices and payments')).toHaveAttribute('aria-disabled', 'true');
+    expect(within(nav).queryByRole('link', { name: 'Tickets' })).not.toBeInTheDocument();
+    expect(within(nav).getByText('Tickets')).toHaveAttribute('aria-disabled', 'true');
+    // Invoices show only to roles that can see them.
+    expect(within(nav).queryByText('Invoices and payments')).not.toBeInTheDocument();
     // Vault shows only to roles that can see vault items.
     expect(within(nav).queryByText('Vault')).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Edit' })).toBeInTheDocument();
@@ -173,6 +175,10 @@ describe('ClientHeader', () => {
 
     render(<ClientHeader clientId={'c1' as never} permissions={FINANCE} />);
     expect(screen.queryByRole('button', { name: 'Edit' })).not.toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Invoices and payments' })).toHaveAttribute(
+      'href',
+      '/crm/clients/c1/invoices',
+    );
   });
 });
 

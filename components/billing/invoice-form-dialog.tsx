@@ -1,0 +1,373 @@
+'use client';
+
+import { useMutation, useQuery } from 'convex/react';
+import { type ReactNode, useState } from 'react';
+import {
+  emptyLine,
+  type LineDraft,
+  LineItemsEditor,
+  toLineArgs,
+  toLineDrafts,
+} from '@/components/documents/line-items-editor';
+import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { NativeSelect } from '@/components/ui/native-select';
+import { Textarea } from '@/components/ui/textarea';
+import { api } from '@/convex/_generated/api';
+import { type Id } from '@/convex/_generated/dataModel';
+import {
+  type Currency,
+  formatBpsAsPercent,
+  MICRO_PER_UNIT,
+  parseMoneyInput,
+  parsePercentToBps,
+} from '@/convex/lib/money';
+import { errorMessage, InputError } from '@/lib/convex-error';
+import { toAmountInput } from '@/lib/crm-display';
+
+// Drafting or editing an invoice (08-billing-and-finance.md, Creating). A new one takes the client's currency, VAT
+// treatment, WHT and payment terms; the totals are worked out by the server, so the running figure here is only a
+// guide. Nothing here goes to the client until it is sent.
+
+type Invoice = NonNullable<typeof api.invoices.get._returnType>;
+
+/** A rate typed as naira per unit, e.g. "1,550.25", into micro-naira. */
+function parseRate(input: string): number {
+  const cleaned = input.trim().replace(/[,\s]/g, '');
+  const match = /^(\d+)(?:\.(\d{0,6}))?$/.exec(cleaned);
+  if (!match) throw new InputError(`"${input}" is not a rate in naira`);
+  return Number(match[1]) * MICRO_PER_UNIT + Number((match[2] ?? '').padEnd(6, '0') || '0');
+}
+
+const rateInput = (micro: number) => String(micro / MICRO_PER_UNIT);
+
+export function InvoiceFormDialog({
+  trigger,
+  clientId: fixedClientId,
+  invoice,
+  canUseRateCard,
+  onSaved,
+}: {
+  trigger: ReactNode;
+  clientId?: Id<'clients'>;
+  /** Editing a draft; omitted when drafting a new one. */
+  invoice?: Invoice;
+  canUseRateCard: boolean;
+  onSaved?: (invoiceId: Id<'invoices'>) => void;
+}) {
+  const create = useMutation(api.invoices.create);
+  const update = useMutation(api.invoices.update);
+  const [open, setOpen] = useState(false);
+  const editing = invoice !== undefined;
+  const clients = useQuery(api.clients.list, open && !fixedClientId && !editing ? {} : 'skip');
+  const fxRates = useQuery(api.fx.current, open ? {} : 'skip');
+
+  const [clientId, setClientId] = useState<string>(invoice?.clientId ?? fixedClientId ?? '');
+  const chosenClient = clients?.find((client) => client.id === clientId);
+  const [currencyChoice, setCurrencyChoice] = useState<Currency | ''>(invoice?.currency ?? '');
+  const currency: Currency = currencyChoice || chosenClient?.defaultCurrency || 'NGN';
+  const projects = useQuery(
+    api.projects.list,
+    open && clientId && !editing ? { clientId: clientId as Id<'clients'>, status: 'all' } : 'skip',
+  );
+  const [projectId, setProjectId] = useState('');
+  const [lines, setLines] = useState<LineDraft[]>(
+    invoice && invoice.lineItems.length > 0 ? toLineDrafts(invoice.lineItems) : [emptyLine()],
+  );
+  const [discountKind, setDiscountKind] = useState<'none' | 'percent' | 'fixed'>(invoice?.discount.kind ?? 'none');
+  const [discountValue, setDiscountValue] = useState(
+    invoice?.discount.kind === 'percent' && invoice.discount.bps !== undefined
+      ? formatBpsAsPercent(invoice.discount.bps)
+      : invoice?.discount.kind === 'fixed'
+        ? toAmountInput(invoice.discount.amountMinor)
+        : '',
+  );
+  const [vatApplies, setVatApplies] = useState(invoice?.vat.applies ?? true);
+  const [vatRate, setVatRate] = useState(invoice ? formatBpsAsPercent(invoice.vat.bps) : '');
+  const [whtApplies, setWhtApplies] = useState(invoice?.wht.applies ?? false);
+  const [whtRate, setWhtRate] = useState(invoice ? formatBpsAsPercent(invoice.wht.bps) : '');
+  const [terms, setTerms] = useState(invoice ? String(invoice.paymentTermsDays) : '');
+  const [rate, setRate] = useState(invoice?.fxRateOverridden ? rateInput(invoice.fxRateToNgnMicro) : '');
+  const [notes, setNotes] = useState(invoice?.notes ?? '');
+  const [invoiceTerms, setInvoiceTerms] = useState(invoice?.terms ?? '');
+  const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  const latest = fxRates?.find((row) => row.currency === currency);
+
+  const submit = async () => {
+    setError(null);
+    if (!clientId) {
+      setError('Choose the client');
+      return;
+    }
+    setSaving(true);
+    try {
+      const discount =
+        discountKind === 'percent'
+          ? { kind: 'percent' as const, bps: parsePercentToBps(discountValue) }
+          : discountKind === 'fixed'
+            ? { kind: 'fixed' as const, amountMinor: parseMoneyInput(discountValue, currency) }
+            : { kind: 'none' as const };
+      const shared = {
+        lineItems: toLineArgs(lines, currency),
+        discount,
+        paymentTermsDays: terms.trim() ? Number(terms) : undefined,
+        fxRateToNgnMicro: currency !== 'NGN' && rate.trim() ? parseRate(rate) : undefined,
+        notes: notes || undefined,
+        terms: invoiceTerms || undefined,
+      };
+      if (editing) {
+        await update({
+          invoiceId: invoice.id,
+          ...shared,
+          vat: { applies: vatApplies, bps: parsePercentToBps(vatRate || '0') },
+          wht: { applies: whtApplies, bps: parsePercentToBps(whtRate || '0') },
+        });
+        setOpen(false);
+        onSaved?.(invoice.id);
+      } else {
+        const invoiceId = await create({
+          clientId: clientId as Id<'clients'>,
+          projectId: (projectId || undefined) as Id<'projects'> | undefined,
+          currency,
+          ...shared,
+        });
+        setOpen(false);
+        onSaved?.(invoiceId);
+      }
+    } catch (caught) {
+      setError(errorMessage(caught));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        setOpen(next);
+        setError(null);
+      }}
+    >
+      <DialogTrigger asChild>{trigger}</DialogTrigger>
+      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
+        <DialogHeader>
+          <DialogTitle className="font-display">
+            {editing ? `Edit ${invoice.number ?? 'the draft'}` : 'New invoice'}
+          </DialogTitle>
+          <DialogDescription>
+            {editing
+              ? 'Changes stay on the draft until it is sent. The server works out the totals.'
+              : 'It starts as a draft with the client’s currency, VAT, WHT and payment terms. Nothing goes out until you send it.'}
+          </DialogDescription>
+        </DialogHeader>
+        <form
+          id="invoice-form"
+          className="space-y-5"
+          onSubmit={(event) => {
+            event.preventDefault();
+            void submit();
+          }}
+        >
+          {!editing && (
+            <div className="grid gap-4 sm:grid-cols-2">
+              {!fixedClientId && (
+                <div className="space-y-2">
+                  <Label htmlFor="invoice-client">Client</Label>
+                  <NativeSelect
+                    id="invoice-client"
+                    value={clientId}
+                    onChange={(event) => {
+                      setClientId(event.target.value);
+                      setProjectId('');
+                      setCurrencyChoice('');
+                    }}
+                  >
+                    <option value="">Choose a client</option>
+                    {(clients ?? []).map((client) => (
+                      <option key={client.id} value={client.id}>
+                        {client.displayName}
+                      </option>
+                    ))}
+                  </NativeSelect>
+                </div>
+              )}
+              <div className="space-y-2">
+                <Label htmlFor="invoice-project">Project (optional)</Label>
+                <NativeSelect
+                  id="invoice-project"
+                  value={projectId}
+                  disabled={!clientId}
+                  onChange={(event) => setProjectId(event.target.value)}
+                >
+                  <option value="">No project</option>
+                  {(projects ?? []).map((project) => (
+                    <option key={project.id} value={project.id}>
+                      {project.code} · {project.name}
+                    </option>
+                  ))}
+                </NativeSelect>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="invoice-currency">Currency</Label>
+                <NativeSelect
+                  id="invoice-currency"
+                  value={currency}
+                  onChange={(event) => setCurrencyChoice(event.target.value as Currency)}
+                >
+                  <option value="NGN">NGN</option>
+                  <option value="USD">USD</option>
+                  <option value="EUR">EUR</option>
+                </NativeSelect>
+              </div>
+            </div>
+          )}
+
+          <LineItemsEditor
+            lines={lines}
+            onChange={setLines}
+            currency={currency}
+            canUseRateCard={canUseRateCard}
+            idPrefix="invoice"
+          />
+
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor="invoice-discount-kind">Discount</Label>
+              <div className="flex gap-2">
+                <NativeSelect
+                  id="invoice-discount-kind"
+                  value={discountKind}
+                  onChange={(event) => setDiscountKind(event.target.value as typeof discountKind)}
+                >
+                  <option value="none">None</option>
+                  <option value="percent">Percentage</option>
+                  <option value="fixed">Fixed amount</option>
+                </NativeSelect>
+                {discountKind !== 'none' && (
+                  <Input
+                    aria-label={discountKind === 'percent' ? 'Discount percentage' : `Discount in ${currency}`}
+                    value={discountValue}
+                    placeholder={discountKind === 'percent' ? '10' : '50000'}
+                    onChange={(event) => setDiscountValue(event.target.value)}
+                  />
+                )}
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="invoice-terms">Payment terms (days)</Label>
+              <Input
+                id="invoice-terms"
+                inputMode="numeric"
+                value={terms}
+                placeholder="The client’s terms"
+                onChange={(event) => setTerms(event.target.value)}
+              />
+            </div>
+          </div>
+
+          {editing && (
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <Checkbox
+                    id="invoice-vat"
+                    checked={vatApplies}
+                    onCheckedChange={(value) => setVatApplies(value === true)}
+                  />
+                  <Label htmlFor="invoice-vat" className="font-normal">
+                    Charge VAT
+                  </Label>
+                </div>
+                {vatApplies && (
+                  <Input
+                    aria-label="VAT rate (%)"
+                    value={vatRate}
+                    onChange={(event) => setVatRate(event.target.value)}
+                  />
+                )}
+              </div>
+              <div className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <Checkbox
+                    id="invoice-wht"
+                    checked={whtApplies}
+                    onCheckedChange={(value) => setWhtApplies(value === true)}
+                  />
+                  <Label htmlFor="invoice-wht" className="font-normal">
+                    Client deducts WHT
+                  </Label>
+                </div>
+                {whtApplies && (
+                  <Input
+                    aria-label="WHT rate (%)"
+                    value={whtRate}
+                    onChange={(event) => setWhtRate(event.target.value)}
+                  />
+                )}
+              </div>
+            </div>
+          )}
+
+          {currency !== 'NGN' && (
+            <div className="space-y-2">
+              <Label htmlFor="invoice-rate">Exchange rate: naira per {currency} (optional)</Label>
+              <Input
+                id="invoice-rate"
+                inputMode="decimal"
+                value={rate}
+                placeholder={latest?.rateToNgnMicro ? rateInput(latest.rateToNgnMicro) : 'No rate entered yet'}
+                onChange={(event) => setRate(event.target.value)}
+              />
+              <p className="text-sm text-muted-foreground">
+                {latest?.rateToNgnMicro
+                  ? `Leave it empty to use the latest rate (${rateInput(latest.rateToNgnMicro)}, ${latest.date}) when it is sent.`
+                  : `There is no ${currency} rate yet. One from the last 7 days is needed before this can be sent.`}
+              </p>
+            </div>
+          )}
+
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-2">
+              <Label htmlFor="invoice-notes">Notes (optional)</Label>
+              <Textarea id="invoice-notes" rows={2} value={notes} onChange={(event) => setNotes(event.target.value)} />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="invoice-terms-text">Terms (optional)</Label>
+              <Textarea
+                id="invoice-terms-text"
+                rows={2}
+                value={invoiceTerms}
+                onChange={(event) => setInvoiceTerms(event.target.value)}
+              />
+            </div>
+          </div>
+
+          {error && (
+            <p role="alert" className="text-sm text-destructive">
+              {error}
+            </p>
+          )}
+        </form>
+        <DialogFooter>
+          <Button type="submit" form="invoice-form" disabled={saving}>
+            {saving ? 'Saving…' : editing ? 'Save the draft' : 'Create the draft'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}

@@ -246,6 +246,28 @@ studio's behalf.
   holders read a statement on screen or ask for its PDF, which is rendered by an action and kept. The portal view comes
   with the client portal.
 
+## Screens
+
+- **Finance → Invoices** (`/billing/invoices`, `invoices.view`): invoices newest first, showing what is waiting for money
+  by default, with status, total, what is still owed and the due date. "New invoice" (`invoices.create`) chooses the
+  client, an optional project, the currency, the lines (rate card items fill description and price), a discount, the
+  payment terms, a rate for USD or EUR, notes and terms.
+- **The invoice page** shows the lines and totals, what has been paid, withheld and credited, and what is still owed,
+  then its payments (with receipts to download), WHT credits and credit notes. What it offers depends on its state and
+  the viewer's permissions:
+  - a draft: send it, to the billing contacts ticked or others (`invoices.send`); edit it, including VAT and WHT
+    (`invoices.update`); delete it if it was never numbered;
+  - open: record a payment, starting at what is still owed, or at the total less the expected WHT on a first payment
+    (`payments.record`); apply held credit in the same currency; issue a credit note, showing what will be held when it
+    exceeds the balance (`creditnotes.create`); refund a payment (`payments.refund`); record a WHT certificate, dispute
+    it or reverse it; write it off (`invoices.writeoff`); void it while nothing is on it (`invoices.void`); switch its
+    reminders off (`invoices.update`);
+  - written off: reverse the write-off.
+- **The client's Invoices and payments tab** (`invoices.view`): their invoices, any credit held for them (paid back with
+  `payments.refund`), their statement for a date range with its PDFs, and whether they get reminders.
+- **Settings → Exchange rates** (`fx.manage`): the latest rate per currency and whether it is recent enough to send
+  with, a form to set a day's rate, and the recent history.
+
 ## Acceptance criteria
 
 - Totals match a table of fixture cases covering discount (percent and fixed), VAT on and off, WHT on and off, multiple

@@ -25,6 +25,13 @@ export const SETTINGS_SECTIONS: readonly SettingsSection[] = [
     built: true,
   },
   {
+    label: 'Exchange rates',
+    href: '/settings/exchange-rates',
+    description: 'Naira per dollar and per euro, for USD and EUR invoices',
+    anyOf: ['fx.manage'],
+    built: true,
+  },
+  {
     label: 'Pipeline',
     href: '/settings/pipeline',
     description: 'Deal stages, their win probabilities and lost reasons',

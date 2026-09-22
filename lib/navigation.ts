@@ -76,7 +76,7 @@ export const TEAM_NAVIGATION: readonly NavSection[] = [
   {
     label: 'Finance',
     items: [
-      { label: 'Invoices', href: '/billing/invoices', icon: 'receipt', anyOf: ['invoices.view'], built: false },
+      { label: 'Invoices', href: '/billing/invoices', icon: 'receipt', anyOf: ['invoices.view'], built: true },
       {
         label: 'Expenses',
         href: '/billing/expenses',

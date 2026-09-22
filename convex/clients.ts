@@ -50,6 +50,7 @@ function clientView(client: Doc<'clients'>, ownerName: string | undefined) {
     whtBps: client.whtBps,
     defaultCurrency: client.defaultCurrency,
     paymentTermsDays: client.paymentTermsDays,
+    noReminders: client.noReminders ?? false,
     timezone: client.timezone,
     ownerMemberId: client.ownerMemberId,
     ownerName,
