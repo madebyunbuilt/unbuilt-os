@@ -16,7 +16,17 @@ export const INVOICE_STATUSES: InvoiceStatus[] = [
   'written_off',
 ];
 
-export function invoiceStatus(status: InvoiceStatus): { label: string; tone: StatusTone } {
+/**
+ * The status in words. Pass what was paid and withheld, so an invoice settled only by credit notes reads "Credited in
+ * full" rather than "Paid".
+ */
+export function invoiceStatus(
+  status: InvoiceStatus,
+  money?: { paidMinor: number; whtCreditedMinor: number },
+): { label: string; tone: StatusTone } {
+  if (status === 'paid' && money && money.paidMinor + money.whtCreditedMinor === 0) {
+    return { label: 'Credited in full', tone: 'built' };
+  }
   switch (status) {
     case 'draft':
       return { label: 'Draft', tone: 'draft' };

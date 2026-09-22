@@ -229,8 +229,11 @@ studio's behalf.
   reason kept (studio, 2026-09-22).
 - **Write-off** moves the remaining balance to bad debt with a reason, keeping every payment; money cannot be recorded
   on it until the write-off is reversed, which makes the balance owed again.
-- **The invoice's status** after any of these comes from one rule: balance 0 is paid, part settled is partly paid,
-  otherwise overdue, opened or sent.
+- **The invoice's status** after any of these comes from one rule: balance 0 is paid, past due is overdue, money
+  received (a payment or WHT) is partly paid, otherwise opened or sent. Credits correct an invoice rather than pay it,
+  so they never make it partly paid, and one settled entirely by credit is shown as "Credited in full".
+- **Expected WHT after a credit** is scaled to what is still owed (`money.whtExpectedOnBalance`): the invoice keeps the
+  figure it was sent with, and the page and the payment form use the scaled one.
 
 - **Overdue**: past its due date with money still owed is overdue, whether or not part was paid (studio, 2026-09-22).
   The daily run at 09:00 Lagos marks it; a payment that leaves money owed keeps it overdue.

@@ -20,7 +20,7 @@ import { NativeSelect } from '@/components/ui/native-select';
 import { Textarea } from '@/components/ui/textarea';
 import { api } from '@/convex/_generated/api';
 import { type Id } from '@/convex/_generated/dataModel';
-import { type Currency, formatMoney, parseMoneyInput } from '@/convex/lib/money';
+import { type Currency, formatMoney, parseMoneyInput, whtExpectedOnBalance } from '@/convex/lib/money';
 import { errorMessage } from '@/lib/convex-error';
 import { toAmountInput } from '@/lib/crm-display';
 import { lagosToday, PAYMENT_METHODS, type PaymentMethod } from '@/lib/invoices-display';
@@ -198,7 +198,8 @@ export function SendInvoiceDialog({ invoice, canSeeContacts }: { invoice: Invoic
 export function RecordPaymentDialog({ invoice }: { invoice: Invoice }) {
   const record = useMutation(api.payments.record);
   const expectsWht = invoice.wht.applies && invoice.paidMinor === 0 && invoice.whtCreditedMinor === 0;
-  const whtDefault = expectsWht ? Math.min(invoice.totals.whtExpectedMinor, invoice.balanceMinor) : 0;
+  // What they would withhold on what is left, not the whole invoice, once part has been credited.
+  const whtDefault = expectsWht ? whtExpectedOnBalance(invoice.totals, invoice.balanceMinor) : 0;
   const [amount, setAmount] = useState(toAmountInput(invoice.balanceMinor - whtDefault));
   const [wht, setWht] = useState(whtDefault ? toAmountInput(whtDefault) : '');
   const [receivedOn, setReceivedOn] = useState(lagosToday());

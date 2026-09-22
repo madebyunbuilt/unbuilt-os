@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  whtExpectedOnBalance,
   runningBalances,
   creditNoteVatSplit,
   splitCredit,
@@ -384,5 +385,14 @@ describe('runningBalances', () => {
         { debitMinor: 8_000_000, creditMinor: 0 },
       ]),
     ).toEqual({ balances: [-1_000_000, 7_000_000], closingMinor: 7_000_000 });
+  });
+});
+
+describe('whtExpectedOnBalance', () => {
+  it('scales the expected WHT to what is still owed', () => {
+    const invoice = { whtExpectedMinor: 600_000, totalMinor: 21_500_000 };
+    expect(whtExpectedOnBalance(invoice, 21_500_000)).toBe(600_000);
+    expect(whtExpectedOnBalance(invoice, 10_000_000)).toBe(279_070);
+    expect(whtExpectedOnBalance(invoice, 0)).toBe(0);
   });
 });

@@ -23,7 +23,7 @@ import { ToneBadge } from '@/components/team/status-badge';
 import { Button } from '@/components/ui/button';
 import { api } from '@/convex/_generated/api';
 import { type Id } from '@/convex/_generated/dataModel';
-import { formatBpsAsPercent, formatMoney } from '@/convex/lib/money';
+import { formatBpsAsPercent, formatMoney, whtExpectedOnBalance } from '@/convex/lib/money';
 import { formatDay } from '@/lib/crm-display';
 import { formatQuantity } from '@/lib/documents-display';
 import { type InvoiceStatus, invoiceStatus, methodLabel, OPEN_INVOICE_STATUSES } from '@/lib/invoices-display';
@@ -72,7 +72,7 @@ export function InvoicePage({ invoiceId, permissions }: { invoiceId: Id<'invoice
         <header className="space-y-1">
           <div className="flex flex-wrap items-center gap-3">
             <h1 className="font-display text-3xl font-bold">{invoice.number ?? 'Draft invoice'}</h1>
-            <ToneBadge {...invoiceStatus(status)} />
+            <ToneBadge {...invoiceStatus(status, invoice)} />
           </div>
           <p className="text-muted-foreground">
             {invoice.typeLabel} ·{' '}
@@ -188,6 +188,13 @@ export function InvoicePage({ invoiceId, permissions }: { invoiceId: Id<'invoice
             <Row
               label={`WHT the client may deduct (${formatBpsAsPercent(invoice.wht.bps)}%)`}
               value={cur(invoice.totals.whtExpectedMinor)}
+              muted
+            />
+          )}
+          {invoice.wht.applies && invoice.creditedMinor > 0 && invoice.balanceMinor > 0 && (
+            <Row
+              label="WHT on what is still owed"
+              value={cur(whtExpectedOnBalance(invoice.totals, invoice.balanceMinor))}
               muted
             />
           )}

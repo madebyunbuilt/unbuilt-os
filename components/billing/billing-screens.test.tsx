@@ -264,6 +264,32 @@ describe('InvoicePage', () => {
     );
   });
 
+  it('bases the WHT on what is still owed once part is credited, and names a credit-only settlement', async () => {
+    state.queries['invoices.get'] = invoice({
+      status: 'sent',
+      totals: { ...totals, totalMinor: 21_500_000, vatMinor: 1_500_000, whtExpectedMinor: 600_000 },
+      paidMinor: 0,
+      creditedMinor: 11_500_000,
+      balanceMinor: 10_000_000,
+    });
+    const { unmount } = render(<InvoicePage invoiceId={'i1' as never} permissions={FINANCE} />);
+    expect(screen.getByText('WHT on what is still owed').nextSibling).toHaveTextContent('₦2,790.70');
+    await userEvent.click(screen.getByRole('button', { name: 'Record a payment' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Record a payment' });
+    expect(within(dialog).getByLabelText('Amount received (NGN)')).toHaveValue('97209.30');
+    expect(within(dialog).getByLabelText('WHT the client withheld (NGN)')).toHaveValue('2790.70');
+    unmount();
+
+    state.queries['invoices.get'] = invoice({
+      status: 'paid',
+      paidMinor: 0,
+      creditedMinor: 10_000_000,
+      balanceMinor: 0,
+    });
+    render(<InvoicePage invoiceId={'i1' as never} permissions={FINANCE} />);
+    expect(screen.getByText('Credited in full')).toBeInTheDocument();
+  });
+
   it('does not offer void once money is on it, but offers the write-off', () => {
     render(<InvoicePage invoiceId={'i1' as never} permissions={FINANCE} />);
     expect(screen.queryByRole('button', { name: 'Void' })).not.toBeInTheDocument();

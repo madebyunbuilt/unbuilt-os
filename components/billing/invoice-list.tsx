@@ -111,7 +111,7 @@ export function InvoiceList({
                   </td>
                   {!clientId && <td className="px-4 py-3">{invoice.clientName}</td>}
                   <td className="px-4 py-3">
-                    <ToneBadge {...invoiceStatus(invoice.status as InvoiceStatus)} />
+                    <ToneBadge {...invoiceStatus(invoice.status as InvoiceStatus, invoice)} />
                   </td>
                   <td className="px-4 py-3 text-right tabular-nums">
                     {formatMoney(invoice.totals.totalMinor, invoice.currency)}

@@ -285,3 +285,17 @@ export function runningBalances(openingMinor: number, moves: Movement[]): { bala
   });
   return { balances, closingMinor: balance };
 }
+
+/**
+ * The WHT a client can still be expected to withhold, once part of the invoice has been credited: the expected WHT in
+ * the same share as what is still owed of the total. A ₦6,000 expectation on a ₦215,000 invoice with ₦100,000 left is
+ * ₦2,790.70.
+ */
+export function whtExpectedOnBalance(
+  invoice: { whtExpectedMinor: number; totalMinor: number },
+  balanceMinor: number,
+): number {
+  assertNonNegativeInteger(balanceMinor, 'balance');
+  if (invoice.totalMinor === 0) return 0;
+  return mulDivRoundHalfUp(invoice.whtExpectedMinor, Math.min(balanceMinor, invoice.totalMinor), invoice.totalMinor);
+}

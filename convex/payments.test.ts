@@ -219,6 +219,16 @@ describe('credit notes', () => {
     ]);
   });
 
+  it('never calls a credited invoice paid or partly paid when no money came in', async () => {
+    const { as, memberId } = await owner();
+    const invoiceId = await sentInvoice(as, memberId, 100_000);
+    await as.mutation(api.credits.create, { invoiceId, reason: 'Scope cut', amountMinor: 4_000_000 });
+    expect(await invoice(invoiceId)).toMatchObject({ status: 'sent', balanceMinor: 6_000_000 });
+    // Cleared entirely by credit: settled, with nothing paid (the screens say "Credited in full").
+    await as.mutation(api.credits.create, { invoiceId, reason: 'Cancelled', amountMinor: 6_000_000 });
+    expect(await invoice(invoiceId)).toMatchObject({ status: 'paid', paidMinor: 0, balanceMinor: 0 });
+  });
+
   it('reverses VAT in the invoice’s own proportion, and never credits more than the invoice', async () => {
     const { as, memberId } = await owner();
     // ₦100,000 + 7.5% VAT = ₦107,500.
@@ -260,7 +270,8 @@ describe('credit notes', () => {
       'invoices.overCredit',
     );
     await as.mutation(api.credits.apply, { clientCreditId: credit._id, invoiceId: second, amountMinor: 2_000_000 });
-    expect(await invoice(second)).toMatchObject({ status: 'partially_paid', balanceMinor: 6_000_000 });
+    // Credit corrects rather than pays, so the invoice is still simply sent.
+    expect(await invoice(second)).toMatchObject({ status: 'sent', balanceMinor: 6_000_000, creditedMinor: 2_000_000 });
 
     await as.mutation(api.credits.refund, {
       clientCreditId: credit._id,
