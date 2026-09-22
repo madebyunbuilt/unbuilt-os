@@ -207,6 +207,16 @@ describe('InvoicePage', () => {
     expect(within(dialog).getByLabelText('WHT the client withheld (NGN)')).toHaveValue('5000');
   });
 
+  it('hides the WHT box for a client who does not deduct it, one click away', async () => {
+    state.queries['invoices.get'] = invoice({ wht: { applies: false, bps: 0 } });
+    render(<InvoicePage invoiceId={'i1' as never} permissions={FINANCE} />);
+    await userEvent.click(screen.getByRole('button', { name: 'Record a payment' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Record a payment' });
+    expect(within(dialog).queryByLabelText('WHT the client withheld (NGN)')).not.toBeInTheDocument();
+    await userEvent.click(within(dialog).getByRole('button', { name: 'The client withheld tax' }));
+    expect(within(dialog).getByLabelText('WHT the client withheld (NGN)')).toHaveValue('');
+  });
+
   it('works the WHT out from the amount until a figure is typed into it', async () => {
     state.queries['invoices.get'] = invoice({
       status: 'sent',

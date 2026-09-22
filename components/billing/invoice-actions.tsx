@@ -204,6 +204,7 @@ export function RecordPaymentDialog({ invoice }: { invoice: Invoice }) {
   const [wht, setWht] = useState(whtDefault ? toAmountInput(whtDefault) : '');
   // The WHT follows the amount, in the invoice's proportion, until the person types their own figure.
   const [whtTyped, setWhtTyped] = useState(false);
+  const [showWht, setShowWht] = useState(invoice.wht.applies);
   const followAmount = (value: string) => {
     setAmount(value);
     if (whtTyped || !invoice.wht.applies) return;
@@ -230,7 +231,7 @@ export function RecordPaymentDialog({ invoice }: { invoice: Invoice }) {
         record({
           invoiceId: invoice.id,
           amountMinor: parseMoneyInput(amount, invoice.currency),
-          whtDeductedMinor: wht.trim() ? parseMoneyInput(wht, invoice.currency) : 0,
+          whtDeductedMinor: showWht && wht.trim() ? parseMoneyInput(wht, invoice.currency) : 0,
           receivedOn,
           method,
           reference: reference || undefined,
@@ -246,21 +247,28 @@ export function RecordPaymentDialog({ invoice }: { invoice: Invoice }) {
         onChange={followAmount}
         currency={invoice.currency}
       />
-      <MoneyField
-        id="payment-wht"
-        label="WHT the client withheld"
-        value={wht}
-        onChange={(value) => {
-          setWhtTyped(true);
-          setWht(value);
-        }}
-        currency={invoice.currency}
-        hint={
-          invoice.wht.applies
-            ? 'Worked out from the amount; change it to match the client’s remittance advice. Leave empty if they paid in full.'
-            : 'Leave empty if they paid in full.'
-        }
-      />
+      {showWht ? (
+        <MoneyField
+          id="payment-wht"
+          label="WHT the client withheld"
+          value={wht}
+          onChange={(value) => {
+            setWhtTyped(true);
+            setWht(value);
+          }}
+          currency={invoice.currency}
+          hint={
+            invoice.wht.applies
+              ? 'Worked out from the amount; change it to match the client’s remittance advice. Leave empty if they paid in full.'
+              : 'Only if the client withheld tax from this payment.'
+          }
+        />
+      ) : (
+        // This client does not deduct WHT; the box is one click away for the rare time one does.
+        <Button type="button" variant="link" className="h-auto p-0" onClick={() => setShowWht(true)}>
+          The client withheld tax
+        </Button>
+      )}
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="space-y-2">
           <Label htmlFor="payment-date">Received on</Label>
