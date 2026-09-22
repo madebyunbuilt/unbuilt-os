@@ -191,6 +191,8 @@ export default defineSchema({
     whtBps: v.optional(v.number()),
     defaultCurrency: currency,
     paymentTermsDays: v.optional(v.number()),
+    // No invoice reminders to this client (08-billing-and-finance.md, Reminders).
+    noReminders: v.optional(v.boolean()),
     timezone: v.string(),
     ownerMemberId: v.optional(v.id('teamMembers')),
     source: v.optional(v.string()),
@@ -1142,6 +1144,18 @@ export default defineSchema({
   })
     .index('by_payment', ['paymentId'])
     .index('by_client', ['clientId']),
+
+  // Statement PDFs asked for by the team, for a client and a date range. Rendered by an action and kept, so the same
+  // statement can be downloaded again.
+  statements: defineTable({
+    clientId: v.id('clients'),
+    fromDate: v.string(),
+    toDate: v.string(),
+    status: v.union(v.literal('rendering'), v.literal('ready'), v.literal('failed')),
+    fileId: v.optional(v.id('files')),
+    requestedByMemberId: v.id('teamMembers'),
+    failure: v.optional(v.string()),
+  }).index('by_client', ['clientId']),
 
   // Manual rates (08-billing-and-finance.md, Foreign exchange): NGN per one unit, × 1,000,000, by day.
   fxRates: defineTable({

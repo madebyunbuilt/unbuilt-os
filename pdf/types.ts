@@ -168,3 +168,16 @@ export type CreditNotePdfPayload = FinanceParties & {
   heldMinor: number;
   createdAtMs: number;
 };
+
+/** A client's statement of account for a date range, one section per currency. */
+export type StatementPdfPayload = FinanceParties & {
+  fromDate: string;
+  toDate: string;
+  sections: {
+    currency: Currency;
+    openingMinor: number;
+    closingMinor: number;
+    lines: { date: string; description: string; debitMinor: number; creditMinor: number; balanceMinor: number }[];
+  }[];
+  createdAtMs: number;
+};

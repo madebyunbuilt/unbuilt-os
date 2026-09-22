@@ -232,6 +232,20 @@ studio's behalf.
 - **The invoice's status** after any of these comes from one rule: balance 0 is paid, part settled is partly paid,
   otherwise overdue, opened or sent.
 
+- **Overdue**: past its due date with money still owed is overdue, whether or not part was paid (studio, 2026-09-22).
+  The daily run at 09:00 Lagos marks it; a payment that leaves money owed keeps it overdue.
+- **Reminders** go at 09:00 Lagos with the overdue marking: 3 days before the due date, on it, 3, 7 and 14 days after,
+  then every 7 days, each once, recorded before its email is scheduled. After a missed day only the latest reminder
+  due is sent, never a stale one. Each goes to the contacts the invoice was sent to (or the billing contacts), states
+  what is still owed, and attaches the invoice PDF again (studio, 2026-09-22). "No reminders" can be set on an invoice
+  or a client (`invoices.update`). A failed email tells whoever drafted the invoice.
+- **Statements** list, per currency, the opening balance, each invoice, payment, WHT credit, credit note and refund in
+  the range with a running balance, and the closing balance; below zero means the client is in credit. Write-offs are
+  never shown to the client (studio, 2026-09-22), so a written-off invoice is left off entirely, with everything
+  recorded against it; void invoices never count. Held credit applied later is not a line of its own. `invoices.view`
+  holders read a statement on screen or ask for its PDF, which is rendered by an action and kept. The portal view comes
+  with the client portal.
+
 ## Acceptance criteria
 
 - Totals match a table of fixture cases covering discount (percent and fixed), VAT on and off, WHT on and off, multiple

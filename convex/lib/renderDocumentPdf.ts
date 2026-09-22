@@ -8,6 +8,7 @@ import {
   type DocumentPdfPayload,
   type InvoicePdfPayload,
   type ReceiptPdfPayload,
+  type StatementPdfPayload,
 } from '../../pdf/types';
 
 // Rendering runs in a Node action (07-documents-and-esign.md, PDF rendering).
@@ -73,3 +74,6 @@ export const renderReceiptPdf = (payload: ReceiptPdfPayload) =>
 
 export const renderCreditNotePdf = (payload: CreditNotePdfPayload) =>
   renderWith(() => import('../../pdf/credit-note'), 'CreditNotePdf', payload);
+
+export const renderStatementPdf = (payload: StatementPdfPayload) =>
+  renderWith(() => import('../../pdf/statement'), 'StatementPdf', payload);

@@ -27,4 +27,7 @@ crons.daily('signing reminders', { hourUTC: 8, minuteUTC: 0 }, internal.signatur
 // Hourly: close signing requests whose date has passed, so an expired link stops working on time.
 crons.hourly('expire signing requests', { minuteUTC: 15 }, internal.signatures.expireRequests, {});
 
+// 09:00 Lagos: mark invoices past due as overdue and send the payment reminders due today.
+crons.daily('invoice reminders', { hourUTC: 8, minuteUTC: 0 }, internal.billingChase.dailyRun, {});
+
 export default crons;
