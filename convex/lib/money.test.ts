@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
+  creditNoteVatSplit,
+  splitCredit,
   type Discount,
   type LineInput,
   type TaxSetting,
@@ -348,5 +350,27 @@ describe('percentages', () => {
 
   it('formats basis points without trailing zeros', () => {
     expect([750, 1_000, 1_225, 5, 0].map(formatBpsAsPercent)).toEqual(['7.5', '10', '12.25', '0.05', '0']);
+  });
+});
+
+describe('credit notes (studio, 2026-09-22)', () => {
+  it('reverses VAT in the invoice’s own proportion', () => {
+    // ₦100,000 + ₦7,500 VAT: crediting ₦10,750 reverses ₦10,000 net and ₦750 VAT.
+    expect(creditNoteVatSplit(1_075_000, { vatMinor: 750_000, totalMinor: 10_750_000 })).toEqual({
+      netMinor: 1_000_000,
+      vatMinor: 75_000,
+    });
+    // An invoice with part of its lines untaxed carries less VAT per naira.
+    expect(creditNoteVatSplit(1_000_000, { vatMinor: 75_000, totalMinor: 2_075_000 })).toEqual({
+      netMinor: 963_855,
+      vatMinor: 36_145,
+    });
+    expect(creditNoteVatSplit(500, { vatMinor: 0, totalMinor: 1_000 })).toEqual({ netMinor: 500, vatMinor: 0 });
+  });
+
+  it('clears what is still owed and holds the rest', () => {
+    expect(splitCredit(5_000_000, 4_000_000)).toEqual({ appliedMinor: 4_000_000, heldMinor: 1_000_000 });
+    expect(splitCredit(1_000_000, 4_000_000)).toEqual({ appliedMinor: 1_000_000, heldMinor: 0 });
+    expect(splitCredit(3_000_000, 0)).toEqual({ appliedMinor: 0, heldMinor: 3_000_000 });
   });
 });

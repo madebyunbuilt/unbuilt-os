@@ -128,3 +128,43 @@ export type InvoicePdfPayload = {
   /** Fixed so the same invoice always renders to the same bytes. */
   createdAtMs: number;
 };
+
+/** The studio and client blocks shared by the smaller finance PDFs. */
+export type FinanceParties = {
+  org: { name: string; addressLines: string[]; email?: string; tin?: string; vatNumber?: string };
+  client: { name: string; addressLines: string[]; tin?: string };
+  brand: { primary: string };
+};
+
+/** A receipt for one payment (08-billing-and-finance.md, Receipts). */
+export type ReceiptPdfPayload = FinanceParties & {
+  number: string;
+  date: string;
+  currency: Currency;
+  invoiceNumber: string;
+  invoiceTotalMinor: number;
+  amountMinor: number;
+  whtDeductedMinor: number;
+  method: string;
+  reference?: string;
+  /** What is still owed on the invoice after this payment. */
+  balanceAfterMinor: number;
+  createdAtMs: number;
+};
+
+/** A credit note (08-billing-and-finance.md, Credit notes). */
+export type CreditNotePdfPayload = FinanceParties & {
+  number: string;
+  date: string;
+  currency: Currency;
+  invoiceNumber: string;
+  reason: string;
+  lineItems: { description: string; quantityMilli: number; unitPriceMinor: number; amountMinor: number }[];
+  netMinor: number;
+  vatMinor: number;
+  vatBps: number;
+  amountMinor: number;
+  appliedToInvoiceMinor: number;
+  heldMinor: number;
+  createdAtMs: number;
+};

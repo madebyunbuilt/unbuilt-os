@@ -7,6 +7,7 @@ import {
   calculateTotals,
   type Currency,
   type Discount,
+  invoiceBalance,
   type LineInput,
   MICRO_PER_UNIT,
   type TaxSetting,
@@ -200,3 +201,43 @@ export async function invoiceRecipients(
 }
 
 export type InvoiceRecipient = Awaited<ReturnType<typeof invoiceRecipients>>[number];
+
+type Settlement = Pick<Doc<'invoices'>, 'paidMinor' | 'whtCreditedMinor' | 'creditedMinor'>;
+
+/**
+ * The balance and status after money moves on an invoice, from the money library's settlement rule: paid + WHT
+ * credited + credits = total means paid. A partly settled one is partly paid; one reopened to nothing settled goes back
+ * to overdue, opened or sent. Throws if the money would exceed the total.
+ */
+export async function settle(ctx: QueryCtx | MutationCtx, invoice: Doc<'invoices'>, next: Settlement) {
+  const { balanceMinor, settled, partiallySettled } = invoiceBalance({
+    totalMinor: invoice.totals.totalMinor,
+    ...next,
+  });
+  const today = await studioToday(ctx);
+  const status: Doc<'invoices'>['status'] = settled
+    ? 'paid'
+    : partiallySettled
+      ? 'partially_paid'
+      : invoice.dueDate && invoice.dueDate < today
+        ? 'overdue'
+        : invoice.firstViewedAt
+          ? 'viewed'
+          : 'sent';
+  return {
+    ...next,
+    balanceMinor,
+    status,
+    paidAt: settled ? (invoice.paidAt ?? Date.now()) : undefined,
+  };
+}
+
+/** Invoices money can still be recorded against: out with the client and not yet settled, voided or written off. */
+export function assertAcceptsMoney(invoice: Doc<'invoices'>) {
+  if (invoice.status === 'written_off') {
+    throw invoiceError('invoices.writtenOff', 'This invoice was written off. Reverse the write-off first.');
+  }
+  if (!OPEN_STATUSES.has(invoice.status)) {
+    throw invoiceError('invoices.notOpen', `A ${invoice.status.replace('_', ' ')} invoice takes no more money`);
+  }
+}
