@@ -197,6 +197,8 @@ export const FILE_ACCESS: Partial<Record<TableNames, FileAccessRule>> = {
   // Drawn signatures are evidence, seen only by those who may read every document (the certificate carries them to the
   // client inside the signed PDF).
   signatureRequests: { team: (_ctx, principal) => principal.permissions.has('documents.view') },
+  // An invoice's PDF follows invoices.view; the client reads it in the portal through the shared client-visible rule.
+  invoices: { team: (_ctx, principal) => principal.permissions.has('invoices.view'), portal: () => true },
   // Deliverable versions follow project scope. The portal rule arrives with the client portal.
   deliverables: {
     team: async (ctx, principal, file) => {

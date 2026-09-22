@@ -186,6 +186,31 @@ studio's behalf.
   - VAT summary by month (VAT charged on sent invoices, by treatment)
   - an accountant pack that zips all of the above for a date range
 
+## Decisions and rules (studio, 2026-09-22)
+
+- **Payment terms**: an invoice takes the client's terms, else the studio's default, else **14 days**. The due date is
+  set when it is sent: the studio's date that day plus the terms.
+- **Void** is allowed only while nothing has been paid, credited or recorded as WHT against the invoice. Anything with
+  money on it is corrected with a credit note. A draft is deleted instead, unless it already carries a number (a send
+  that failed after numbering), in which case it stays on record.
+- **Credit notes and VAT**: a credit note's amount includes VAT in the same share as its invoice, so crediting reverses
+  net and VAT in proportion, and the VAT summary shows the reduction.
+- **Credit on a paid invoice** is held as client credit in that currency by default, and Finance applies it to a later
+  invoice by hand, or refunds it instead. Nothing is applied automatically.
+- **Recipients**: an invoice goes to the client's billing contacts, or the primary contact when none is marked, unless
+  the sender chooses others.
+- **Sending** is checked in `invoices.send` and carried out by a scheduled Node action: number it (once; a retry keeps
+  the number), set its dates, freeze its lines, totals and rate, render the PDF with its hash, then email the recipients
+  with the PDF attached. It stays a draft until the email is away, and whoever pressed send is told if any step fails.
+- **Until online payments (step 8)**, invoices carry no pay link: the PDF shows the studio's bank accounts in the
+  invoice's currency and asks for the invoice number as the reference.
+- **FX**: a rate is entered per currency per day (`fx.manage`; entering the same day again replaces it, and future days
+  are refused). A draft takes the latest rate, or a rate typed on it, which is then kept at send; otherwise the latest
+  rate is taken again at send. A USD or EUR invoice is refused unless the latest rate is at most 7 days old.
+- **The PDF** prints amounts with the currency code (the standard fonts have no ₦ or minus sign), the VAT rate, or the
+  client's VAT treatment when none is charged, and the expected WHT as a note under the total, which it never reduces.
+  Its file belongs to the invoice, is client-visible, and is read by `invoices.view` holders.
+
 ## Acceptance criteria
 
 - Totals match a table of fixture cases covering discount (percent and fixed), VAT on and off, WHT on and off, multiple

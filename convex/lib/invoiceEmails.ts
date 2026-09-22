@@ -1,0 +1,47 @@
+import { render } from '@react-email/render';
+import { createElement } from 'react';
+import { Resend } from 'resend';
+import { InvoiceSentEmail } from '../../emails/invoices/invoice-sent';
+
+// Invoice emails (08-billing-and-finance.md, Invoices). The PDF goes as an attachment; nothing here logs the message,
+// the address or the amount when sending fails.
+
+export type InvoiceEmail = {
+  to: string;
+  contactName: string;
+  number: string;
+  typeLabel: string;
+  studioName: string;
+  senderName: string;
+  amount: string;
+  dueDate: string;
+  message?: string;
+  pdf: { filename: string; content: Uint8Array };
+};
+
+const DEFAULT_FROM = 'Unbuilt OS <onboarding@resend.dev>';
+
+export async function renderInvoiceEmail({ pdf: _pdf, to: _to, ...email }: InvoiceEmail) {
+  const element = createElement(InvoiceSentEmail, email);
+  return {
+    subject: `${email.typeLabel} ${email.number} from ${email.studioName}`,
+    html: await render(element),
+    text: await render(element, { plainText: true }),
+  };
+}
+
+export async function sendInvoiceEmail(email: InvoiceEmail): Promise<void> {
+  const apiKey = process.env.RESEND_API_KEY;
+  if (!apiKey) throw new Error('RESEND_API_KEY is not set on this deployment');
+  const { subject, html, text } = await renderInvoiceEmail(email);
+  const { error } = await new Resend(apiKey).emails.send({
+    from: process.env.AUTH_EMAIL_FROM ?? DEFAULT_FROM,
+    to: email.to,
+    subject,
+    html,
+    text,
+    attachments: [{ filename: email.pdf.filename, content: Buffer.from(email.pdf.content) }],
+  });
+  // Resend's error carries only a name and message, never the email body.
+  if (error) throw new Error(`Could not send the invoice email: ${error.name}`);
+}
