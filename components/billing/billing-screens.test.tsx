@@ -393,6 +393,27 @@ describe('InvoicePage', () => {
   });
 });
 
+describe('InvoiceFormDialog', () => {
+  it('shows what the client is charged before the invoice is created', async () => {
+    state.queries['clients.list'] = [{ id: 'c1', displayName: 'Glossup', defaultCurrency: 'NGN' }];
+    state.queries['invoices.defaultsFor'] = {
+      vat: { applies: true, bps: 750 },
+      wht: { applies: true, bps: 500 },
+      paymentTermsDays: 30,
+      currency: 'NGN',
+    };
+    state.queries['rateCard.list'] = [];
+    render(<InvoiceList permissions={FINANCE} />);
+    await userEvent.click(screen.getByRole('button', { name: 'New invoice' }));
+    const dialog = await screen.findByRole('dialog', { name: 'New invoice' });
+    await userEvent.selectOptions(within(dialog).getByLabelText('Client'), 'c1');
+    expect(within(dialog).getByLabelText('Charge VAT')).toBeChecked();
+    expect(within(dialog).getByLabelText('VAT rate')).toHaveValue('7.5');
+    expect(within(dialog).getByLabelText('Client deducts WHT')).toBeChecked();
+    expect(within(dialog).getByLabelText('WHT rate')).toHaveValue('5');
+  });
+});
+
 describe('ClientBilling', () => {
   it('shows the statement for the range, with the balance in credit written out', () => {
     state.queries['statements.forClient'] = [

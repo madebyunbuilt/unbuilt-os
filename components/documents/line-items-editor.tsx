@@ -170,7 +170,7 @@ export function LineItemsEditor({
                   onCheckedChange={(checked) => set(index, { taxable: checked === true })}
                 />
                 <Label htmlFor={`${idPrefix}-taxable-${index}`} className="font-normal">
-                  VAT applies
+                  VAT on this line
                 </Label>
               </div>
             </div>

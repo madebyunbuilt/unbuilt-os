@@ -93,6 +93,9 @@ export function InvoiceFormDialog({
         ? toAmountInput(invoice.discount.amountMinor)
         : '',
   );
+  // On a new invoice these follow the client until they are touched, so what will be charged is on screen before it
+  // is created; the server applies the same defaults when nothing is sent.
+  const [taxTouched, setTaxTouched] = useState(editing);
   const [vatApplies, setVatApplies] = useState(invoice?.vat.applies ?? true);
   const [vatRate, setVatRate] = useState(invoice ? formatBpsAsPercent(invoice.vat.bps) : '');
   const [whtApplies, setWhtApplies] = useState(invoice?.wht.applies ?? false);
@@ -105,6 +108,19 @@ export function InvoiceFormDialog({
   const [saving, setSaving] = useState(false);
 
   const latest = fxRates?.find((row) => row.currency === currency);
+  const defaults = useQuery(
+    api.invoices.defaultsFor,
+    open && clientId && !editing ? { clientId: clientId as Id<'clients'> } : 'skip',
+  );
+  // What this client is charged, until someone changes the boxes.
+  if (!taxTouched && defaults) {
+    const vatText = formatBpsAsPercent(defaults.vat.bps);
+    const whtText = formatBpsAsPercent(defaults.wht.bps);
+    if (defaults.vat.applies !== vatApplies) setVatApplies(defaults.vat.applies);
+    if (vatText !== vatRate) setVatRate(vatText);
+    if (defaults.wht.applies !== whtApplies) setWhtApplies(defaults.wht.applies);
+    if (whtText !== whtRate) setWhtRate(whtText);
+  }
 
   const submit = async () => {
     setError(null);
@@ -148,6 +164,12 @@ export function InvoiceFormDialog({
           projectId: (projectId || undefined) as Id<'projects'> | undefined,
           currency,
           ...shared,
+          ...(taxTouched
+            ? {
+                vat: { applies: vatApplies, bps: parsePercentToBps(vatRate || '0') },
+                wht: { applies: whtApplies, bps: parsePercentToBps(whtRate || '0') },
+              }
+            : {}),
         });
         setOpen(false);
         onSaved?.(invoiceId);
@@ -297,14 +319,17 @@ export function InvoiceFormDialog({
             </div>
           </div>
 
-          {editing && (
+          {(editing || clientId) && (
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
                 <div className="flex items-center gap-2">
                   <Checkbox
                     id="invoice-vat"
                     checked={vatApplies}
-                    onCheckedChange={(value) => setVatApplies(value === true)}
+                    onCheckedChange={(value) => {
+                      setTaxTouched(true);
+                      setVatApplies(value === true);
+                    }}
                   />
                   <Label htmlFor="invoice-vat" className="font-normal">
                     Charge VAT
@@ -322,7 +347,10 @@ export function InvoiceFormDialog({
                         className="w-24"
                         value={vatRate}
                         placeholder="7.5"
-                        onChange={(event) => setVatRate(event.target.value.replace(/[^\d.]/g, ''))}
+                        onChange={(event) => {
+                          setTaxTouched(true);
+                          setVatRate(event.target.value.replace(/[^\d.]/g, ''));
+                        }}
                       />
                       <span className="text-sm text-muted-foreground">%</span>
                     </div>
@@ -334,7 +362,10 @@ export function InvoiceFormDialog({
                   <Checkbox
                     id="invoice-wht"
                     checked={whtApplies}
-                    onCheckedChange={(value) => setWhtApplies(value === true)}
+                    onCheckedChange={(value) => {
+                      setTaxTouched(true);
+                      setWhtApplies(value === true);
+                    }}
                   />
                   <Label htmlFor="invoice-wht" className="font-normal">
                     Client deducts WHT
@@ -352,7 +383,10 @@ export function InvoiceFormDialog({
                         className="w-24"
                         value={whtRate}
                         placeholder="5"
-                        onChange={(event) => setWhtRate(event.target.value.replace(/[^\d.]/g, ''))}
+                        onChange={(event) => {
+                          setTaxTouched(true);
+                          setWhtRate(event.target.value.replace(/[^\d.]/g, ''));
+                        }}
                       />
                       <span className="text-sm text-muted-foreground">%</span>
                     </div>

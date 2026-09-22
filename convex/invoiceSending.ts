@@ -49,6 +49,8 @@ export const send = internalAction({
           amount: formatMoney(prepared.totalMinor, prepared.currency),
           dueDate: prepared.dueDate,
           message: args.message,
+          whtNote: prepared.whtNote,
+          bankAccounts: prepared.bankAccounts,
           pdf: { filename: `${prepared.number}.pdf`, content: pdf },
         });
       }

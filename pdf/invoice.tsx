@@ -143,7 +143,7 @@ function Totals({ payload }: { payload: InvoicePdfPayload }) {
       {wht.applies && totals.whtExpectedMinor > 0 && (
         <Text style={[styles.note, { fontSize: 9 }]}>
           If you deduct withholding tax at {formatBpsAsPercent(wht.bps)}% ({money(totals.whtExpectedMinor)}), pay{' '}
-          {money(totals.totalMinor - totals.whtExpectedMinor)} and send us the WHT credit note.
+          {money(totals.totalMinor - totals.whtExpectedMinor)} and send us the WHT certificate.
         </Text>
       )}
     </View>

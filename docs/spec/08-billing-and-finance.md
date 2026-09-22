@@ -234,6 +234,14 @@ studio's behalf.
   so they never make it partly paid, and one settled entirely by credit is shown as "Credited in full".
 - **Expected WHT after a credit** is scaled to what is still owed (`money.whtExpectedOnBalance`): the invoice keeps the
   figure it was sent with, and the page and the payment form use the scaled one.
+- **What the client reads** says only what applies to them: the invoice email and PDF mention withholding tax only when
+  that client deducts it, and then in their own figures; the studio's accounts for the invoice's currency are printed in
+  the invoice and reminder emails as well as the PDF, and nothing promises bank details that are not there. The tax
+  office's document is called the **WHT certificate** everywhere, so it is never confused with the studio's credit
+  notes. A receipt says what is still owed, or that the invoice is settled; a credit note says the same and names any
+  credit held for the client.
+- **A new invoice shows what the client is charged** before it is created: VAT and WHT start from the client's own
+  treatment (`invoices.defaultsFor`) and can be changed on the spot.
 - **The WHT box on a payment follows the amount** received, in the invoice's proportion (`money.whtForPayment`: ₦10,000
   received on an invoice expecting ₦6,000 WHT on ₦215,000 comes with ₦287.08), never taking the two past what is owed,
   until a figure is typed into it; the client's remittance advice is the authority.
