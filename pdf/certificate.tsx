@@ -62,6 +62,7 @@ function Row({ label, value }: { label: string; value?: string }) {
 }
 
 export function CertificatePdf({
+  signaturesInPlace,
   org,
   typeLabel,
   number,
@@ -96,6 +97,12 @@ export function CertificatePdf({
             {title} ({typeLabel} {number}) was signed electronically by everyone listed below. Completed{' '}
             {stamp(completedAt)}.
           </Text>
+          {signaturesInPlace && (
+            <Text style={{ marginTop: 6 }}>
+              The signatures are also shown on the document’s own signature lines. The document as it was signed, before
+              they were added, is kept unchanged.
+            </Text>
+          )}
           <Text style={[styles.muted, { marginTop: 6 }]}>SHA-256 of the document every signer signed:</Text>
           <Text style={styles.hash}>{documentSha256}</Text>
         </View>

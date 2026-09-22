@@ -775,6 +775,9 @@ export default defineSchema({
     totals: v.optional(v.any()),
     pdfFileId: v.optional(v.id('files')),
     pdfSha256: v.optional(v.string()),
+    // What the PDF was drawn from, as JSON, so the signed copy can be drawn again with the signatures in place. Kept
+    // only alongside the PDF it produced.
+    pdfPayload: v.optional(v.string()),
     createdAt: v.number(),
     createdBy: v.id('teamMembers'),
     changeNote: v.optional(v.string()),

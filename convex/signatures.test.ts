@@ -86,6 +86,7 @@ async function sentContract(memberId: Id<'teamMembers'>, as: Awaited<ReturnType<
     storageId,
     fileName: `${prepared.number}.pdf`,
     memberId,
+    pdfPayload: JSON.stringify(prepared.pdf),
   });
   await t.mutation(internal.documents.markSent, { documentId, version: prepared.version, emailed: [] });
   return documentId;
@@ -387,6 +388,9 @@ describe('signing', () => {
       },
     ]);
     expect(evidence[0].consentText).toContain('legal equivalent');
+    // The payload the locked PDF was drawn from is kept with its version.
+    const version = await t.run((ctx) => ctx.db.query('documentVersions').first());
+    expect(JSON.parse(version!.pdfPayload!)).toMatchObject({ number: 'UNB-CON-0001', typeLabel: 'Contract' });
     expect(locked?.signers.map((s) => s.status)).toEqual(['signed', 'invited', 'waiting']);
     expect((await t.run((ctx) => ctx.db.get('documents', documentId)))?.status).toBe('partially_signed');
 
@@ -423,6 +427,8 @@ describe('signing', () => {
       ['Kemi Bello', 'typed', 'app_session'],
     ]);
     expect(data?.certificate.documentSha256).toBe(done?.pdfSha256);
+    // Who signed for which side, for drawing them onto the document's own lines.
+    expect(data?.signers.map((s) => s.party)).toEqual(['client', 'client', 'studio']);
 
     // A signed document stays signed: no void, no re-send.
     await expectCode(as.mutation(api.documents.voidDocument, { documentId, reason: 'x' }), 'documents.signed');

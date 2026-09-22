@@ -832,6 +832,8 @@ export const attachPdf = internalMutation({
     storageId: v.id('_storage'),
     fileName: v.string(),
     memberId: v.id('teamMembers'),
+    // The payload the PDF was rendered from, as JSON.
+    pdfPayload: v.optional(v.string()),
   },
   handler: async (ctx, args): Promise<AttachedPdf> => {
     const document = await getDocument(ctx, args.documentId);
@@ -855,7 +857,11 @@ export const attachPdf = internalMutation({
       .withIndex('by_document_version', (q) => q.eq('documentId', args.documentId).eq('version', args.version))
       .unique();
     if (versionRow) {
-      await ctx.db.patch('documentVersions', versionRow._id, { pdfFileId: file._id, pdfSha256: file.sha256 });
+      await ctx.db.patch('documentVersions', versionRow._id, {
+        pdfFileId: file._id,
+        pdfSha256: file.sha256,
+        pdfPayload: args.pdfPayload,
+      });
     }
     await ctx.db.patch('documents', args.documentId, { pdfFileId: file._id, pdfSha256: file.sha256 });
     return { ok: true as const, fileId: file._id, sha256: file.sha256 };

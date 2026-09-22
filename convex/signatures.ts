@@ -816,6 +816,7 @@ export const completionData = internalQuery({
       signers.push({
         name: signer.name,
         email: signer.email,
+        party: signer.kind === 'team_member' ? ('studio' as const) : ('client' as const),
         role: signer.kind === 'team_member' ? studioNameOf(settings) : 'Client',
         method: signature.method,
         typedName: signature.typedName,
@@ -832,6 +833,8 @@ export const completionData = internalQuery({
     return {
       originalStorageId: pdf.storageId,
       pdfSha256: request.pdfSha256,
+      // What the locked PDF was drawn from, when it was kept, so the signed copy can carry the signatures on its lines.
+      pdfPayload: version?.pdfPayload,
       fileName: `${document.number ?? 'document'}-signed.pdf`,
       certificate: {
         org: { name: studioNameOf(settings) },

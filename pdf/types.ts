@@ -40,6 +40,16 @@ export type DocumentPdfProps = {
   brand: { primary: string; accent: string };
   /** Fixed so the same version always renders to the same bytes. */
   createdAt: Date;
+  /** On the signed copy only: who signed for each side, drawn onto the signature lines. */
+  signatures?: Partial<Record<'client' | 'studio', SignatureMark[]>>;
+};
+
+export type SignatureMark = {
+  name: string;
+  typedName?: string;
+  /** A drawn signature as a PNG data URI. */
+  imageDataUri?: string;
+  signedAt: number;
 };
 
 /** The payload a Convex action hands the renderer: the props, with the date as a number so it survives the wire. */
@@ -73,4 +83,6 @@ export type CertificatePdfProps = {
   signers: CertificateSigner[];
   /** Also the PDF's creation date, so the same completion renders the same bytes. */
   completedAt: number;
+  /** The signatures are also drawn on the document's own signature lines, before this page. */
+  signaturesInPlace?: boolean;
 };

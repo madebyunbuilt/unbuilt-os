@@ -1,4 +1,4 @@
-import { Document, Page, StyleSheet, Text, View } from '@react-pdf/renderer';
+import { Document, Image, Page, StyleSheet, Text, View } from '@react-pdf/renderer';
 import { type DocumentBlock } from '@/convex/lib/documentBlocks';
 import { type Currency, formatMoneyWithCode } from '@/convex/lib/money';
 import { type DocumentPdfProps, type PdfLineItem, type PdfTotals } from './types';
@@ -56,6 +56,13 @@ const styles = StyleSheet.create({
   signatures: { flexDirection: 'row', gap: 32, marginTop: 24 },
   signature: { flex: 1 },
   signatureLine: { marginTop: 32, borderTopWidth: 1, borderTopColor: '#111827', paddingTop: 4 },
+  // On the signed copy the 32pt gap above each line holds the name or the signature, so nothing moves.
+  signatureFill: { height: 32, justifyContent: 'flex-end', paddingBottom: 2 },
+  signatureLineFilled: { marginTop: 0 },
+  signatureMarks: { flexDirection: 'row', justifyContent: 'flex-start', alignItems: 'flex-end', gap: 12 },
+  signatureDate: { marginLeft: 'auto' },
+  signatureImage: { height: 28, maxWidth: 140, objectFit: 'contain' },
+  signatureTyped: { fontSize: 14, fontFamily: 'Times-Italic', lineHeight: 1.2 },
   // Anchored from the top: with a line height on the page, react-pdf drops a footer placed with `bottom`. Pages are
   // always A4 (841.89pt tall), so this sits 24pt above the bottom edge.
   footer: {
@@ -183,24 +190,53 @@ function Block({ block, props }: { block: DocumentBlock; props: DocumentPdfProps
           rows={(props.paymentSchedule ?? []).map((item) => ({ left: item.label, right: item.amount }))}
         />
       );
-    case 'signature':
+    case 'signature': {
+      const marks = props.signatures?.[block.party] ?? [];
       return (
         <View style={styles.signature}>
           <Text style={styles.partyLabel}>{block.party === 'client' ? 'For the client' : 'For the studio'}</Text>
-          <View style={styles.signatureLine}>
+          {marks.length > 0 && (
+            <View style={styles.signatureFill}>
+              <Text>{marks.map((mark) => mark.name).join(', ')}</Text>
+            </View>
+          )}
+          <View style={[styles.signatureLine, marks.length > 0 ? styles.signatureLineFilled : {}]}>
             <Text style={styles.muted}>Name</Text>
           </View>
-          <View style={styles.signatureLine}>
+          {marks.length > 0 && (
+            <View style={[styles.signatureFill, styles.signatureMarks]}>
+              {marks.map((mark, index) =>
+                mark.imageDataUri ? (
+                  // eslint-disable-next-line jsx-a11y/alt-text -- react-pdf images take no alt text.
+                  <Image key={index} src={mark.imageDataUri} style={styles.signatureImage} />
+                ) : (
+                  <Text key={index} style={styles.signatureTyped}>
+                    {mark.typedName ?? mark.name}
+                  </Text>
+                ),
+              )}
+              <Text style={[styles.muted, styles.signatureDate]}>{signedOn(marks)}</Text>
+            </View>
+          )}
+          <View style={[styles.signatureLine, marks.length > 0 ? styles.signatureLineFilled : {}]}>
             <Text style={styles.muted}>Signature and date</Text>
           </View>
         </View>
       );
+    }
     case 'pageBreak':
       return <View break />;
     case 'image':
       // Images arrive with the file-backed blocks; the alt text keeps the document readable until then.
       return <Text style={[styles.paragraph, styles.muted]}>[{block.alt}]</Text>;
   }
+}
+
+const signedDate = new Intl.DateTimeFormat('en-GB', { dateStyle: 'long', timeZone: 'Africa/Lagos' });
+
+/** The day, or days, a side signed, in Lagos time. */
+function signedOn(marks: { signedAt: number }[]): string {
+  return [...new Set(marks.map((mark) => signedDate.format(mark.signedAt)))].join(', ');
 }
 
 /** Signature blocks sit side by side, so consecutive ones are drawn as one row. */

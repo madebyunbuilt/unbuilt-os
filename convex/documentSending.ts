@@ -38,6 +38,8 @@ export const send = internalAction({
         storageId: storageId as Id<'_storage'>,
         fileName: `${prepared.number}.pdf`,
         memberId: args.memberId,
+        // Kept so the signed copy can be drawn again, identically, with the signatures on their lines.
+        pdfPayload: JSON.stringify(prepared.pdf),
       });
       if (!stored.ok) throw new Error(stored.message);
 

@@ -212,11 +212,19 @@ confirmed the process; templates carry their own approval. See `18-open-question
   types, sent otherwise, ready for a new request. Requests expire hourly; a link is refused the moment its date passes,
   whether or not the job has run. Reminders go out daily at 09:00 Lagos, at most one per signer per day.
 - **Completion** runs in a Node action. It loads the stored PDF and refuses to go on unless its hash still matches the
-  one the request locked; renders the certificate on its own; and appends it with pdf-lib, so the pages the signers read
-  stay byte for byte what they signed. The signed PDF is stored on the document, client-visible, with its own hash, which
-  storage's own hash must agree with. Every signer is emailed a copy. If any step fails, the signatures stay recorded,
-  the reason is kept on the request, whoever set it up is told, and `documents.send` holders can run it again. The
-  downstream actions (billing `on_signature` items, project status) arrive with billing.
+  one the request locked. The signed copy carries the signatures on the document's own lines (studio, 2026-09-22): each
+  side's names on the Name line, the drawn or typed signatures and the date on the signature line. To do that the
+  document is drawn again from the payload kept with its version at send; drawn without signatures it must reproduce
+  the locked hash exactly, and only then is it drawn with them, in the space above each line so nothing moves. A version
+  sent before the payload was kept, or before the renderer changed, keeps its pages as they are. Either way the
+  certificate (rendered on its own) is appended with pdf-lib, says whether the signatures are also on the lines, and
+  records the hash of the document as signed. The stored original is never changed. The signed PDF is stored on the
+  document, client-visible, with its own hash, which storage's own hash must agree with. Every signer is emailed a copy.
+  If any step fails, the signatures stay recorded, the reason is kept on the request, whoever set it up is told, and
+  `documents.send` holders can run it again. The downstream actions (billing `on_signature` items, project status)
+  arrive with billing.
+- **The PDF footer** ("page x of y") is anchored from the top of the A4 page: with a line height on the page, react-pdf
+  drops a footer placed from the bottom.
 - **Verify** (anyone who can read the document) recomputes the hashes of the stored original and the signed PDF in an
   action and records the result on the request; a mismatch notifies the asker and the Owner.
 - **Evidence** is written once: nothing patches or deletes a `signatures` row. Audit entries for requests and links
