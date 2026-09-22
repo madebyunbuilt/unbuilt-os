@@ -1,0 +1,5 @@
+{
+  "node": {
+    "externalPackages": ["@react-pdf/renderer"]
+  }
+}

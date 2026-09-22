@@ -2,9 +2,11 @@ import { type Doc, type Id } from '../_generated/dataModel';
 import { type MutationCtx, type QueryCtx } from '../_generated/server';
 import { type Currency, calculateTotals, type Discount, formatMoney, type LineInput, type TaxSetting } from './money';
 import { type DocumentPdfPayload } from '../../pdf/types';
-import { type DocumentBlock, documentError, type DocumentType, fillVariables } from './documentBlocks';
+import { type DocumentBlock, documentError, type DocumentType, fillVariables, TYPE_LABELS } from './documentBlocks';
 import { type NumberedRecord } from './numbering';
 import { getOrgSettings } from './settings';
+
+export { TYPE_LABELS };
 
 // Building a document (07-documents-and-esign.md). A document is created from a template, and from that moment it owns
 // its text: clause wording is copied in and variables are filled, so editing the template or the clause later changes
@@ -47,20 +49,6 @@ export const EDITABLE_STATUSES: ReadonlySet<Doc<'documents'>['status']> = new Se
 export const FINAL_STATUSES: ReadonlySet<Doc<'documents'>['status']> = new Set(['signed', 'void']);
 
 export const DECIDABLE_STATUSES: ReadonlySet<Doc<'documents'>['status']> = new Set(['sent', 'viewed']);
-
-export const TYPE_LABELS: Record<DocumentType, string> = {
-  quote: 'Quote',
-  proposal: 'Proposal',
-  sow: 'Statement of work',
-  contract: 'Contract',
-  sla: 'Service level agreement',
-  nda: 'Non-disclosure agreement',
-  dpa: 'Data processing agreement',
-  change_request: 'Change request',
-  handover: 'Handover',
-  team_agreement: 'Team agreement',
-  other: 'Document',
-};
 
 const NUMBERED: Record<DocumentType, NumberedRecord> = {
   quote: 'quote',
@@ -178,15 +166,12 @@ export async function variableValues(
 }
 
 /**
- * The blocks as this document will read: each clause replaced by the wording it has right now, and every variable
- * filled in. Re-resolving later picks up new client or project details but never new clause or template wording.
+ * The document's own copy of the wording: each clause replaced by the text it has right now, so editing the clause
+ * afterwards changes nothing here. Variables are left as they are; they are filled when the document is shown or sent,
+ * by which time the number, the date and the totals exist.
  */
-export async function resolveBlocks(
-  ctx: QueryCtx | MutationCtx,
-  blocks: DocumentBlock[],
-  values: Record<string, string | undefined>,
-): Promise<DocumentBlock[]> {
-  const resolved: DocumentBlock[] = [];
+export async function copyClausesIn(ctx: QueryCtx | MutationCtx, blocks: DocumentBlock[]): Promise<DocumentBlock[]> {
+  const copied: DocumentBlock[] = [];
   for (const block of blocks) {
     if (block.kind === 'clause') {
       const clause = await ctx.db
@@ -194,15 +179,20 @@ export async function resolveBlocks(
         .withIndex('by_key', (q) => q.eq('key', block.clauseKey))
         .unique();
       if (!clause) throw documentError('documents.clauseMissing', `There is no clause called "${block.clauseKey}"`);
-      resolved.push({ kind: 'heading', text: clause.title, level: 3 });
-      resolved.push({ kind: 'paragraph', text: fillVariables(clause.body, values) });
+      copied.push({ kind: 'heading', text: clause.title, level: 3 });
+      copied.push({ kind: 'paragraph', text: clause.body });
       continue;
     }
-    if (block.kind === 'heading' || block.kind === 'paragraph') {
-      resolved.push({ ...block, text: fillVariables(block.text, values) });
-      continue;
-    }
-    resolved.push(block);
+    copied.push(block);
   }
-  return resolved;
+  return copied;
+}
+
+/** The same blocks with every variable filled in, as the client will read them. */
+export function fillBlocks(blocks: DocumentBlock[], values: Record<string, string | undefined>): DocumentBlock[] {
+  return blocks.map((block) =>
+    block.kind === 'heading' || block.kind === 'paragraph'
+      ? { ...block, text: fillVariables(block.text, values) }
+      : block,
+  );
 }

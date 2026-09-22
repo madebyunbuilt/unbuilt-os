@@ -20,9 +20,10 @@ import {
   FINAL_STATUSES,
   getDocument,
   type LineItem,
+  copyClausesIn,
+  fillBlocks,
   numberedRecordFor,
   type PreparedSend,
-  resolveBlocks,
   taxSettingsFor,
   TYPE_LABELS,
   variableValues,
@@ -146,6 +147,8 @@ function documentView(document: Doc<'documents'>, extras: { clientName: string; 
     decisionNote: document.decisionNote,
     signedAt: document.signedAt,
     voidReason: document.voidReason,
+    pdfFileId: document.pdfFileId,
+    pdfSha256: document.pdfSha256,
     createdAt: document._creationTime,
   };
 }
@@ -209,7 +212,9 @@ export const get = teamQuery(null)({
 
     return {
       ...(await withNames(ctx, document)),
-      blocks: document.blocks,
+      // As the client will read it, and the raw wording underneath for editing.
+      blocks: await filledBlocks(ctx, document),
+      rawBlocks: document.blocks,
       lineItems: document.lineItems,
       discount: document.discount,
       vat: document.vat,
@@ -261,6 +266,13 @@ async function buildDocument(ctx: MutationCtx & Principal, args: CreateArgs) {
     : await defaultTemplateFor(ctx, args.type);
   if (args.templateId && !template) throw documentError('documents.notFound', 'Template not found');
   if (template && !template.active) throw documentError('documents.retired', 'That template is retired');
+  if (!template) {
+    // Without a template there is no wording, and an empty document is no use to anyone.
+    throw documentError(
+      'documents.noTemplate',
+      `There is no active template for a ${TYPE_LABELS[args.type].toLowerCase()} yet. Add one first.`,
+    );
+  }
 
   const today = await studioToday(ctx);
   const settings = await getOrgSettings(ctx);
@@ -292,13 +304,10 @@ async function buildDocument(ctx: MutationCtx & Principal, args: CreateArgs) {
   }
 
   const title = text(args.title, 'Title', { max: 200 }) ?? `${TYPE_LABELS[args.type]} for ${client.displayName}`;
-  const values = await variableValues(
-    ctx,
-    { type: args.type, title, validUntilDate, currency, totals: priceable?.totals },
-    { client, contact, project, deal },
-    today,
-  );
-  const blocks = await resolveBlocks(ctx, (template?.blocks ?? []) as DocumentBlock[], values);
+  // The clause wording is taken now; the variables wait until the document is read or sent, when its number exists.
+  const blocks = await copyClausesIn(ctx, (template?.blocks ?? []) as DocumentBlock[]);
+  void contact;
+  void deal;
 
   return {
     fields: {
@@ -325,6 +334,19 @@ async function buildDocument(ctx: MutationCtx & Principal, args: CreateArgs) {
     },
     client,
   };
+}
+
+/** The document's wording with its variables filled in from the client, project, deal and totals it has now. */
+async function filledBlocks(ctx: Ctx, document: Doc<'documents'>) {
+  const [client, contact, project, deal] = await Promise.all([
+    ctx.db.get('clients', document.clientId),
+    primaryContact(ctx, document.clientId),
+    document.projectId ? ctx.db.get('projects', document.projectId) : null,
+    document.dealId ? ctx.db.get('deals', document.dealId) : null,
+  ]);
+  if (!client) return document.blocks;
+  const values = await variableValues(ctx, document, { client, contact, project, deal }, await studioToday(ctx));
+  return fillBlocks(document.blocks, values);
 }
 
 async function primaryContact(ctx: Ctx, clientId: Id<'clients'>) {
@@ -467,16 +489,24 @@ export const refreshText = teamMutation('documents.update')({
     const document = await visibleDocument(ctx, documentId);
     assertEditable(document);
     const template = document.templateId ? await ctx.db.get('documentTemplates', document.templateId) : null;
-    if (!template) throw documentError('documents.noTemplate', 'This document was not made from a template');
+    if (!template) {
+      throw documentError(
+        'documents.noTemplate',
+        'This document has no template to rebuild from. Edit its wording here instead.',
+      );
+    }
     const [client, contact, project, deal] = await Promise.all([
       getClient(ctx, document.clientId),
       primaryContact(ctx, document.clientId),
       document.projectId ? ctx.db.get('projects', document.projectId) : null,
       document.dealId ? ctx.db.get('deals', document.dealId) : null,
     ]);
-    const values = await variableValues(ctx, document, { client, contact, project, deal }, await studioToday(ctx));
+    void client;
+    void contact;
+    void project;
+    void deal;
     await ctx.db.patch('documents', documentId, {
-      blocks: await resolveBlocks(ctx, template.blocks as DocumentBlock[], values),
+      blocks: await copyClausesIn(ctx, template.blocks as DocumentBlock[]),
       templateVersion: template.version,
     });
   },
@@ -659,19 +689,49 @@ export const prepareSend = internalMutation({
     }
 
     const number = document.number ?? (await nextNumber(ctx, numberedRecordFor(document.type)));
-    const version = document.currentVersion + 1;
     const now = Date.now();
+    const changeNote = text(args.changeNote, 'Change note', { max: 500 });
 
-    await ctx.db.insert('documentVersions', {
-      documentId: document._id,
-      version,
-      blocks: document.blocks,
-      lineItems: document.lineItems,
-      totals: document.totals,
-      createdAt: now,
-      createdBy: args.memberId,
-      changeNote: text(args.changeNote, 'Change note', { max: 500 }),
-    });
+    // Filled now, with the number the document is about to carry: this is exactly what the client will read.
+    const [contact, project, deal] = await Promise.all([
+      ctx.db.get('contacts', recipients[0].id),
+      document.projectId ? ctx.db.get('projects', document.projectId) : null,
+      document.dealId ? ctx.db.get('deals', document.dealId) : null,
+    ]);
+    const readable = fillBlocks(
+      document.blocks,
+      await variableValues(ctx, { ...document, number }, { client, contact, project, deal }, await studioToday(ctx)),
+    );
+
+    const latest = await ctx.db
+      .query('documentVersions')
+      .withIndex('by_document_version', (q) => q.eq('documentId', document._id))
+      .order('desc')
+      .first();
+    const unfinished = latest?.version === document.currentVersion && latest.pdfFileId === undefined ? latest : null;
+    const version = unfinished ? unfinished.version : document.currentVersion + 1;
+
+    if (unfinished) {
+      await ctx.db.patch('documentVersions', unfinished._id, {
+        blocks: readable,
+        lineItems: document.lineItems,
+        totals: document.totals,
+        createdAt: now,
+        createdBy: args.memberId,
+        changeNote,
+      });
+    } else {
+      await ctx.db.insert('documentVersions', {
+        documentId: document._id,
+        version,
+        blocks: readable,
+        lineItems: document.lineItems,
+        totals: document.totals,
+        createdAt: now,
+        createdBy: args.memberId,
+        changeNote,
+      });
+    }
     await ctx.db.patch('documents', document._id, { number, currentVersion: version });
 
     const settings = await getOrgSettings(ctx);
@@ -702,7 +762,7 @@ export const prepareSend = internalMutation({
       portalUrl: `${portalAppOrigin() ?? ''}/documents/${document._id}`,
       recipients,
       pdf: {
-        blocks: document.blocks,
+        blocks: readable,
         title: document.title,
         typeLabel: TYPE_LABELS[document.type],
         number,

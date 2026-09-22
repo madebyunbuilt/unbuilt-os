@@ -149,6 +149,14 @@ and templates. See `18-open-questions.md`.
   had until the email is away, and whoever pressed send is notified if any step fails.
 - **Recipients** default to the client's primary contact; the sender can choose others, and a contact who has left is
   never one. Every send records the recipients on the client's timeline.
+- **A document needs a template.** Creating one for a type with no active template is refused rather than producing a
+  document with no wording. `refreshText` only applies to a document made from a template; one written by hand is edited
+  in place.
+- **A send that failed** is retried into the same version: the version row an unfinished attempt left behind is filled
+  in again rather than another being stacked on top. The number, once assigned, never changes.
+- **react-pdf is an external package** (`convex.json`), because its pdfkit dependency resolves `#standard-fonts/*`
+  subpath imports at runtime that the bundler cannot follow. External packages arrive as CommonJS, so the renderer takes
+  the named export first.
 - **The PDF** renders the same bytes for the same version, so its hash is stable; a signature certificate can rely on
   it. Its file belongs to the document, is marked client-visible, and is read through the usual signed download link:
   every document reader may fetch it, and a member with `documents.view.assigned` only within their projects.
@@ -158,6 +166,26 @@ and templates. See `18-open-questions.md`.
 - **Variables** are limited to fields the app actually holds, so a document can never print a blank where a value was
   promised. The studio's email, phone and website are part of that set: they are settings, checked the same way a
   contact's are (a real address, an international number, a resolvable site), and they belong on a letterhead.
+
+## Screens
+
+- `/documents` (`documents.view` or `documents.view.assigned`): every document the viewer can see, newest first, with
+  filters for type and status, and its number, client, status, total and valid-until date. "New document"
+  (`documents.create`) chooses the type, client, template, currency, an optional title and, for priced types, the lines
+  with a running total; rate card items fill a line's description and price where the item is priced in that currency.
+  A template still awaiting legal review says so before anything is created.
+- The document page shows the document as the client will read it, its chain, and its versions. Looking at it records a
+  team view, which never counts as the client's.
+  - `documents.send`: send it (the main contact ticked, others addable, an optional note, and a change note on later
+    versions), then record what the client said (accepted or declined, with who said so).
+  - `documents.update`: edit the draft — title, valid-until, the priced lines, and the wording block by block, or
+    rebuild the wording from the template with today's client and project details.
+  - `documents.void`: void it with a reason. Never offered on a signed document.
+  - `documents.create`: draft the next document in the chain (quote → proposal → SOW → contract), which carries the
+    client, project, deal and prices across.
+  - Anyone who can read it can download the stored PDF through a short-lived link.
+- The client page's and the project's **Documents** tabs list that client's or project's documents, and can start one
+  already pointed at them.
 
 ## Acceptance criteria
 

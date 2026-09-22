@@ -20,7 +20,12 @@ export const CLIENT_TABS: Tab[] = [
   { label: 'Contacts', segment: 'contacts', built: true },
   { label: 'Deals', segment: 'deals', built: true, anyOf: ['deals.view'] },
   { label: 'Projects', segment: 'projects', built: true, anyOf: ['projects.view.all', 'projects.view.assigned'] },
-  { label: 'Documents', segment: 'documents', built: false },
+  {
+    label: 'Documents',
+    segment: 'documents',
+    built: true,
+    anyOf: ['documents.view', 'documents.view.assigned'],
+  },
   { label: 'Invoices and payments', segment: 'invoices', built: false },
   { label: 'Tickets', segment: 'tickets', built: false },
   { label: 'Vault', segment: 'vault', built: false, anyOf: ['vault.view.all', 'vault.view.assigned'] },
