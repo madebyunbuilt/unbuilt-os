@@ -83,10 +83,12 @@ const quantity = (quantityMilli: number) => {
   return Number.isInteger(value) ? String(value) : value.toFixed(3).replace(/0+$/, '');
 };
 
+// With no VAT charged the row still shows, with a real zero: an accountant can then see it was considered, and for a
+// zero-rated or exempt client the invoice says which.
 const TREATMENT: Record<InvoicePdfPayload['vatTreatment'], string> = {
-  standard: 'No VAT charged',
-  zero_rated: 'VAT: zero-rated',
-  exempt: 'VAT: exempt',
+  standard: 'VAT',
+  zero_rated: 'VAT (zero-rated)',
+  exempt: 'VAT (exempt)',
 };
 
 function Lines({ items, currency }: { items: PdfLineItem[]; currency: Currency }) {
@@ -134,7 +136,7 @@ function Totals({ payload }: { payload: InvoicePdfPayload }) {
         <Text style={styles.muted}>
           {vat.applies ? `VAT at ${formatBpsAsPercent(vat.bps)}%` : TREATMENT[vatTreatment]}
         </Text>
-        <Text>{vat.applies ? money(totals.vatMinor) : '—'}</Text>
+        <Text>{money(vat.applies ? totals.vatMinor : 0)}</Text>
       </View>
       <View style={styles.totalsTotal}>
         <Text style={styles.bold}>Total due</Text>

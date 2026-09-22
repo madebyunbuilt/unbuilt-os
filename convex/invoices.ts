@@ -113,6 +113,8 @@ export const get = teamQuery('invoices.view')({
       vat: invoice.vat,
       wht: invoice.wht,
       fxRateOverridden: invoice.fxRateOverridden ?? false,
+      // For the VAT line's wording when none is charged.
+      vatTreatment: (await ctx.db.get('clients', invoice.clientId))?.vatTreatment ?? 'standard',
       notes: invoice.notes,
       terms: invoice.terms,
       pdfFileId: invoice.pdfFileId,

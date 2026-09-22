@@ -269,7 +269,15 @@ export function InvoiceFormDialog({
             currency={currency}
             canUseRateCard={canUseRateCard}
             idPrefix="invoice"
+            showVat={vatApplies}
           />
+          {vatApplies &&
+            lines.some((line) => line.description.trim() || line.unitPrice.trim()) &&
+            !lines.some((line) => line.taxable) && (
+              <p role="status" className="text-sm text-attention-foreground">
+                No line carries VAT, so this invoice charges none. Untick “Charge VAT” if that is right.
+              </p>
+            )}
 
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">

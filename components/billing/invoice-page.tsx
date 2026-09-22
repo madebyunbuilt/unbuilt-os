@@ -179,10 +179,12 @@ export function InvoicePage({ invoiceId, permissions }: { invoiceId: Id<'invoice
         <dl className="ml-auto w-full max-w-sm space-y-1 text-sm">
           <Row label="Subtotal" value={cur(invoice.totals.subtotalMinor)} />
           {invoice.totals.discountMinor > 0 && <Row label="Discount" value={`−${cur(invoice.totals.discountMinor)}`} />}
-          <Row
-            label={invoice.vat.applies ? `VAT at ${formatBpsAsPercent(invoice.vat.bps)}%` : 'No VAT charged'}
-            value={invoice.vat.applies ? cur(invoice.totals.vatMinor) : '—'}
-          />
+          <Row label={vatLabel(invoice)} value={cur(invoice.vat.applies ? invoice.totals.vatMinor : 0)} />
+          {invoice.vat.applies && invoice.lineItems.length > 0 && invoice.totals.taxableMinor === 0 && (
+            <p role="status" className="pt-1 text-sm text-attention-foreground">
+              No line carries VAT, so this invoice charges none. Untick “Charge VAT” if that is right.
+            </p>
+          )}
           <Row label="Total" value={cur(invoice.totals.totalMinor)} strong />
           {invoice.wht.applies && invoice.totals.whtExpectedMinor > 0 && (
             <Row
@@ -345,6 +347,14 @@ export function InvoicePage({ invoiceId, permissions }: { invoiceId: Id<'invoice
       )}
     </div>
   );
+}
+
+/** "VAT at 7.5%" when it is charged; otherwise why it is zero. */
+function vatLabel(invoice: { vat: { applies: boolean; bps: number }; vatTreatment?: string }) {
+  if (invoice.vat.applies) return `VAT at ${formatBpsAsPercent(invoice.vat.bps)}%`;
+  if (invoice.vatTreatment === 'zero_rated') return 'VAT (zero-rated)';
+  if (invoice.vatTreatment === 'exempt') return 'VAT (exempt)';
+  return 'VAT';
 }
 
 function Row({ label, value, strong, muted }: { label: string; value: string; strong?: boolean; muted?: boolean }) {

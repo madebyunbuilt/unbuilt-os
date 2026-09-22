@@ -63,6 +63,7 @@ export function LineItemsEditor({
   currency,
   canUseRateCard,
   idPrefix,
+  showVat = true,
 }: {
   lines: LineDraft[];
   onChange: (lines: LineDraft[]) => void;
@@ -70,6 +71,8 @@ export function LineItemsEditor({
   /** ratecard.view: pick an item and its price instead of typing one. */
   canUseRateCard: boolean;
   idPrefix: string;
+  /** False when nothing here charges VAT, so the per-line boxes would do nothing. */
+  showVat?: boolean;
 }) {
   const rateCard = useQuery(api.rateCard.list, canUseRateCard ? {} : 'skip');
   const set = (index: number, patch: Partial<LineDraft>) =>
@@ -163,7 +166,7 @@ export function LineItemsEditor({
                   onChange={(event) => set(index, { unitPrice: event.target.value })}
                 />
               </div>
-              <div className="flex items-center gap-2 pt-4">
+              <div className={`flex items-center gap-2 pt-4 ${showVat ? '' : 'hidden'}`}>
                 <Checkbox
                   id={`${idPrefix}-taxable-${index}`}
                   checked={line.taxable}

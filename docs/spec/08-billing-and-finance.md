@@ -240,6 +240,11 @@ studio's behalf.
   office's document is called the **WHT certificate** everywhere, so it is never confused with the studio's credit
   notes. A receipt says what is still owed, or that the invoice is settled; a credit note says the same and names any
   credit held for the client.
+- **The VAT line always shows an amount**, never a dash: "VAT at 7.5%" with the amount when it is charged, otherwise
+  "VAT (zero-rated)", "VAT (exempt)" or "VAT" with ₦0.00, so a reader can see VAT was considered and why it is nothing.
+  The total is the work itself; only the VAT is zero.
+- **A line's VAT box shows only while the invoice charges VAT**, and an invoice charging VAT with no line carrying it
+  says so on the draft and the page, without blocking it.
 - **A new invoice shows what the client is charged** before it is created: VAT and WHT start from the client's own
   treatment (`invoices.defaultsFor`) and can be changed on the spot.
 - **The WHT box on a payment follows the amount** received, in the invoice's proportion (`money.whtForPayment`: ₦10,000

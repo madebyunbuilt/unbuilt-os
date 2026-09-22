@@ -107,6 +107,7 @@ const invoice = (overrides: object = {}) => ({
   ],
   discount: { kind: 'none' },
   vat: { applies: false, bps: 750 },
+  vatTreatment: 'exempt',
   wht: { applies: true, bps: 500 },
   fxRateOverridden: false,
   pdfFileId: 'f1',
@@ -323,6 +324,30 @@ describe('InvoicePage', () => {
     });
     render(<InvoicePage invoiceId={'i1' as never} permissions={FINANCE} />);
     expect(screen.getByText('Credited in full')).toBeInTheDocument();
+  });
+
+  it('shows a zero VAT line with the reason, and warns when VAT is on but no line carries it', async () => {
+    render(<InvoicePage invoiceId={'i1' as never} permissions={FINANCE} />);
+    expect(screen.getByText('VAT (exempt)').nextSibling).toHaveTextContent('₦0.00');
+
+    state.queries['invoices.get'] = invoice({
+      status: 'draft',
+      number: undefined,
+      vat: { applies: true, bps: 750 },
+      vatTreatment: 'standard',
+      totals: { ...totals, taxableMinor: 0, vatMinor: 0 },
+      lineItems: [
+        {
+          description: 'Website design',
+          quantityMilli: 1_000,
+          unitPriceMinor: 10_000_000,
+          amountMinor: 10_000_000,
+          taxable: false,
+        },
+      ],
+    });
+    render(<InvoicePage invoiceId={'i1' as never} permissions={FINANCE} />);
+    expect(screen.getAllByText(/No line carries VAT, so this invoice charges none/)[0]).toBeInTheDocument();
   });
 
   it('does not offer void once money is on it, but offers the write-off', () => {
