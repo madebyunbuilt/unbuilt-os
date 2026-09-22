@@ -100,7 +100,7 @@ export function DocumentList({
         <p className="rounded-md border border-dashed p-6 text-muted-foreground">Nothing here yet.</p>
       ) : (
         <div className="overflow-x-auto rounded-lg border">
-          <table className="w-full min-w-[48rem] text-sm">
+          <table className="w-full min-w-3xl text-sm">
             <caption className="sr-only">Documents</caption>
             <thead className="bg-muted text-left">
               <tr>
