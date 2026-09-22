@@ -121,7 +121,7 @@ async function assertUnusedByActiveTemplates(ctx: MutationCtx, key: string) {
   if (used.length > 0) {
     throw documentError(
       'documents.clauseInUse',
-      `${used.map((template) => template.name).join(', ')} still use this clause`,
+      `${used.map((template) => template.name).join(', ')} still ${used.length === 1 ? 'uses' : 'use'} this clause`,
     );
   }
 }

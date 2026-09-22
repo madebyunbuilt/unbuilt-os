@@ -184,6 +184,14 @@ and templates. See `18-open-questions.md`.
   - `documents.create`: draft the next document in the chain (quote → proposal → SOW → contract), which carries the
     client, project, deal and prices across.
   - Anyone who can read it can download the stored PDF through a short-lived link.
+- **Settings → Document templates** (`templates.documents.manage`): templates grouped by type, with the default and
+  the legal-review flag shown; make another the default, retire or bring one back, and open one to edit. The editor
+  builds a template from blocks — add, reorder and remove them, type into headings and paragraphs, and pick a clause by
+  key — and lists every variable a template may use, so nothing has to be guessed. Saving a change makes a new
+  version; the server's reason is shown when it refuses one.
+- **Settings → Clauses** (`templates.documents.manage`): clauses grouped by category; add one, reword it (which makes
+  the next version), retire or bring it back. A clause an active template uses cannot be retired, and the page says
+  which templates are holding it.
 - The client page's and the project's **Documents** tabs list that client's or project's documents, and can start one
   already pointed at them.
 

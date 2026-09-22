@@ -32,6 +32,20 @@ export const SETTINGS_SECTIONS: readonly SettingsSection[] = [
     built: true,
   },
   {
+    label: 'Document templates',
+    href: '/settings/document-templates',
+    description: 'What quotes, proposals, contracts and the rest start from',
+    anyOf: ['templates.documents.manage'],
+    built: true,
+  },
+  {
+    label: 'Clauses',
+    href: '/settings/clauses',
+    description: 'Wording shared across templates, versioned',
+    anyOf: ['templates.documents.manage'],
+    built: true,
+  },
+  {
     label: 'Roles and permissions',
     href: '/settings/roles',
     description: 'Default and custom roles',
