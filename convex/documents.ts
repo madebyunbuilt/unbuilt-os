@@ -180,7 +180,13 @@ export const list = teamQuery(null)({
     const filtered = visible.filter(
       (document) => (!args.type || document.type === args.type) && (!args.status || document.status === args.status),
     );
-    const views = await Promise.all(filtered.map((document) => withNames(ctx, document)));
+    const views = await Promise.all(
+      filtered.map(async (document) => ({
+        ...(await withNames(ctx, document)),
+        // "Waiting to be signed" only once someone has actually been asked to sign.
+        signingOpen: document.status === 'awaiting_signature' ? await hasOpenRequest(ctx, document._id) : false,
+      })),
+    );
     return views.sort((a, b) => b.createdAt - a.createdAt);
   },
 });
@@ -217,6 +223,9 @@ export const get = teamQuery(null)({
       paymentScheduleSummary: document.paymentScheduleSummary,
       // A signing request is under way, so a new version cannot be sent until it is cancelled.
       signingOpen: await hasOpenRequest(ctx, document._id),
+      unsentChanges: document.unsentChanges ?? false,
+      canDiscard: (document.unsentChanges ?? false) && versions[0]?.source !== undefined,
+      decidedVersion: document.decidedVersion,
       createdByName: (await ctx.db.get('teamMembers', document.createdByMemberId))?.name ?? 'Former member',
       chain: inChain
         .map((row) => ({
@@ -448,15 +457,26 @@ export const createFromParent = teamMutation('documents.create')({
   },
 });
 
-function assertEditable(document: Doc<'documents'>) {
+/**
+ * Refuses an edit to a document that has been decided, signed or voided, or that is out for signing. Returns what an
+ * edit should also set: a sent document edited now has unsent changes until its next version goes out.
+ */
+async function assertEditable(ctx: MutationCtx, document: Doc<'documents'>) {
   if (!EDITABLE_STATUSES.has(document.status)) {
     throw documentError(
-      document.status === 'signed' ? 'documents.signed' : 'documents.notDraft',
+      document.status === 'signed' ? 'documents.signed' : 'documents.notEditable',
       document.status === 'signed'
         ? 'A signed document cannot change. Raise a change request instead.'
-        : `This document is ${document.status.replace('_', ' ')}. Editing it sends a new version, which arrives with sending.`,
+        : `This document is ${document.status.replace('_', ' ')}, so it cannot change. Draft a new one instead.`,
     );
   }
+  if (await hasOpenRequest(ctx, document._id)) {
+    throw documentError(
+      'documents.signing',
+      'This document is out for signing. Cancel the signing request before changing it.',
+    );
+  }
+  return document.status === 'draft' ? {} : { unsentChanges: true };
 }
 
 export const update = teamMutation('documents.update')({
@@ -473,7 +493,7 @@ export const update = teamMutation('documents.update')({
   },
   handler: async (ctx, { documentId, ...args }) => {
     const document = await visibleDocument(ctx, documentId);
-    assertEditable(document);
+    const edited = await assertEditable(ctx, document);
     const client = await getClient(ctx, document.clientId);
     const priced = PRICED_TYPES.has(document.type);
     const taxes = await taxSettingsFor(ctx, client);
@@ -499,6 +519,7 @@ export const update = teamMutation('documents.update')({
       validUntilDate: checkedDate(args.validUntilDate, 'The valid until date'),
       paymentScheduleSummary: text(args.paymentScheduleSummary, 'Payment schedule', { max: 300 }),
       blocks: args.blocks ?? document.blocks,
+      ...edited,
     });
   },
 });
@@ -512,7 +533,7 @@ export const link = teamMutation('documents.update')({
   },
   handler: async (ctx, { documentId, dealId, projectId }) => {
     const document = await visibleDocument(ctx, documentId);
-    assertEditable(document);
+    const edited = await assertEditable(ctx, document);
     if (dealId) {
       const deal = await ctx.db.get('deals', dealId);
       if (!deal || deal.clientId !== document.clientId) {
@@ -528,6 +549,7 @@ export const link = teamMutation('documents.update')({
     await ctx.db.patch('documents', documentId, {
       ...(dealId ? { dealId } : {}),
       ...(projectId ? { projectId } : {}),
+      ...edited,
     });
   },
 });
@@ -537,9 +559,44 @@ export const setPaymentSchedule = teamMutation('documents.update')({
   args: { documentId: v.id('documents'), paymentScheduleSummary: v.string() },
   handler: async (ctx, { documentId, paymentScheduleSummary }) => {
     const document = await visibleDocument(ctx, documentId);
-    assertEditable(document);
+    const edited = await assertEditable(ctx, document);
     await ctx.db.patch('documents', documentId, {
       paymentScheduleSummary: text(paymentScheduleSummary, 'Payment schedule', { required: true, max: 300 }),
+      ...edited,
+    });
+  },
+});
+
+/** Throws away a sent document's unsent changes, putting it back exactly as its last version was sent. */
+export const discardChanges = teamMutation('documents.update')({
+  args: { documentId: v.id('documents') },
+  handler: async (ctx, { documentId }) => {
+    const document = await visibleDocument(ctx, documentId);
+    if (!document.unsentChanges) return;
+    const version = await ctx.db
+      .query('documentVersions')
+      .withIndex('by_document_version', (q) => q.eq('documentId', documentId).eq('version', document.currentVersion))
+      .unique();
+    if (!version?.source) {
+      throw documentError(
+        'documents.noSource',
+        'This version was sent before its wording was kept, so there is nothing to go back to. Edit it by hand.',
+      );
+    }
+    const { source } = version;
+    await ctx.db.patch('documents', documentId, {
+      title: source.title,
+      blocks: source.blocks,
+      lineItems: source.lineItems,
+      discount: source.discount,
+      vat: source.vat,
+      wht: source.wht,
+      totals: source.totals,
+      validUntilDate: source.validUntilDate,
+      paymentScheduleSummary: source.paymentScheduleSummary,
+      projectId: source.projectId,
+      dealId: source.dealId,
+      unsentChanges: false,
     });
   },
 });
@@ -549,7 +606,7 @@ export const refreshText = teamMutation('documents.update')({
   args: { documentId: v.id('documents') },
   handler: async (ctx, { documentId }) => {
     const document = await visibleDocument(ctx, documentId);
-    assertEditable(document);
+    const edited = await assertEditable(ctx, document);
     const template = document.templateId ? await ctx.db.get('documentTemplates', document.templateId) : null;
     if (!template) {
       throw documentError(
@@ -570,6 +627,7 @@ export const refreshText = teamMutation('documents.update')({
     await ctx.db.patch('documents', documentId, {
       blocks: await copyClausesIn(ctx, template.blocks as DocumentBlock[]),
       templateVersion: template.version,
+      ...edited,
     });
   },
 });
@@ -611,6 +669,8 @@ export const recordDecision = teamMutation('documents.send')({
       declinedReason: decision === 'declined' ? reason : undefined,
       decisionRecordedByMemberId: ctx.principal.member._id,
       decisionNote: reason,
+      // The client decided on what they were sent, never on changes still waiting to go out.
+      decidedVersion: document.currentVersion,
     });
     await recordActivity(ctx, {
       subject: { table: 'clients', id: document.clientId },
@@ -789,8 +849,23 @@ export const prepareSend = internalMutation({
     const unfinished = latest?.version === document.currentVersion && latest.pdfFileId === undefined ? latest : null;
     const version = unfinished ? unfinished.version : document.currentVersion + 1;
 
+    // The editable source, so unsent changes can later be discarded back to exactly this.
+    const source = {
+      title: document.title,
+      blocks: document.blocks,
+      lineItems: document.lineItems,
+      discount: document.discount,
+      vat: document.vat,
+      wht: document.wht,
+      totals: document.totals,
+      validUntilDate: document.validUntilDate,
+      paymentScheduleSummary: document.paymentScheduleSummary,
+      projectId: document.projectId,
+      dealId: document.dealId,
+    };
     if (unfinished) {
       await ctx.db.patch('documentVersions', unfinished._id, {
+        source,
         blocks: readable,
         lineItems: document.lineItems,
         totals: document.totals,
@@ -802,6 +877,7 @@ export const prepareSend = internalMutation({
       await ctx.db.insert('documentVersions', {
         documentId: document._id,
         version,
+        source,
         blocks: readable,
         lineItems: document.lineItems,
         totals: document.totals,
@@ -920,6 +996,7 @@ export const markSent = internalMutation({
     await ctx.db.patch('documents', documentId, {
       status: SIGNED_TYPES.has(document.type) ? 'awaiting_signature' : 'sent',
       sentAt: document.sentAt ?? now,
+      unsentChanges: false,
     });
     await recordActivity(ctx, {
       subject: { table: 'clients', id: document.clientId },

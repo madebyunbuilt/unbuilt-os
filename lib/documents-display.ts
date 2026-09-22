@@ -30,7 +30,14 @@ export const DOCUMENT_STATUSES: DocumentStatus[] = [
   'void',
 ];
 
-export function documentStatus(status: DocumentStatus): { label: string; tone: StatusTone } {
+/**
+ * The status in words. A signed type goes to awaiting_signature as soon as it is sent, before anyone is asked to sign;
+ * pass `signingOpen` so that case reads as being with the client rather than waiting on signatures.
+ */
+export function documentStatus(
+  status: DocumentStatus,
+  { signingOpen = true }: { signingOpen?: boolean } = {},
+): { label: string; tone: StatusTone } {
   switch (status) {
     case 'draft':
       return { label: 'Draft', tone: 'draft' };
@@ -45,7 +52,9 @@ export function documentStatus(status: DocumentStatus): { label: string; tone: S
     case 'expired':
       return { label: 'Expired', tone: 'attention' };
     case 'awaiting_signature':
-      return { label: 'Waiting to be signed', tone: 'attention' };
+      return signingOpen
+        ? { label: 'Waiting to be signed', tone: 'attention' }
+        : { label: 'With the client, not sent for signing', tone: 'draft' };
     case 'partially_signed':
       return { label: 'Part signed', tone: 'attention' };
     case 'signed':

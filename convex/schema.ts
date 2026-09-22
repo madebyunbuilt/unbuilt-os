@@ -752,9 +752,13 @@ export default defineSchema({
     // Set when the studio records a decision the client gave outside the portal.
     decisionRecordedByMemberId: v.optional(v.id('teamMembers')),
     decisionNote: v.optional(v.string()),
+    // The version the recorded acceptance or decline was for.
+    decidedVersion: v.optional(v.number()),
     declinedAt: v.optional(v.number()),
     declinedReason: v.optional(v.string()),
     signedAt: v.optional(v.number()),
+    // A sent document edited since its last version went out: the client still has that version until the next send.
+    unsentChanges: v.optional(v.boolean()),
     voidReason: v.optional(v.string()),
     pdfFileId: v.optional(v.id('files')),
     pdfSha256: v.optional(v.string()),
@@ -778,6 +782,23 @@ export default defineSchema({
     // What the PDF was drawn from, as JSON, so the signed copy can be drawn again with the signatures in place. Kept
     // only alongside the PDF it produced.
     pdfPayload: v.optional(v.string()),
+    // The editable source this version was sent from (the wording with its variables, title, dates and prices), so
+    // unsent changes on the document can be discarded back to exactly what went out.
+    source: v.optional(
+      v.object({
+        title: v.string(),
+        blocks: v.array(blockValidator),
+        lineItems: v.optional(v.array(v.any())),
+        discount: v.optional(v.any()),
+        vat: v.optional(v.any()),
+        wht: v.optional(v.any()),
+        totals: v.optional(v.any()),
+        validUntilDate: v.optional(v.string()),
+        paymentScheduleSummary: v.optional(v.string()),
+        projectId: v.optional(v.id('projects')),
+        dealId: v.optional(v.id('deals')),
+      }),
+    ),
     createdAt: v.number(),
     createdBy: v.id('teamMembers'),
     changeNote: v.optional(v.string()),

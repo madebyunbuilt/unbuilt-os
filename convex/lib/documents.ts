@@ -54,7 +54,18 @@ export type LineItem = {
 };
 
 /** Statuses a draft may still be edited in. Everything else is either with the client or final. */
-export const EDITABLE_STATUSES: ReadonlySet<Doc<'documents'>['status']> = new Set(['draft']);
+/**
+ * Statuses whose working copy can be edited: a draft, or a document with the client that nobody has decided on or signed.
+ * Editing a sent one prepares its next version; the client keeps the last one sent until that goes out. A running
+ * signing request also blocks editing (checked separately), since its signers hold a locked version.
+ */
+export const EDITABLE_STATUSES: ReadonlySet<Doc<'documents'>['status']> = new Set([
+  'draft',
+  'sent',
+  'viewed',
+  'expired',
+  'awaiting_signature',
+]);
 
 /** A document the client has decided on, or that is signed, is closed to changes of any kind. */
 export const FINAL_STATUSES: ReadonlySet<Doc<'documents'>['status']> = new Set(['signed', 'void']);

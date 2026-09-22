@@ -502,13 +502,13 @@ describe('sending', () => {
     await as.mutation(api.documents.setPaymentSchedule, { documentId, paymentScheduleSummary: '100% upfront' });
     expect((await as.query(api.documents.get, { documentId }))!.missing).toEqual([]);
 
-    // Only while it is a draft, and only for those who may edit it.
+    // Only for those who may edit it, and never once it has been decided.
     const finance = await signedIn('finance');
     await expectCode(finance.as.mutation(api.documents.link, { documentId, dealId }), 'auth.forbidden');
-    await t.run((ctx) => ctx.db.patch('documents', documentId, { status: 'sent' }));
+    await t.run((ctx) => ctx.db.patch('documents', documentId, { status: 'accepted' }));
     await expectCode(
       as.mutation(api.documents.setPaymentSchedule, { documentId, paymentScheduleSummary: 'x' }),
-      'documents.notDraft',
+      'documents.notEditable',
     );
   });
 
@@ -722,6 +722,114 @@ describe('sending', () => {
 
     const activity = await t.run((ctx) => ctx.db.query('activities').collect());
     expect(activity.some((entry) => entry.title.includes('UNB-QUO-0001 sent to ada@glossup.com'))).toBe(true);
+  });
+});
+
+describe('changing a sent document', () => {
+  /** A quote sent as version 1, the way the send action leaves it. */
+  async function sentQuote(as: Awaited<ReturnType<typeof signedIn>>['as'], memberId: Id<'teamMembers'>) {
+    const documentId = await as.mutation(api.documents.create, { type: 'quote', clientId, lineItems: twoLines });
+    await t.run(async (ctx) => {
+      await ctx.db.patch('documents', documentId, { paymentScheduleSummary: '50% on signature, 50% on completion' });
+      const settings = (await ctx.db.query('orgSettings').first())!;
+      await ctx.db.patch('orgSettings', settings._id, { legalName: 'Unbuilt Studio Ltd', addressLines: ['Lagos'] });
+    });
+    const prepared = await t.mutation(internal.documents.prepareSend, { documentId, memberId });
+    const storageId = await t.run((ctx) => ctx.storage.store(new Blob(['%PDF-1.7 quote'])));
+    await t.mutation(internal.documents.attachPdf, {
+      documentId,
+      version: prepared.version,
+      storageId,
+      fileName: 'q.pdf',
+      memberId,
+    });
+    await t.mutation(internal.documents.markSent, { documentId, version: prepared.version, emailed: [] });
+    return documentId;
+  }
+
+  it('edits a sent document into its next version, which the client only gets when it is sent', async () => {
+    const { as, memberId } = await signedIn('owner');
+    const documentId = await sentQuote(as, memberId);
+    const sent = (await as.query(api.documents.get, { documentId }))!;
+    expect(sent.unsentChanges).toBe(false);
+
+    await as.mutation(api.documents.update, {
+      documentId,
+      title: 'Quote for Glossup, revised',
+      validUntilDate: sent.validUntilDate,
+      paymentScheduleSummary: '100% upfront',
+      blocks: [...sent.rawBlocks, { kind: 'paragraph', text: 'We have added a second phase.' }],
+    });
+    const edited = (await as.query(api.documents.get, { documentId }))!;
+    expect(edited).toMatchObject({ status: 'sent', unsentChanges: true, canDiscard: true, currentVersion: 1 });
+    // What the client has is untouched.
+    const v1 = await t.run((ctx) => ctx.db.query('documentVersions').first());
+    expect(JSON.stringify(v1?.blocks)).not.toContain('second phase');
+
+    // Sending makes version 2 and clears the flag.
+    const prepared = await t.mutation(internal.documents.prepareSend, { documentId, memberId });
+    expect(prepared.version).toBe(2);
+    expect(JSON.stringify(prepared.pdf.blocks)).toContain('second phase');
+    await t.mutation(internal.documents.markSent, { documentId, version: 2, emailed: [] });
+    expect((await as.query(api.documents.get, { documentId }))?.unsentChanges).toBe(false);
+  });
+
+  it('discards unsent changes back to exactly what the last version said', async () => {
+    const { as, memberId } = await signedIn('owner');
+    const documentId = await sentQuote(as, memberId);
+    const before = await t.run((ctx) => ctx.db.get('documents', documentId));
+    await as.mutation(api.documents.update, {
+      documentId,
+      title: 'Something else',
+      validUntilDate: before!.validUntilDate,
+      lineItems: [{ description: 'Design', quantityMilli: 5_000, unitPriceMinor: 1_000_000 }],
+      blocks: [{ kind: 'paragraph', text: 'Rewritten' }],
+    });
+    await as.mutation(api.documents.discardChanges, { documentId });
+    const after = await t.run((ctx) => ctx.db.get('documents', documentId));
+    expect(after).toMatchObject({
+      title: before!.title,
+      blocks: before!.blocks,
+      totals: before!.totals,
+      unsentChanges: false,
+    });
+  });
+
+  it('keeps a decided, signed or void document, and one out for signing, from changing', async () => {
+    const { as, memberId } = await signedIn('owner');
+    const documentId = await sentQuote(as, memberId);
+    const edit = () => as.mutation(api.documents.update, { documentId, title: 'Changed' });
+    for (const status of ['accepted', 'declined', 'partially_signed', 'void'] as const) {
+      await t.run((ctx) => ctx.db.patch('documents', documentId, { status }));
+      await expectCode(edit(), 'documents.notEditable');
+    }
+    await t.run((ctx) => ctx.db.patch('documents', documentId, { status: 'signed' }));
+    await expectCode(edit(), 'documents.signed');
+
+    // An open signing request holds the version still.
+    await t.run(async (ctx) => {
+      await ctx.db.patch('documents', documentId, { status: 'awaiting_signature' });
+      await ctx.db.insert('signatureRequests', {
+        documentId,
+        documentVersion: 1,
+        pdfSha256: 'a'.repeat(64),
+        order: 'sequential',
+        status: 'pending',
+        expiresAt: Date.now() + 86_400_000,
+        createdByMemberId: memberId,
+        signers: [],
+      });
+    });
+    await expectCode(edit(), 'documents.signing');
+  });
+
+  it('records which version a decision was for', async () => {
+    const { as, memberId } = await signedIn('owner');
+    const documentId = await sentQuote(as, memberId);
+    const sent = (await as.query(api.documents.get, { documentId }))!;
+    await as.mutation(api.documents.update, { documentId, title: 'Revised', validUntilDate: sent.validUntilDate });
+    await as.mutation(api.documents.recordDecision, { documentId, decision: 'accepted', note: 'On the phone' });
+    expect((await as.query(api.documents.get, { documentId }))?.decidedVersion).toBe(1);
   });
 });
 

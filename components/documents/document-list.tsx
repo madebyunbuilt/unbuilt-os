@@ -135,7 +135,9 @@ export function DocumentList({
                   </td>
                   <td className="px-4 py-3">{document.clientName}</td>
                   <td className="px-4 py-3">
-                    <ToneBadge {...documentStatus(document.status as DocumentStatus)} />
+                    <ToneBadge
+                      {...documentStatus(document.status as DocumentStatus, { signingOpen: document.signingOpen })}
+                    />
                   </td>
                   <td className="px-4 py-3 text-right tabular-nums">
                     {document.totals && document.currency

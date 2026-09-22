@@ -117,6 +117,9 @@ const document = (overrides: object = {}) => ({
   templateId: 't1',
   templateVersion: 1,
   missing: [],
+  unsentChanges: false,
+  canDiscard: false,
+  signingOpen: false,
   createdByName: 'Kemi Bello',
   chain: [{ id: 'd1', type: 'quote', typeLabel: 'Quote', number: 'UNB-QUO-0001', status: 'sent', createdAt: 1 }],
   versions: [{ version: 1, createdAt: Date.parse('2026-09-21T09:00:00Z'), changeNote: undefined, hasPdf: true }],
@@ -364,6 +367,44 @@ describe('DocumentPage', () => {
     expect(screen.getByRole('button', { name: 'Send the next version' })).toBeDisabled();
     // An agreement is signed, not accepted: there is no decision to record.
     expect(screen.queryByRole('button', { name: 'Record acceptance' })).not.toBeInTheDocument();
+  });
+
+  it('edits a sent document for its next version, and shows what the client still has', async () => {
+    state.queries['documents.get'] = document({ unsentChanges: true, canDiscard: true });
+    render(<DocumentPage documentId={'d1' as never} permissions={FULL} />);
+
+    expect(screen.getByRole('button', { name: 'Edit for the next version' })).toBeInTheDocument();
+    const banner = screen.getAllByRole('status').find((node) => node.textContent?.includes('Unsent changes'))!;
+    expect(banner).toHaveTextContent('The client still has version 1');
+    expect(banner).toHaveTextContent('goes out as version 2');
+
+    await userEvent.click(within(banner).getByRole('button', { name: 'Discard changes' }));
+    await userEvent.click(await screen.findByRole('button', { name: 'Discard them' }));
+    await waitFor(() => expect(state.mutations['documents.discardChanges']).toHaveBeenCalledWith({ documentId: 'd1' }));
+  });
+
+  it('keeps an agreement out for signing from being edited, and names the two waiting states apart', () => {
+    state.queries['documents.get'] = document({
+      type: 'nda',
+      typeLabel: 'Non-disclosure agreement',
+      status: 'awaiting_signature',
+      signingOpen: false,
+    });
+    state.queries['signatures.listForDocument'] = [];
+    const { unmount } = render(<DocumentPage documentId={'d1' as never} permissions={FULL} />);
+    expect(screen.getByText('With the client, not sent for signing')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Edit for the next version' })).toBeInTheDocument();
+    unmount();
+
+    state.queries['documents.get'] = document({
+      type: 'nda',
+      typeLabel: 'Non-disclosure agreement',
+      status: 'awaiting_signature',
+      signingOpen: true,
+    });
+    render(<DocumentPage documentId={'d1' as never} permissions={FULL} />);
+    expect(screen.getByText('Waiting to be signed')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Edit/ })).not.toBeInTheDocument();
   });
 
   it('records what the client said while it is with them', async () => {
