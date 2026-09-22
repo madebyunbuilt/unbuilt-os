@@ -789,4 +789,89 @@ export default defineSchema({
     userAgent: v.optional(v.string()),
     viewedAt: v.number(),
   }).index('by_document', ['documentId', 'viewedAt']),
+  // E-signatures (07-documents-and-esign.md). A request locks one version of a document and the hash of its PDF; each
+  // signer holds their own link, whose token is stored only as a hash.
+  signatureRequests: defineTable({
+    documentId: v.id('documents'),
+    documentVersion: v.number(),
+    pdfSha256: v.string(),
+    order: v.union(v.literal('sequential'), v.literal('parallel')),
+    status: v.union(
+      v.literal('pending'),
+      v.literal('completed'),
+      v.literal('declined'),
+      v.literal('cancelled'),
+      v.literal('expired'),
+    ),
+    expiresAt: v.number(),
+    createdByMemberId: v.id('teamMembers'),
+    signers: v.array(
+      v.object({
+        id: v.string(),
+        name: v.string(),
+        email: v.string(),
+        kind: v.union(v.literal('client_contact'), v.literal('team_member')),
+        contactId: v.optional(v.id('contacts')),
+        memberId: v.optional(v.id('teamMembers')),
+        order: v.number(),
+        status: v.union(
+          v.literal('waiting'),
+          v.literal('invited'),
+          v.literal('signed'),
+          v.literal('declined'),
+          v.literal('locked'),
+        ),
+        // SHA-256 of the link's token; the token itself exists only in the email.
+        tokenHash: v.optional(v.string()),
+        invitedAt: v.optional(v.number()),
+        // The current emailed code, as a hash, with when it stops working and how many wrong tries it has had.
+        codeHash: v.optional(v.string()),
+        codeExpiresAt: v.optional(v.number()),
+        codeAttempts: v.optional(v.number()),
+        otpVerifiedAt: v.optional(v.number()),
+        viewedAt: v.optional(v.number()),
+        signedAt: v.optional(v.number()),
+        declinedAt: v.optional(v.number()),
+        declineReason: v.optional(v.string()),
+        remindersSent: v.optional(v.array(v.string())),
+      }),
+    ),
+    completedAt: v.optional(v.number()),
+    // The locked PDF with the certificate page added, and its own hash. Set by the completion action.
+    finalPdfFileId: v.optional(v.id('files')),
+    finalPdfSha256: v.optional(v.string()),
+    // Why the completion action last failed, until it succeeds.
+    completionError: v.optional(v.string()),
+    // The latest tamper check: the stored PDFs' hashes recomputed and compared with the recorded ones.
+    lastVerification: v.optional(v.object({ checkedAt: v.number(), ok: v.boolean(), byMemberId: v.id('teamMembers') })),
+  })
+    .index('by_document', ['documentId'])
+    .index('by_status', ['status']),
+
+  // Finds a signer from their link without scanning every request: signers live in an array, which cannot be indexed.
+  signingLinks: defineTable({
+    tokenHash: v.string(),
+    signatureRequestId: v.id('signatureRequests'),
+    signerId: v.string(),
+  })
+    .index('by_token', ['tokenHash'])
+    .index('by_request_signer', ['signatureRequestId', 'signerId']),
+
+  // Immutable evidence of one signature.
+  signatures: defineTable({
+    signatureRequestId: v.id('signatureRequests'),
+    signerId: v.string(),
+    method: v.union(v.literal('typed'), v.literal('drawn')),
+    typedName: v.optional(v.string()),
+    imageFileId: v.optional(v.id('files')),
+    consentText: v.string(),
+    consentVersion: v.number(),
+    ip: v.optional(v.string()),
+    userAgent: v.optional(v.string()),
+    // For a client, when their emailed code was checked; for the studio, when their two-factor sign-in was.
+    otpVerifiedAt: v.number(),
+    verification: v.union(v.literal('email_code'), v.literal('app_session')),
+    signedAt: v.number(),
+    documentSha256: v.string(),
+  }).index('by_request', ['signatureRequestId']),
 });

@@ -44,3 +44,33 @@ export type DocumentPdfProps = {
 
 /** The payload a Convex action hands the renderer: the props, with the date as a number so it survives the wire. */
 export type DocumentPdfPayload = Omit<DocumentPdfProps, 'createdAt'> & { createdAtMs: number };
+
+export type CertificateSigner = {
+  name: string;
+  email: string;
+  /** "Client" or "The studio". */
+  role: string;
+  method: 'typed' | 'drawn';
+  typedName?: string;
+  /** A drawn signature as a PNG data URI. */
+  imageDataUri?: string;
+  verification: 'email_code' | 'app_session';
+  otpVerifiedAt: number;
+  signedAt: number;
+  ip?: string;
+  userAgent?: string;
+  consentText: string;
+  consentVersion: number;
+};
+
+export type CertificatePdfProps = {
+  org: { name: string };
+  brand: { primary: string };
+  typeLabel: string;
+  number: string;
+  title: string;
+  documentSha256: string;
+  signers: CertificateSigner[];
+  /** Also the PDF's creation date, so the same completion renders the same bytes. */
+  completedAt: number;
+};

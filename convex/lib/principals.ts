@@ -24,6 +24,8 @@ export type AuthSession = {
   twoFactorEnabled: boolean;
   /** Last real use of the app in this session (see lastActiveAt). */
   lastActiveAt: number;
+  /** When the session began: for a team member, when they passed their two-factor check. */
+  signedInAt: number;
   ip?: string;
   userAgent?: string;
 };
@@ -87,6 +89,8 @@ export async function getAuthSession(ctx: Ctx): Promise<AuthSession | null> {
     email: user.email,
     twoFactorEnabled: user.twoFactorEnabled === true,
     lastActiveAt: await lastActiveAt(ctx, session),
+    // When this session began: for a team member, the moment they passed their two-factor check.
+    signedInAt: session.createdAt,
     ip: session.ipAddress ?? undefined,
     userAgent: session.userAgent ?? undefined,
   };
