@@ -6,9 +6,15 @@ import { api } from '@/convex/_generated/api';
 import { type Id } from '@/convex/_generated/dataModel';
 
 /** Loads the template, then hands it to the editor so its fields start from what is saved. */
-export function TemplateEditorLoader({ templateId }: { templateId: Id<'documentTemplates'> }) {
+export function TemplateEditorLoader({
+  templateId,
+  isOwner,
+}: {
+  templateId: Id<'documentTemplates'>;
+  isOwner: boolean;
+}) {
   const template = useQuery(api.documentTemplates.get, { templateId });
   if (template === undefined) return <p className="text-muted-foreground">Loading the template…</p>;
   if (template === null) return <p className="text-muted-foreground">That template does not exist.</p>;
-  return <TemplateEditor key={`${template.id}:${template.version}`} template={template} />;
+  return <TemplateEditor key={`${template.id}:${template.version}`} template={template} isOwner={isOwner} />;
 }

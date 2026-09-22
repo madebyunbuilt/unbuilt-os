@@ -61,7 +61,7 @@ function describe(block: DocumentBlock): string {
   }
 }
 
-export function TemplateEditor({ template }: { template?: Template }) {
+export function TemplateEditor({ template, isOwner = false }: { template?: Template; isOwner?: boolean }) {
   const router = useRouter();
   const create = useMutation(api.documentTemplates.create);
   const update = useMutation(api.documentTemplates.update);
@@ -113,11 +113,7 @@ export function TemplateEditor({ template }: { template?: Template }) {
         }
       }}
     >
-      {template?.requiresLegalReview && (
-        <p className="rounded-md bg-attention p-3 text-sm text-attention-foreground">
-          This template is for a legal document. Have your lawyer read it before it is sent to anyone.
-        </p>
-      )}
+      {template?.requiresLegalReview && <LegalReview template={template} isOwner={isOwner} />}
 
       <div className="grid gap-4 sm:grid-cols-2">
         {!template && (
@@ -279,5 +275,74 @@ export function TemplateEditor({ template }: { template?: Template }) {
         </p>
       )}
     </form>
+  );
+}
+
+const approvedOn = new Intl.DateTimeFormat('en-GB', { dateStyle: 'long' });
+
+/**
+ * Where the lawyer's approval stands. It covers one version: once the wording changes, it needs approving again. Only
+ * the Owner can record it.
+ */
+function LegalReview({ template, isOwner }: { template: Template; isOwner: boolean }) {
+  const record = useMutation(api.documentTemplates.recordLegalApproval);
+  const [note, setNote] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const approval = template.legalApproval;
+
+  if (!template.needsLegalReview && approval) {
+    return (
+      <p className="rounded-md border p-3 text-sm">
+        Your lawyer approved version {approval.version} on {approvedOn.format(approval.approvedAt)}
+        {approval.note ? ` — ${approval.note}` : ''}. Changing the wording will need their approval again.
+      </p>
+    );
+  }
+
+  return (
+    <div className="space-y-3 rounded-md bg-attention p-4 text-sm text-attention-foreground">
+      <p>
+        This template is for a legal document. Have your lawyer read version {template.version} before it is sent to
+        anyone.
+        {approval ? ` They approved version ${approval.version}; the wording has changed since.` : ''}
+      </p>
+      {isOwner ? (
+        <div className="space-y-2">
+          <Label htmlFor="legal-approval-note">Who approved it (optional)</Label>
+          <Input
+            id="legal-approval-note"
+            placeholder="Adaeze Okafor, Okafor & Co"
+            value={note}
+            onChange={(event) => setNote(event.target.value)}
+          />
+          {error && (
+            <p role="alert" className="text-destructive">
+              {error}
+            </p>
+          )}
+          <Button
+            type="button"
+            variant="outline"
+            disabled={saving}
+            onClick={async () => {
+              setSaving(true);
+              setError(null);
+              try {
+                await record({ templateId: template.id, version: template.version, note: note || undefined });
+              } catch (caught) {
+                setError(errorMessage(caught));
+              } finally {
+                setSaving(false);
+              }
+            }}
+          >
+            {saving ? 'Recording…' : `Record the lawyer\u2019s approval of version ${template.version}`}
+          </Button>
+        </div>
+      ) : (
+        <p>Only the Owner can record the lawyer&rsquo;s approval.</p>
+      )}
+    </div>
   );
 }

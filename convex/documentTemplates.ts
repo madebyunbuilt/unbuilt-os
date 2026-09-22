@@ -15,12 +15,17 @@ import {
   variablesInBlocks,
 } from './lib/documentBlocks';
 import { teamMutation, teamQuery } from './lib/functions';
+import { isOwner } from './lib/team';
 
 // Document templates (07-documents-and-esign.md). A template is ordered blocks; editing one makes a new version, and
 // documents keep the version they were made from. Templates for the legal types stay flagged until a lawyer approves
 // their wording, which the settings toggle records.
 
 type Ctx = QueryCtx | MutationCtx;
+
+/** Whether the wording as it stands still waits for the lawyer: approval covers only the version that was read. */
+export const needsLegalReview = (template: Doc<'documentTemplates'>) =>
+  template.requiresLegalReview && template.legalApproval?.version !== template.version;
 
 const templateView = (template: Doc<'documentTemplates'>) => ({
   id: template._id,
@@ -32,6 +37,8 @@ const templateView = (template: Doc<'documentTemplates'>) => ({
   variables: template.variables,
   isDefault: template.isDefault,
   requiresLegalReview: template.requiresLegalReview,
+  needsLegalReview: needsLegalReview(template),
+  legalApproval: template.legalApproval,
   active: template.active,
 });
 
@@ -156,6 +163,39 @@ export const setDefault = teamMutation('templates.documents.manage')({
     if (!template.active) throw documentError('documents.retired', 'Bring the template back before making it default');
     await ctx.db.patch('documentTemplates', templateId, { isDefault: true });
     await clearOtherDefaults(ctx, template.type, templateId);
+  },
+});
+
+/**
+ * Records that the studio's lawyer approved this template's wording as it stands. Only the Owner makes that statement.
+ * It covers this version alone: editing the template makes a new version, which shows as needing review again.
+ */
+export const recordLegalApproval = teamMutation(null)({
+  args: { templateId: v.id('documentTemplates'), version: v.number(), note: v.optional(v.string()) },
+  handler: async (ctx, { templateId, version, note }) => {
+    if (!isOwner(ctx.principal.role)) {
+      throw documentError('documents.ownerOnly', 'Only the Owner can record that the lawyer approved a template');
+    }
+    const template = await ctx.db.get('documentTemplates', templateId);
+    if (!template) throw documentError('documents.notFound', 'Template not found');
+    if (!template.requiresLegalReview) {
+      throw documentError('documents.invalid', 'This template does not need a lawyer\u2019s approval');
+    }
+    // Naming the version stops an approval landing on wording someone changed while the Owner was reading.
+    if (version !== template.version) {
+      throw documentError(
+        'documents.staleVersion',
+        `The template is now version ${template.version}. Read that version before approving it.`,
+      );
+    }
+    await ctx.db.patch('documentTemplates', templateId, {
+      legalApproval: {
+        version,
+        approvedAt: Date.now(),
+        approvedByMemberId: ctx.principal.member._id,
+        note: text(note, 'Note', { max: 500 }),
+      },
+    });
   },
 });
 

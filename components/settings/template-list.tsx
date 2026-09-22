@@ -90,7 +90,10 @@ export function TemplateList() {
                     </div>
                     <div className="flex flex-wrap items-center gap-2 sm:ml-auto">
                       {template.isDefault && <ToneBadge label="Default" tone="built" />}
-                      {template.requiresLegalReview && <ToneBadge label="Needs legal review" tone="attention" />}
+                      {template.needsLegalReview && <ToneBadge label="Needs legal review" tone="attention" />}
+                      {template.requiresLegalReview && !template.needsLegalReview && (
+                        <ToneBadge label={`Approved by counsel, version ${template.version}`} tone="built" />
+                      )}
                       {!template.active && <ToneBadge label="Retired" tone="muted" />}
                       {template.active && !template.isDefault && (
                         <Button

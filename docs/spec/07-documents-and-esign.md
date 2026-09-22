@@ -124,9 +124,9 @@ stored. The signer then:
 
 ### Legal note
 
-Nigeria's Evidence Act 2011 recognises electronic signatures, but this spec does not replace legal advice. Show a
-settings toggle "Signature process reviewed by counsel" that stays off until the studio's lawyer confirms the process
-and templates. See `18-open-questions.md`.
+Nigeria's Evidence Act 2011 recognises electronic signatures, but this spec does not replace legal advice. Settings →
+Document templates shows "The signing process", which stays off until the Owner records that the studio's lawyer
+confirmed the process; templates carry their own approval. See `18-open-questions.md`.
 
 ## Decisions and rules (studio, 2026-09-21)
 
@@ -163,6 +163,12 @@ and templates. See `18-open-questions.md`.
 - **View tracking**: a team member's look is recorded as `member` and never counts as the client's. A client's first
   look moves a sent document to viewed, sets `firstViewedAt` and notifies whoever drafted it, once; later looks only
   raise the count, and a document already accepted or signed keeps that status.
+- **The lawyer's approval** (studio, 2026-09-22) is recorded per template, against the exact version the lawyer read,
+  and only by the Owner. Editing the template makes a new version, which shows as needing review again until it too is
+  approved. An approval must name the version on screen, so it cannot land on wording changed while the Owner was
+  reading. New documents warn only while the wording still waits for review; nothing blocks sending.
+- **The signing process review** is a studio setting, off until the Owner records that counsel reviewed it (the emailed
+  code, the consent statement, the evidence recorded and the certificate), and can be withdrawn. Anyone may see it.
 - **Variables** are limited to fields the app actually holds, so a document can never print a blank where a value was
   promised. The studio's email, phone and website are part of that set: they are settings, checked the same way a
   contact's are (a real address, an international number, a resolvable site), and they belong on a letterhead.

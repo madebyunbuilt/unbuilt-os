@@ -47,6 +47,10 @@ export default defineSchema({
     quoteValidityDays: v.optional(v.number()),
     retentionYears: v.number(),
     brand: v.object({ primary: v.string(), accent: v.string() }),
+    // 07-documents-and-esign.md, Legal note: stays off until the Owner records that counsel reviewed the signing process.
+    signatureProcessReview: v.optional(
+      v.object({ reviewedAt: v.number(), reviewedByMemberId: v.id('teamMembers'), note: v.optional(v.string()) }),
+    ),
   }),
 
   files: defineTable({
@@ -651,6 +655,16 @@ export default defineSchema({
     isDefault: v.boolean(),
     // Contract, NDA, DPA and team agreements stay flagged until the studio's lawyer approves the wording.
     requiresLegalReview: v.boolean(),
+    // The lawyer's approval, recorded by the Owner against the exact version read. Editing makes a new version, which
+    // needs approving again.
+    legalApproval: v.optional(
+      v.object({
+        version: v.number(),
+        approvedAt: v.number(),
+        approvedByMemberId: v.id('teamMembers'),
+        note: v.optional(v.string()),
+      }),
+    ),
     active: v.boolean(),
   })
     .index('by_type', ['type'])

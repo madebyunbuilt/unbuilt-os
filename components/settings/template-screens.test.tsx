@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { ConvexError } from 'convex/values';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ClauseLibrary } from './clause-library';
+import { SignatureProcessReview } from './signature-process-review';
 import { TemplateEditor } from './template-editor';
 import { TemplateList } from './template-list';
 
@@ -30,7 +31,13 @@ vi.mock('next/navigation', () => ({
 }));
 vi.mock('@/convex/_generated/api', () => {
   const functions = (name: string) => new Proxy({}, { get: (_, fn: string) => ({ _name: `${name}.${fn}` }) });
-  return { api: { documentTemplates: functions('documentTemplates'), clauses: functions('clauses') } };
+  return {
+    api: {
+      documentTemplates: functions('documentTemplates'),
+      clauses: functions('clauses'),
+      settings: functions('settings'),
+    },
+  };
 });
 
 const template = (overrides: object = {}) => ({
@@ -51,6 +58,8 @@ const template = (overrides: object = {}) => ({
   variables: ['contact.name'],
   isDefault: true,
   requiresLegalReview: false,
+  needsLegalReview: false,
+  legalApproval: undefined,
   active: true,
   ...overrides,
 });
@@ -71,7 +80,22 @@ beforeEach(() => {
     'documentTemplates.list': [
       template(),
       template({ id: 't2', name: 'Short quote', isDefault: false, version: 1 }),
-      template({ id: 't3', type: 'contract', name: 'Master services agreement', requiresLegalReview: true }),
+      template({
+        id: 't3',
+        type: 'contract',
+        name: 'Master services agreement',
+        requiresLegalReview: true,
+        needsLegalReview: true,
+      }),
+      template({
+        id: 't4',
+        type: 'nda',
+        name: 'Mutual NDA',
+        version: 2,
+        requiresLegalReview: true,
+        needsLegalReview: false,
+        legalApproval: { version: 2, approvedAt: Date.parse('2026-09-22T09:00:00Z'), approvedByMemberId: 'm1' },
+      }),
     ],
     'clauses.list': [clause(), clause({ id: 'cl2', key: 'governing-law', title: 'Governing law', category: 'Legal' })],
   };
@@ -88,6 +112,9 @@ describe('TemplateList', () => {
 
     const legal = screen.getByRole('link', { name: 'Master services agreement' }).closest('li')!;
     expect(legal).toHaveTextContent('Needs legal review');
+    const approved = screen.getByRole('link', { name: 'Mutual NDA' }).closest('li')!;
+    expect(approved).toHaveTextContent('Approved by counsel, version 2');
+    expect(approved).not.toHaveTextContent('Needs legal review');
     expect(screen.getByRole('link', { name: 'Quote' }).closest('li')).toHaveTextContent('Default');
   });
 
@@ -154,9 +181,39 @@ describe('TemplateEditor', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent('{{clinet.name}}');
   });
 
-  it('warns that a legal template needs a lawyer', () => {
-    render(<TemplateEditor template={template({ requiresLegalReview: true, type: 'contract' }) as never} />);
-    expect(screen.getByText(/Have your lawyer read it/)).toBeInTheDocument();
+  it('lets the Owner record the lawyer\u2019s approval of the version on screen', async () => {
+    const legal = template({ requiresLegalReview: true, needsLegalReview: true, type: 'contract' });
+    render(<TemplateEditor template={legal as never} isOwner />);
+    expect(screen.getByText(/Have your lawyer read version 3/)).toBeInTheDocument();
+
+    await userEvent.type(screen.getByLabelText('Who approved it (optional)'), 'Adaeze Okafor');
+    await userEvent.click(screen.getByRole('button', { name: /Record the lawyer.s approval of version 3/ }));
+    await waitFor(() =>
+      expect(state.mutations['documentTemplates.recordLegalApproval']).toHaveBeenCalledWith({
+        templateId: 't1',
+        version: 3,
+        note: 'Adaeze Okafor',
+      }),
+    );
+  });
+
+  it('tells anyone else that only the Owner can record it', () => {
+    const legal = template({ requiresLegalReview: true, needsLegalReview: true, type: 'contract' });
+    render(<TemplateEditor template={legal as never} isOwner={false} />);
+    expect(screen.getByText(/Only the Owner can record/)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Record the lawyer/ })).not.toBeInTheDocument();
+  });
+
+  it('says when an approval no longer covers the wording', () => {
+    const changed = template({
+      requiresLegalReview: true,
+      needsLegalReview: true,
+      type: 'contract',
+      version: 4,
+      legalApproval: { version: 3, approvedAt: Date.parse('2026-09-01T09:00:00Z'), approvedByMemberId: 'm1' },
+    });
+    render(<TemplateEditor template={changed as never} isOwner />);
+    expect(screen.getByText(/They approved version 3; the wording has changed since/)).toBeInTheDocument();
   });
 
   it('says a priced template needs its totals before it can be saved', async () => {
@@ -221,5 +278,34 @@ describe('ClauseLibrary', () => {
     const payment = screen.getByText('Payment').closest('li')!;
     await userEvent.click(within(payment).getByRole('button', { name: 'Retire' }));
     expect(await screen.findByRole('alert')).toHaveTextContent('Quote still uses this clause');
+  });
+});
+
+describe('SignatureProcessReview', () => {
+  it('stays off, and lets the Owner record who reviewed it', async () => {
+    state.queries['settings.signatureProcessReview'] = { reviewed: false };
+    render(<SignatureProcessReview isOwner />);
+    expect(screen.getByText(/Not yet reviewed by counsel/)).toBeInTheDocument();
+
+    await userEvent.type(screen.getByLabelText('Who reviewed it (optional)'), 'Okafor & Co');
+    await userEvent.click(screen.getByRole('button', { name: 'Record that counsel reviewed it' }));
+    await waitFor(() =>
+      expect(state.mutations['settings.setSignatureProcessReview']).toHaveBeenCalledWith({
+        reviewed: true,
+        note: 'Okafor & Co',
+      }),
+    );
+  });
+
+  it('shows who recorded it, and offers no control to anyone but the Owner', () => {
+    state.queries['settings.signatureProcessReview'] = {
+      reviewed: true,
+      reviewedAt: Date.parse('2026-09-22T09:00:00Z'),
+      reviewedByName: 'Codabytez',
+      note: 'Okafor & Co',
+    };
+    render(<SignatureProcessReview isOwner={false} />);
+    expect(screen.getByText(/recorded by Codabytez/)).toBeInTheDocument();
+    expect(screen.queryByRole('button')).not.toBeInTheDocument();
   });
 });
