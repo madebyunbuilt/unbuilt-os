@@ -56,9 +56,11 @@ const styles = StyleSheet.create({
   signatures: { flexDirection: 'row', gap: 32, marginTop: 24 },
   signature: { flex: 1 },
   signatureLine: { marginTop: 32, borderTopWidth: 1, borderTopColor: '#111827', paddingTop: 4 },
+  // Anchored from the top: with a line height on the page, react-pdf drops a footer placed with `bottom`. Pages are
+  // always A4 (841.89pt tall), so this sits 24pt above the bottom edge.
   footer: {
     position: 'absolute',
-    bottom: 24,
+    top: 802,
     left: 48,
     right: 48,
     flexDirection: 'row',

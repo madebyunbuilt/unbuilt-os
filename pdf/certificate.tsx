@@ -20,20 +20,23 @@ const styles = StyleSheet.create({
   studio: { fontSize: 11, fontFamily: 'Helvetica-Bold' },
   bold: { fontFamily: 'Helvetica-Bold' },
   muted: { color: '#6B7280' },
-  title: { fontSize: 16, fontFamily: 'Helvetica-Bold', marginBottom: 4 },
+  // Larger text needs its own line height; the page's is sized for the body text.
+  title: { fontSize: 16, fontFamily: 'Helvetica-Bold', lineHeight: 1.25, marginBottom: 8 },
   intro: { marginBottom: 14 },
   hash: { fontFamily: 'Courier', fontSize: 8 },
   signer: { borderWidth: 1, borderColor: '#E5E7EB', borderRadius: 4, padding: 10, marginBottom: 10 },
-  signerName: { fontSize: 11, fontFamily: 'Helvetica-Bold', marginBottom: 6 },
+  signerName: { fontSize: 11, fontFamily: 'Helvetica-Bold', lineHeight: 1.3, marginBottom: 6 },
   mark: { height: 40, marginBottom: 6 },
-  typedMark: { fontSize: 16, fontFamily: 'Times-Italic', marginBottom: 6 },
+  typedMark: { fontSize: 16, fontFamily: 'Times-Italic', lineHeight: 1.3, marginBottom: 6 },
   row: { flexDirection: 'row', paddingVertical: 1 },
   label: { width: 120, color: '#6B7280' },
   value: { flex: 1 },
   consent: { marginTop: 8, color: '#374151' },
+  // Anchored from the top: with a line height on the page, react-pdf drops a footer placed with `bottom`. Pages are
+  // always A4 (841.89pt tall), so this sits 24pt above the bottom edge.
   footer: {
     position: 'absolute',
-    bottom: 24,
+    top: 802,
     left: 48,
     right: 48,
     flexDirection: 'row',
