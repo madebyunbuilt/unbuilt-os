@@ -47,6 +47,7 @@ vi.mock('@/convex/_generated/api', () => {
         'projects',
         'rateCard',
         'files',
+        'rateCard',
       ].map((name) => [name, functions(name)]),
     ),
   };
@@ -221,6 +222,45 @@ describe('InvoicePage', () => {
         amountMinor: 5_000_000,
         emailCreditNote: true,
       }),
+    );
+  });
+
+  it('refuses to credit more than the invoice, before splitting anything into held credit', async () => {
+    state.queries['invoices.get'] = invoice({ status: 'sent', paidMinor: 0, balanceMinor: 10_000_000 });
+    render(<InvoicePage invoiceId={'i1' as never} permissions={FINANCE} />);
+    await userEvent.click(screen.getByRole('button', { name: 'Issue a credit note' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Issue a credit note' });
+    await userEvent.type(within(dialog).getByLabelText('Amount to credit, including VAT (NGN)'), '200000');
+    await userEvent.type(within(dialog).getByLabelText('Why'), 'x');
+    expect(within(dialog).getByRole('alert')).toHaveTextContent('At most ₦100,000.00 can be credited on this invoice.');
+    expect(dialog).not.toHaveTextContent('held as the client’s credit');
+    expect(within(dialog).getByRole('button', { name: 'Issue it' })).toBeDisabled();
+  });
+
+  it('takes payment terms as a number of days, and labels VAT and WHT as rates', async () => {
+    state.queries['invoices.get'] = invoice({
+      status: 'draft',
+      number: undefined,
+      issueDate: undefined,
+      dueDate: undefined,
+      paidMinor: 0,
+      balanceMinor: 10_000_000,
+    });
+    render(<InvoicePage invoiceId={'i1' as never} permissions={FINANCE} />);
+    await userEvent.click(screen.getByRole('button', { name: 'Edit the draft' }));
+    const dialog = await screen.findByRole('dialog');
+    const terms = within(dialog).getByLabelText('Payment terms');
+    await userEvent.clear(terms);
+    await userEvent.type(terms, '6 days');
+    expect(terms).toHaveValue(6);
+    expect(within(dialog).getByLabelText('WHT rate')).toHaveValue('5');
+    await userEvent.type(within(dialog).getByLabelText('WHT rate'), '%');
+    expect(within(dialog).getByLabelText('WHT rate')).toHaveValue('5');
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Save the draft' }));
+    await waitFor(() =>
+      expect(state.mutations['invoices.update']).toHaveBeenCalledWith(
+        expect.objectContaining({ paymentTermsDays: 6, wht: { applies: true, bps: 500 } }),
+      ),
     );
   });
 

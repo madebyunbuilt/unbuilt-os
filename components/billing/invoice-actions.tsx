@@ -107,6 +107,7 @@ function MoneyField({
   onChange,
   currency,
   hint,
+  warning,
 }: {
   id: string;
   label: string;
@@ -114,6 +115,8 @@ function MoneyField({
   onChange: (value: string) => void;
   currency: Currency;
   hint?: string;
+  /** Shows the hint as a problem to fix. */
+  warning?: boolean;
 }) {
   return (
     <div className="space-y-2">
@@ -121,7 +124,15 @@ function MoneyField({
         {label} ({currency})
       </Label>
       <Input id={id} inputMode="decimal" value={value} onChange={(event) => onChange(event.target.value)} />
-      {hint && <p className="text-sm text-muted-foreground">{hint}</p>}
+      {hint && (
+        <p
+          id={`${id}-hint`}
+          role={warning ? 'alert' : undefined}
+          className={`text-sm ${warning ? 'text-destructive' : 'text-muted-foreground'}`}
+        >
+          {hint}
+        </p>
+      )}
     </div>
   );
 }
@@ -284,14 +295,20 @@ export function CreditNoteDialog({ invoice, creditedSoFarMinor }: { invoice: Inv
   const [amount, setAmount] = useState('');
   const [reason, setReason] = useState('');
   const [email, setEmail] = useState(true);
-  let heldHint = '';
+  // The limit comes first: nothing above the invoice's total (less earlier credits) can be credited at all. Only below
+  // it does a credit bigger than what is owed split into cleared and held.
+  let hint = '';
+  let overLimit = false;
   try {
     const minor = amount.trim() ? parseMoneyInput(amount, invoice.currency) : 0;
-    if (minor > invoice.balanceMinor) {
-      heldHint = `${formatMoney(invoice.balanceMinor, invoice.currency)} clears what is owed; ${formatMoney(minor - invoice.balanceMinor, invoice.currency)} is held as the client’s credit.`;
+    if (minor > most) {
+      overLimit = true;
+      hint = `At most ${formatMoney(most, invoice.currency)} can be credited on this invoice.`;
+    } else if (minor > invoice.balanceMinor) {
+      hint = `${formatMoney(invoice.balanceMinor, invoice.currency)} clears what is owed; ${formatMoney(minor - invoice.balanceMinor, invoice.currency)} is held as the client’s credit.`;
     }
   } catch {
-    heldHint = '';
+    hint = '';
   }
   return (
     <FormDialog
@@ -299,7 +316,7 @@ export function CreditNoteDialog({ invoice, creditedSoFarMinor }: { invoice: Inv
       title="Issue a credit note"
       description={`It corrects what this invoice charged. Up to ${formatMoney(most, invoice.currency)} can be credited; VAT is reversed in the same proportion as the invoice.`}
       submitLabel="Issue it"
-      canSubmit={reason.trim().length > 0 && amount.trim().length > 0}
+      canSubmit={reason.trim().length > 0 && amount.trim().length > 0 && !overLimit}
       onSubmit={() =>
         create({
           invoiceId: invoice.id,
@@ -315,7 +332,8 @@ export function CreditNoteDialog({ invoice, creditedSoFarMinor }: { invoice: Inv
         value={amount}
         onChange={setAmount}
         currency={invoice.currency}
-        hint={heldHint || undefined}
+        hint={hint || undefined}
+        warning={overLimit}
       />
       <div className="space-y-2">
         <Label htmlFor="credit-reason">Why</Label>

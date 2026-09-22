@@ -112,6 +112,11 @@ export function InvoiceFormDialog({
       setError('Choose the client');
       return;
     }
+    const days = terms.trim() ? Number(terms) : undefined;
+    if (days !== undefined && (!Number.isInteger(days) || days > 365)) {
+      setError('Payment terms are a whole number of days, up to 365');
+      return;
+    }
     setSaving(true);
     try {
       const discount =
@@ -123,7 +128,7 @@ export function InvoiceFormDialog({
       const shared = {
         lineItems: toLineArgs(lines, currency),
         discount,
-        paymentTermsDays: terms.trim() ? Number(terms) : undefined,
+        paymentTermsDays: days,
         fxRateToNgnMicro: currency !== 'NGN' && rate.trim() ? parseRate(rate) : undefined,
         notes: notes || undefined,
         terms: invoiceTerms || undefined,
@@ -268,14 +273,27 @@ export function InvoiceFormDialog({
               </div>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="invoice-terms">Payment terms (days)</Label>
-              <Input
-                id="invoice-terms"
-                inputMode="numeric"
-                value={terms}
-                placeholder="The client’s terms"
-                onChange={(event) => setTerms(event.target.value)}
-              />
+              <Label htmlFor="invoice-terms">Payment terms</Label>
+              <div className="flex items-center gap-2">
+                <Input
+                  id="invoice-terms"
+                  type="number"
+                  min={0}
+                  max={365}
+                  step={1}
+                  inputMode="numeric"
+                  className="w-28"
+                  value={terms}
+                  placeholder={editing ? '' : 'Client’s'}
+                  aria-describedby="invoice-terms-hint"
+                  // Digits only: "6 days" becomes "6", so nothing but a whole number reaches the server.
+                  onChange={(event) => setTerms(event.target.value.replace(/\D/g, ''))}
+                />
+                <span className="text-sm text-muted-foreground">days</span>
+              </div>
+              <p id="invoice-terms-hint" className="text-sm text-muted-foreground">
+                {editing ? 'Days from the day it is sent to its due date.' : 'Leave empty to use the client’s terms.'}
+              </p>
             </div>
           </div>
 
@@ -293,11 +311,22 @@ export function InvoiceFormDialog({
                   </Label>
                 </div>
                 {vatApplies && (
-                  <Input
-                    aria-label="VAT rate (%)"
-                    value={vatRate}
-                    onChange={(event) => setVatRate(event.target.value)}
-                  />
+                  <div className="space-y-1">
+                    <Label htmlFor="invoice-vat-rate" className="text-sm">
+                      VAT rate
+                    </Label>
+                    <div className="flex items-center gap-2">
+                      <Input
+                        id="invoice-vat-rate"
+                        inputMode="decimal"
+                        className="w-24"
+                        value={vatRate}
+                        placeholder="7.5"
+                        onChange={(event) => setVatRate(event.target.value.replace(/[^\d.]/g, ''))}
+                      />
+                      <span className="text-sm text-muted-foreground">%</span>
+                    </div>
+                  </div>
                 )}
               </div>
               <div className="space-y-2">
@@ -312,11 +341,22 @@ export function InvoiceFormDialog({
                   </Label>
                 </div>
                 {whtApplies && (
-                  <Input
-                    aria-label="WHT rate (%)"
-                    value={whtRate}
-                    onChange={(event) => setWhtRate(event.target.value)}
-                  />
+                  <div className="space-y-1">
+                    <Label htmlFor="invoice-wht-rate" className="text-sm">
+                      WHT rate
+                    </Label>
+                    <div className="flex items-center gap-2">
+                      <Input
+                        id="invoice-wht-rate"
+                        inputMode="decimal"
+                        className="w-24"
+                        value={whtRate}
+                        placeholder="5"
+                        onChange={(event) => setWhtRate(event.target.value.replace(/[^\d.]/g, ''))}
+                      />
+                      <span className="text-sm text-muted-foreground">%</span>
+                    </div>
+                  </div>
                 )}
               </div>
             </div>
