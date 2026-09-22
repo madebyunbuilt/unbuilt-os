@@ -14,7 +14,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { api } from '@/convex/_generated/api';
-import { type DocumentBlock, PRICED_TYPES } from '@/convex/lib/documentBlocks';
+import { type DocumentBlock, PRICED_TYPES, variablesIn } from '@/convex/lib/documentBlocks';
 import { errorMessage } from '@/lib/convex-error';
 
 // Editing a draft. The wording came from the template and can be changed here; headings and paragraphs are the parts
@@ -35,6 +35,7 @@ export function DocumentDraftEditor({
   const refreshText = useMutation(api.documents.refreshText);
   const [title, setTitle] = useState(document.title);
   const [validUntil, setValidUntil] = useState(document.validUntilDate ?? '');
+  const [schedule, setSchedule] = useState(document.paymentScheduleSummary ?? '');
   // The wording as it is stored, variables and all: saving the filled copy would freeze today's values into it.
   const [blocks, setBlocks] = useState<DocumentBlock[]>(document.rawBlocks);
   const [lines, setLines] = useState<LineDraft[]>(
@@ -44,6 +45,10 @@ export function DocumentDraftEditor({
   const [saving, setSaving] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const priced = PRICED_TYPES.has(document.type);
+  // Asked for only where the wording prints it, or it already has one.
+  const usesSchedule =
+    !!document.paymentScheduleSummary ||
+    blocks.some((block) => 'text' in block && variablesIn(block.text).includes('schedule.summary'));
   const currency = document.currency ?? 'NGN';
 
   const setBlockText = (index: number, text: string) =>
@@ -64,6 +69,7 @@ export function DocumentDraftEditor({
             blocks,
             lineItems: priced ? toLineArgs(lines, currency) : undefined,
             validUntilDate: validUntil || undefined,
+            paymentScheduleSummary: schedule || undefined,
           });
           onDone();
         } catch (caught) {
@@ -90,6 +96,21 @@ export function DocumentDraftEditor({
           </div>
         )}
       </div>
+
+      {usesSchedule && (
+        <div className="space-y-2">
+          <Label htmlFor="draft-schedule">Payment schedule</Label>
+          <Input
+            id="draft-schedule"
+            value={schedule}
+            placeholder="50% on signature, 50% on completion"
+            onChange={(event) => setSchedule(event.target.value)}
+          />
+          <p className="text-sm text-muted-foreground">
+            The wording prints this where it says {'{{schedule.summary}}'}, so write it as it should read.
+          </p>
+        </div>
+      )}
 
       {priced && (
         <LineItemsEditor

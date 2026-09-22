@@ -108,6 +108,7 @@ const document = (overrides: object = {}) => ({
   wht: { applies: true, bps: 500 },
   templateId: 't1',
   templateVersion: 1,
+  missing: [],
   createdByName: 'Kemi Bello',
   chain: [{ id: 'd1', type: 'quote', typeLabel: 'Quote', number: 'UNB-QUO-0001', status: 'sent', createdAt: 1 }],
   versions: [{ version: 1, createdAt: Date.parse('2026-09-21T09:00:00Z'), changeNote: undefined, hasPdf: true }],
@@ -259,6 +260,50 @@ describe('DocumentPage', () => {
         changeNote: undefined,
       }),
     );
+  });
+
+  it('lists what is missing, with where to fill it, and holds the send until it is filled', () => {
+    state.queries['documents.get'] = document({
+      status: 'draft',
+      number: undefined,
+      currentVersion: 0,
+      versions: [],
+      missing: [
+        { label: 'The studio’s registered name', where: 'Settings → Organisation', href: '/settings/organisation' },
+        { label: 'The payment schedule in words', where: 'the draft’s payment schedule line' },
+      ],
+    });
+    render(<DocumentPage documentId={'d1' as never} permissions={FULL} />);
+
+    const notice = screen.getByRole('status');
+    expect(notice).toHaveTextContent('Fill these in before sending');
+    expect(within(notice).getByRole('link', { name: 'Settings → Organisation' })).toHaveAttribute(
+      'href',
+      '/settings/organisation',
+    );
+    expect(notice).toHaveTextContent('the draft’s payment schedule line');
+    expect(screen.getByRole('button', { name: 'Send to the client' })).toBeDisabled();
+  });
+
+  it('offers a corrected version of an agreement waiting to be signed, and says what it still lacks', () => {
+    state.queries['documents.get'] = document({
+      type: 'nda',
+      typeLabel: 'Non-disclosure agreement',
+      status: 'awaiting_signature',
+      missing: [
+        {
+          label: 'The studio’s address, on one line',
+          where: 'Settings → Organisation',
+          href: '/settings/organisation',
+        },
+      ],
+    });
+    render(<DocumentPage documentId={'d1' as never} permissions={FULL} />);
+
+    expect(screen.getByRole('status')).toHaveTextContent('The studio’s address, on one line');
+    expect(screen.getByRole('button', { name: 'Send the next version' })).toBeDisabled();
+    // An agreement is signed, not accepted: there is no decision to record.
+    expect(screen.queryByRole('button', { name: 'Record acceptance' })).not.toBeInTheDocument();
   });
 
   it('records what the client said while it is with them', async () => {

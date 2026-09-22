@@ -44,7 +44,8 @@ export function SendDialog({ document, onSent }: { document: Document; onSent?: 
 
   return (
     <>
-      <Button onClick={() => setOpen(true)}>
+      {/* The page lists what is missing; the server refuses the send anyway. */}
+      <Button onClick={() => setOpen(true)} disabled={document.missing.length > 0}>
         <Send aria-hidden />
         {resend ? 'Send the next version' : 'Send to the client'}
       </Button>

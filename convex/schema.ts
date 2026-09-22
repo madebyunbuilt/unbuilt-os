@@ -741,6 +741,8 @@ export default defineSchema({
     // The first document in the chain, so quote → proposal → SOW → contract can be shown together.
     chainRootId: v.optional(v.id('documents')),
     validUntilDate: v.optional(v.string()),
+    // The payment schedule in words, for {{schedule.summary}}, written on the draft until billing schedules exist.
+    paymentScheduleSummary: v.optional(v.string()),
     sentAt: v.optional(v.number()),
     firstViewedAt: v.optional(v.number()),
     lastViewedAt: v.optional(v.number()),

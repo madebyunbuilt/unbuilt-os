@@ -9,6 +9,7 @@ import {
   type DocumentBlock,
   documentError,
   documentType,
+  missingVariables,
   PRICED_TYPES,
   SIGNED_TYPES,
 } from './lib/documentBlocks';
@@ -21,7 +22,9 @@ import {
   getDocument,
   type LineItem,
   copyClausesIn,
+  describeMissing,
   fillBlocks,
+  type MissingDetail,
   numberedRecordFor,
   type PreparedSend,
   taxSettingsFor,
@@ -212,8 +215,8 @@ export const get = teamQuery(null)({
 
     return {
       ...(await withNames(ctx, document)),
-      // As the client will read it, and the raw wording underneath for editing.
-      blocks: await filledBlocks(ctx, document),
+      // As the client will read it, what it still lacks, and the raw wording underneath for editing.
+      ...(await reading(ctx, document)),
       rawBlocks: document.blocks,
       lineItems: document.lineItems,
       discount: document.discount,
@@ -221,6 +224,7 @@ export const get = teamQuery(null)({
       wht: document.wht,
       templateId: document.templateId,
       templateVersion: document.templateVersion,
+      paymentScheduleSummary: document.paymentScheduleSummary,
       createdByName: (await ctx.db.get('teamMembers', document.createdByMemberId))?.name ?? 'Former member',
       chain: inChain
         .map((row) => ({
@@ -254,6 +258,7 @@ type CreateArgs = {
   lineItems?: (typeof lineItemValidator.type)[];
   discount?: typeof discountValidator.type;
   validUntilDate?: string;
+  paymentScheduleSummary?: string;
   contactId?: Id<'contacts'>;
   parentDocumentId?: Id<'documents'>;
 };
@@ -329,6 +334,7 @@ async function buildDocument(ctx: MutationCtx & Principal, args: CreateArgs) {
       currentVersion: 0,
       parentDocumentId: args.parentDocumentId,
       validUntilDate,
+      paymentScheduleSummary: text(args.paymentScheduleSummary, 'Payment schedule', { max: 300 }),
       viewCount: 0,
       createdByMemberId: ctx.principal.member._id,
     },
@@ -336,17 +342,35 @@ async function buildDocument(ctx: MutationCtx & Principal, args: CreateArgs) {
   };
 }
 
-/** The document's wording with its variables filled in from the client, project, deal and totals it has now. */
-async function filledBlocks(ctx: Ctx, document: Doc<'documents'>) {
-  const [client, contact, project, deal] = await Promise.all([
+/**
+ * The document's wording with its variables filled in from the client, project, deal and totals it has now, and what it
+ * is still missing. The number is assigned when it is first sent, so a draft is never short of one.
+ */
+async function reading(ctx: Ctx, document: Doc<'documents'>, contact?: Doc<'contacts'> | null) {
+  const [client, primary, project, deal] = await Promise.all([
     ctx.db.get('clients', document.clientId),
-    primaryContact(ctx, document.clientId),
+    contact === undefined ? primaryContact(ctx, document.clientId) : contact,
     document.projectId ? ctx.db.get('projects', document.projectId) : null,
     document.dealId ? ctx.db.get('deals', document.dealId) : null,
   ]);
-  if (!client) return document.blocks;
-  const values = await variableValues(ctx, document, { client, contact, project, deal }, await studioToday(ctx));
-  return fillBlocks(document.blocks, values);
+  if (!client) return { blocks: document.blocks, missing: [] };
+  const values = await variableValues(
+    ctx,
+    document,
+    { client, contact: primary, project, deal },
+    await studioToday(ctx),
+  );
+  const missing = missingVariables(document.blocks, values).filter((name) => name !== 'document.number');
+  return { blocks: fillBlocks(document.blocks, values), missing: describeMissing(missing, document) };
+}
+
+/** Refuses to send a document that would print a dash where a detail was promised. */
+function assertNothingMissing(missing: MissingDetail[]) {
+  if (missing.length === 0) return;
+  throw documentError(
+    'documents.missingDetails',
+    `Fill these in before sending: ${missing.map((detail) => `${detail.label.toLowerCase()} (${detail.where})`).join('; ')}`,
+  );
 }
 
 async function primaryContact(ctx: Ctx, clientId: Id<'clients'>) {
@@ -411,6 +435,7 @@ export const createFromParent = teamMutation('documents.create')({
       currency: parent.currency,
       lineItems: keep ? (parent.lineItems ?? []).map(({ amountMinor: _amount, ...item }) => item) : [],
       discount: parent.discount,
+      paymentScheduleSummary: parent.paymentScheduleSummary,
       parentDocumentId: parent._id,
     });
     const documentId = await ctx.db.insert('documents', {
@@ -449,6 +474,7 @@ export const update = teamMutation('documents.update')({
     vat: v.optional(v.object({ applies: v.boolean(), bps: v.number() })),
     wht: v.optional(v.object({ applies: v.boolean(), bps: v.number() })),
     validUntilDate: v.optional(v.string()),
+    paymentScheduleSummary: v.optional(v.string()),
     blocks: v.optional(v.array(blockValidator)),
   },
   handler: async (ctx, { documentId, ...args }) => {
@@ -477,6 +503,7 @@ export const update = teamMutation('documents.update')({
       wht: priced ? wht : undefined,
       totals: priced ? priceable!.totals : undefined,
       validUntilDate: checkedDate(args.validUntilDate, 'The valid until date'),
+      paymentScheduleSummary: text(args.paymentScheduleSummary, 'Payment schedule', { max: 300 }),
       blocks: args.blocks ?? document.blocks,
     });
   },
@@ -633,6 +660,8 @@ export const send = teamMutation('documents.send')({
     if (recipients.length === 0) {
       throw documentError('documents.noRecipients', 'Add a contact with an email address to send this to');
     }
+    // Filled as the send will fill it: addressed to the first person it goes to.
+    assertNothingMissing((await reading(ctx, document, await ctx.db.get('contacts', recipients[0].id))).missing);
     await ctx.scheduler.runAfter(0, internal.documentSending.send, {
       documentId: args.documentId,
       memberId: ctx.principal.member._id,
@@ -698,10 +727,15 @@ export const prepareSend = internalMutation({
       document.projectId ? ctx.db.get('projects', document.projectId) : null,
       document.dealId ? ctx.db.get('deals', document.dealId) : null,
     ]);
-    const readable = fillBlocks(
-      document.blocks,
-      await variableValues(ctx, { ...document, number }, { client, contact, project, deal }, await studioToday(ctx)),
+    const values = await variableValues(
+      ctx,
+      { ...document, number },
+      { client, contact, project, deal },
+      await studioToday(ctx),
     );
+    // Checked again here: a detail may have been cleared between pressing send and this running.
+    assertNothingMissing(describeMissing(missingVariables(document.blocks, values), document));
+    const readable = fillBlocks(document.blocks, values);
 
     const latest = await ctx.db
       .query('documentVersions')

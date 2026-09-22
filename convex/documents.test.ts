@@ -417,9 +417,64 @@ describe('who can see and do what', () => {
 });
 
 describe('sending', () => {
-  it('checks the send before scheduling it, and refuses one that cannot go out', async () => {
+  /**
+   * A draft with nothing missing: the seeded Payment clause prints the payment schedule, written on the draft, and the
+   * agreements name the studio by its registered name and address.
+   */
+  async function ready(documentId: Id<'documents'>) {
+    await t.run(async (ctx) => {
+      await ctx.db.patch('documents', documentId, { paymentScheduleSummary: '50% on signature, 50% on completion' });
+      const settings = (await ctx.db.query('orgSettings').first())!;
+      await ctx.db.patch('orgSettings', settings._id, { legalName: 'Unbuilt Studio Ltd', addressLines: ['Lagos'] });
+    });
+    return documentId;
+  }
+
+  it('refuses to send while the wording promises a detail the app does not have, and says where to fill it', async () => {
+    const { as, memberId } = await signedIn('owner');
+    const documentId = await as.mutation(api.documents.create, { type: 'nda', clientId });
+    const missing = (await as.query(api.documents.get, { documentId }))!.missing;
+    // The seed sets no legal name or address for the studio, and the NDA names both.
+    expect(missing).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ label: 'The studio’s registered name', href: '/settings/organisation' }),
+        expect.objectContaining({ label: 'The studio’s address, on one line', href: '/settings/organisation' }),
+      ]),
+    );
+    await expectCode(as.mutation(api.documents.send, { documentId }), 'documents.missingDetails');
+    await expectCode(t.mutation(internal.documents.prepareSend, { documentId, memberId }), 'documents.missingDetails');
+
+    await t.run(async (ctx) => {
+      const settings = (await ctx.db.query('orgSettings').first())!;
+      await ctx.db.patch('orgSettings', settings._id, { legalName: 'Unbuilt Studio Ltd', addressLines: ['Lagos'] });
+    });
+    expect((await as.query(api.documents.get, { documentId }))!.missing).toEqual([]);
+    expect(await as.mutation(api.documents.send, { documentId })).toEqual({ sendingTo: ['ada@glossup.com'] });
+  });
+
+  it('fills the payment schedule from the draft’s own line, and asks for it until it is written', async () => {
     const { as } = await signedIn('owner');
     const documentId = await as.mutation(api.documents.create, { type: 'quote', clientId, lineItems: twoLines });
+    expect((await as.query(api.documents.get, { documentId }))!.missing).toEqual([
+      expect.objectContaining({ where: 'the draft’s payment schedule line' }),
+    ]);
+    const draft = await as.query(api.documents.get, { documentId });
+    await as.mutation(api.documents.update, {
+      documentId,
+      title: 'Quote for Glossup',
+      validUntilDate: draft!.validUntilDate,
+      paymentScheduleSummary: '50% on signature, 50% on completion',
+    });
+    const document = await as.query(api.documents.get, { documentId });
+    expect(document!.missing).toEqual([]);
+    expect(JSON.stringify(document!.blocks)).toContain('The payment schedule for this work is: 50% on signature');
+  });
+
+  it('checks the send before scheduling it, and refuses one that cannot go out', async () => {
+    const { as } = await signedIn('owner');
+    const documentId = await ready(
+      await as.mutation(api.documents.create, { type: 'quote', clientId, lineItems: twoLines }),
+    );
 
     expect(await as.mutation(api.documents.send, { documentId })).toEqual({ sendingTo: ['ada@glossup.com'] });
 
@@ -432,11 +487,13 @@ describe('sending', () => {
 
   it('is closed to a role without documents.send', async () => {
     const owner = await signedIn('owner');
-    const documentId = await owner.as.mutation(api.documents.create, {
-      type: 'quote',
-      clientId,
-      lineItems: twoLines,
-    });
+    const documentId = await ready(
+      await owner.as.mutation(api.documents.create, {
+        type: 'quote',
+        clientId,
+        lineItems: twoLines,
+      }),
+    );
     // Finance reads every document but does not send one; project managers do hold documents.send.
     const finance = await signedIn('finance');
     await expect(finance.as.mutation(api.documents.send, { documentId })).rejects.toThrow();
@@ -447,7 +504,9 @@ describe('sending', () => {
 
   it('tells whoever pressed send when it did not go out', async () => {
     const { as, memberId } = await signedIn('owner');
-    const documentId = await as.mutation(api.documents.create, { type: 'quote', clientId, lineItems: twoLines });
+    const documentId = await ready(
+      await as.mutation(api.documents.create, { type: 'quote', clientId, lineItems: twoLines }),
+    );
     await t.mutation(internal.documents.reportSendFailed, {
       documentId,
       memberId,
@@ -464,7 +523,9 @@ describe('sending', () => {
 
   it('numbers the document once, snapshots the version and addresses the primary contact', async () => {
     const { as, memberId } = await signedIn('owner');
-    const documentId = await as.mutation(api.documents.create, { type: 'quote', clientId, lineItems: twoLines });
+    const documentId = await ready(
+      await as.mutation(api.documents.create, { type: 'quote', clientId, lineItems: twoLines }),
+    );
 
     const first = await prepare(documentId, memberId);
     expect(first.number).toBe('UNB-QUO-0001');
@@ -528,7 +589,9 @@ describe('sending', () => {
         status: 'active',
       }),
     );
-    const documentId = await as.mutation(api.documents.create, { type: 'quote', clientId, lineItems: twoLines });
+    const documentId = await ready(
+      await as.mutation(api.documents.create, { type: 'quote', clientId, lineItems: twoLines }),
+    );
     const prepared = await prepare(documentId, memberId, [contactId, second]);
     expect(prepared.recipients.map((r) => r.email)).toEqual(['ada@glossup.com', 'bayo@glossup.com']);
 
@@ -537,13 +600,17 @@ describe('sending', () => {
       await ctx.db.patch('contacts', contactId, { status: 'left' });
       await ctx.db.patch('contacts', second, { status: 'left' });
     });
-    const orphan = await as.mutation(api.documents.create, { type: 'quote', clientId, lineItems: twoLines });
+    const orphan = await ready(
+      await as.mutation(api.documents.create, { type: 'quote', clientId, lineItems: twoLines }),
+    );
     await expectCode(prepare(orphan, memberId), 'documents.noRecipients');
   });
 
   it('refuses to send a signed or void document', async () => {
     const { as, memberId } = await signedIn('owner');
-    const documentId = await as.mutation(api.documents.create, { type: 'quote', clientId, lineItems: twoLines });
+    const documentId = await ready(
+      await as.mutation(api.documents.create, { type: 'quote', clientId, lineItems: twoLines }),
+    );
     await t.run((ctx) => ctx.db.patch('documents', documentId, { status: 'void', voidReason: 'wrong client' }));
     await expectCode(prepare(documentId, memberId), 'documents.void');
 
@@ -553,7 +620,9 @@ describe('sending', () => {
 
   it('attaches the stored PDF with its hash to the document and the version', async () => {
     const { as, memberId } = await signedIn('owner');
-    const documentId = await as.mutation(api.documents.create, { type: 'quote', clientId, lineItems: twoLines });
+    const documentId = await ready(
+      await as.mutation(api.documents.create, { type: 'quote', clientId, lineItems: twoLines }),
+    );
     const prepared = await prepare(documentId, memberId);
 
     const storageId = await t.run(async (ctx) => await ctx.storage.store(new Blob(['%PDF-1.7 pretend'])));
@@ -579,12 +648,14 @@ describe('sending', () => {
 
   it('marks a quote sent and a contract awaiting signature, and records it', async () => {
     const { as, memberId } = await signedIn('owner');
-    const quoteId = await as.mutation(api.documents.create, { type: 'quote', clientId, lineItems: twoLines });
+    const quoteId = await ready(
+      await as.mutation(api.documents.create, { type: 'quote', clientId, lineItems: twoLines }),
+    );
     await prepare(quoteId, memberId);
     await t.mutation(internal.documents.markSent, { documentId: quoteId, version: 1, emailed: ['ada@glossup.com'] });
     expect(await t.run((ctx) => ctx.db.get('documents', quoteId))).toMatchObject({ status: 'sent' });
 
-    const contractId = await as.mutation(api.documents.create, { type: 'contract', clientId });
+    const contractId = await ready(await as.mutation(api.documents.create, { type: 'contract', clientId }));
     await prepare(contractId, memberId);
     await t.mutation(internal.documents.markSent, { documentId: contractId, version: 1, emailed: ['ada@glossup.com'] });
     expect(await t.run((ctx) => ctx.db.get('documents', contractId))).toMatchObject({ status: 'awaiting_signature' });

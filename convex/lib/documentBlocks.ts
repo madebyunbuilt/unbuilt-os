@@ -134,7 +134,15 @@ export function assertKnownVariables(text: string, where: string): void {
   }
 }
 
-/** Replaces every variable with its value. A value the document does not have is left visibly blank. */
+/** The variables a set of blocks uses that have no value to fill them with, in the order they appear. */
+export function missingVariables(blocks: DocumentBlock[], values: Record<string, string | undefined>): string[] {
+  return variablesInBlocks(blocks).filter((name) => !values[name]?.trim());
+}
+
+/**
+ * Replaces every variable with its value. A value the document does not have shows as a dash, which only a draft ever
+ * carries: sending is refused while anything is missing (see missingVariables).
+ */
 export function fillVariables(text: string, values: Record<string, string | undefined>): string {
   return text.replace(VARIABLE_PATTERN, (_, name: string) => values[name] ?? '—');
 }

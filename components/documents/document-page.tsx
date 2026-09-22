@@ -37,6 +37,8 @@ export function DocumentPage({ documentId, permissions }: { documentId: Id<'docu
   const status = document.status as DocumentStatus;
   const isDraft = status === 'draft';
   const withClient = status === 'sent' || status === 'viewed';
+  // Out with the client and still open to a corrected version: sending moves the signed types straight to waiting.
+  const resendable = withClient || status === 'expired' || status === 'awaiting_signature';
   const next = NEXT_IN_CHAIN[document.type as DocumentType] ?? [];
 
   return (
@@ -93,6 +95,8 @@ export function DocumentPage({ documentId, permissions }: { documentId: Id<'docu
           </p>
         )}
 
+        {document.missing.length > 0 && (isDraft || resendable) && <MissingDetails missing={document.missing} />}
+
         <div className="flex flex-wrap gap-2">
           {permissions.includes('documents.send') && isDraft && (
             <SendDialog document={document} onSent={() => setEditing(false)} />
@@ -103,9 +107,7 @@ export function DocumentPage({ documentId, permissions }: { documentId: Id<'docu
               {editing ? 'Stop editing' : 'Edit the draft'}
             </Button>
           )}
-          {permissions.includes('documents.send') && (withClient || status === 'expired') && (
-            <SendDialog document={document} />
-          )}
+          {permissions.includes('documents.send') && resendable && <SendDialog document={document} />}
           {document.pdfFileId && <DownloadPdfButton fileId={document.pdfFileId} />}
           {permissions.includes('documents.create') &&
             next.map((type) => (
@@ -186,6 +188,32 @@ export function DocumentPage({ documentId, permissions }: { documentId: Id<'docu
           )}
         </section>
       </div>
+    </div>
+  );
+}
+
+/**
+ * What the wording promises but the app does not have yet. Sending is refused until each is filled in, so the client
+ * never reads a dash where a name or address should be.
+ */
+function MissingDetails({ missing }: { missing: { label: string; where: string; href?: string }[] }) {
+  return (
+    <div role="status" className="rounded-md bg-attention p-3 text-sm text-attention-foreground">
+      <p className="font-medium">Fill these in before sending:</p>
+      <ul className="mt-1 list-disc space-y-0.5 pl-5">
+        {missing.map((detail) => (
+          <li key={`${detail.label}-${detail.where}`}>
+            {detail.label}:{' '}
+            {detail.href ? (
+              <Link href={detail.href} className="underline underline-offset-4">
+                {detail.where}
+              </Link>
+            ) : (
+              detail.where
+            )}
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }
