@@ -138,6 +138,20 @@ studio's behalf.
 - When triggered, the item creates an invoice draft (or sends it when `autoSend`) and records the invoice on the item.
 - Defaults for new fixed-price projects: 50% on signature, 50% on final milestone approval. Editable per project.
 - The schedule total must equal the project amount before the schedule can be activated.
+- One schedule per project. It starts as a draft; `schedules.manage` activates it, and can pause it back to a draft.
+- The amount to split is the project's budget unless the schedule names its own.
+- Triggers fire once per item and only while the schedule is active:
+  - **Signing**: the contract reaching `signed`, matched by the schedule's contract document or by its project.
+  - **A date**: a daily cron at 07:00 Lagos raises every item whose date has come and not yet been invoiced.
+  - **A milestone approval**: an item naming a milestone waits for that one; an item naming none waits until every
+    milestone on the project is approved, invoiced or skipped. The milestone then moves to `invoiced`.
+- The invoice is drafted the same way as any other: the client's taxes, terms and currency, one line reading
+  `<project>: <item label>`, typed `deposit` for a signing item and `milestone` for the rest.
+- Without `autoSend`, everyone who can send invoices is notified that a draft is waiting; with it, the invoice is sent
+  straight away by the same action `invoices.send` uses, so a failure leaves a numbered draft to send again.
+- An item can be skipped with a reason, which is recorded on the client's activity. Once any item has been invoiced the
+  items are fixed: a correction goes through the invoice (credit note or void), not the schedule.
+- `schedules.invoiceNow` raises an item's invoice before its trigger, for the times a client asks to be billed early.
 
 ## Retainers
 

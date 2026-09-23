@@ -1175,6 +1175,38 @@ export default defineSchema({
     failure: v.optional(v.string()),
   }).index('by_client', ['clientId']),
 
+  // How a fixed-price project is invoiced in stages (08-billing-and-finance.md, Billing schedules). The items must add
+  // up to the project's amount before the schedule can be activated; each raises an invoice when its trigger fires.
+  billingSchedules: defineTable({
+    projectId: v.id('projects'),
+    clientId: v.id('clients'),
+    contractDocumentId: v.optional(v.id('documents')),
+    currency,
+    status: v.union(v.literal('draft'), v.literal('active'), v.literal('ended')),
+    amountMinor: v.number(),
+    items: v.array(
+      v.object({
+        id: v.string(),
+        label: v.string(),
+        kind: v.union(v.literal('percent'), v.literal('fixed')),
+        bps: v.optional(v.number()),
+        amountMinor: v.number(),
+        trigger: v.union(v.literal('on_signature'), v.literal('on_date'), v.literal('on_milestone_approved')),
+        date: v.optional(v.string()),
+        milestoneId: v.optional(v.id('milestones')),
+        invoiceId: v.optional(v.id('invoices')),
+        status: v.union(v.literal('pending'), v.literal('invoiced'), v.literal('skipped')),
+        invoicedAt: v.optional(v.number()),
+      }),
+    ),
+    // Invoices raised by the schedule go out on their own instead of waiting in the drafts queue.
+    autoSend: v.boolean(),
+    createdByMemberId: v.id('teamMembers'),
+  })
+    .index('by_project', ['projectId'])
+    .index('by_status', ['status'])
+    .index('by_contract', ['contractDocumentId']),
+
   // Manual rates (08-billing-and-finance.md, Foreign exchange): NGN per one unit, × 1,000,000, by day.
   fxRates: defineTable({
     currency: v.union(v.literal('USD'), v.literal('EUR')),

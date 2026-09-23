@@ -1,4 +1,5 @@
 import { v } from 'convex/values';
+import { internal } from './_generated/api';
 import { type Doc, type Id } from './_generated/dataModel';
 import { type MutationCtx, type QueryCtx } from './_generated/server';
 import { requirePermission, text, website } from './lib/crm';
@@ -262,5 +263,14 @@ export const recordClientDecision = internalMutation({
     version: v.number(),
     decision: v.union(v.literal('approved'), v.literal('changes_requested')),
   },
-  handler: async (ctx, args) => await applyClientDecision(ctx, { ...args, now: Date.now() }),
+  handler: async (ctx, args) => {
+    const result = await applyClientDecision(ctx, { ...args, now: Date.now() });
+    if (result.milestoneApproved) {
+      // An approved milestone may be what a billing schedule was waiting for (08-billing-and-finance.md).
+      await ctx.scheduler.runAfter(0, internal.billingSchedules.onMilestoneApproved, {
+        milestoneId: result.milestoneApproved,
+      });
+    }
+    return result;
+  },
 });
