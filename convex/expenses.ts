@@ -27,7 +27,10 @@ import { isIsoDate } from './lib/validation';
 
 const category = v.union(...EXPENSE_CATEGORIES.map((name) => v.literal(name)));
 
-function expenseView(expense: Doc<'expenses'>, extras: { loggedByName?: string; projectName?: string } = {}) {
+function expenseView(
+  expense: Doc<'expenses'>,
+  extras: { loggedByName?: string; projectName?: string; isMine?: boolean } = {},
+) {
   return {
     id: expense._id,
     projectId: expense.projectId,
@@ -47,6 +50,8 @@ function expenseView(expense: Doc<'expenses'>, extras: { loggedByName?: string; 
     decisionNote: expense.decisionNote,
     loggedByMemberId: expense.loggedByMemberId,
     loggedByName: extras.loggedByName,
+    // Whose it is, so a screen can offer the things only the person who logged it may do.
+    isMine: extras.isMine ?? false,
     invoiceId: expense.invoiceId,
     createdAt: expense._creationTime,
   };
@@ -97,7 +102,11 @@ export const list = teamQuery(null)({
           ctx.db.get('teamMembers', row.loggedByMemberId),
           row.projectId ? ctx.db.get('projects', row.projectId) : null,
         ]);
-        return expenseView(row, { loggedByName: member?.name, projectName: project?.name });
+        return expenseView(row, {
+          loggedByName: member?.name,
+          projectName: project?.name,
+          isMine: row.loggedByMemberId === ctx.principal.member._id,
+        });
       }),
     );
     return views.sort((a, b) => b.date.localeCompare(a.date) || b.createdAt - a.createdAt);
@@ -116,7 +125,11 @@ export const get = teamQuery(null)({
       ctx.db.get('teamMembers', expense.loggedByMemberId),
       expense.projectId ? ctx.db.get('projects', expense.projectId) : null,
     ]);
-    return expenseView(expense, { loggedByName: member?.name, projectName: project?.name });
+    return expenseView(expense, {
+      loggedByName: member?.name,
+      projectName: project?.name,
+      isMine: expense.loggedByMemberId === ctx.principal.member._id,
+    });
   },
 });
 

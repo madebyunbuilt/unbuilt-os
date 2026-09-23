@@ -3,17 +3,9 @@
 import { useMutation, useQuery } from 'convex/react';
 import { type ReactNode, useState } from 'react';
 import { ConfirmDialog } from '@/components/app/confirm-dialog';
+import { FormDialog } from '@/components/app/form-dialog';
 import { Button } from '@/components/ui/button';
 import { Checkbox } from '@/components/ui/checkbox';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { NativeSelect } from '@/components/ui/native-select';
@@ -21,7 +13,6 @@ import { Textarea } from '@/components/ui/textarea';
 import { api } from '@/convex/_generated/api';
 import { type Id } from '@/convex/_generated/dataModel';
 import { type Currency, formatMoney, parseMoneyInput, whtExpectedOnBalance, whtForPayment } from '@/convex/lib/money';
-import { errorMessage } from '@/lib/convex-error';
 import { toAmountInput } from '@/lib/crm-display';
 import { lagosToday, PAYMENT_METHODS, type PaymentMethod } from '@/lib/invoices-display';
 
@@ -29,76 +20,6 @@ import { lagosToday, PAYMENT_METHODS, type PaymentMethod } from '@/lib/invoices-
 // the page decides which to show, and the server checks again.
 
 type Invoice = NonNullable<typeof api.invoices.get._returnType>;
-
-/** A form in a dialog, with its own error and busy state. */
-function FormDialog({
-  trigger,
-  title,
-  description,
-  submitLabel,
-  canSubmit = true,
-  onSubmit,
-  children,
-}: {
-  trigger: ReactNode;
-  title: string;
-  description: ReactNode;
-  submitLabel: string;
-  canSubmit?: boolean;
-  onSubmit: () => Promise<unknown>;
-  children: ReactNode;
-}) {
-  const [open, setOpen] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [saving, setSaving] = useState(false);
-  const id = `form-${title.toLowerCase().replace(/[^a-z]+/g, '-')}`;
-  return (
-    <Dialog
-      open={open}
-      onOpenChange={(next) => {
-        setOpen(next);
-        setError(null);
-      }}
-    >
-      <DialogTrigger asChild>{trigger}</DialogTrigger>
-      <DialogContent className="max-h-[90vh] overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle className="font-display">{title}</DialogTitle>
-          <DialogDescription>{description}</DialogDescription>
-        </DialogHeader>
-        <form
-          id={id}
-          className="space-y-4"
-          onSubmit={async (event) => {
-            event.preventDefault();
-            setSaving(true);
-            setError(null);
-            try {
-              await onSubmit();
-              setOpen(false);
-            } catch (caught) {
-              setError(errorMessage(caught));
-            } finally {
-              setSaving(false);
-            }
-          }}
-        >
-          {children}
-          {error && (
-            <p role="alert" className="text-sm text-destructive">
-              {error}
-            </p>
-          )}
-        </form>
-        <DialogFooter>
-          <Button type="submit" form={id} disabled={saving || !canSubmit}>
-            {saving ? 'Working…' : submitLabel}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
-}
 
 function MoneyField({
   id,
