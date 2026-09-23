@@ -18,6 +18,7 @@ import {
   checkedLines,
   checkedTax,
   checkedTerms,
+  draftInvoice,
   discountValidator,
   getInvoice,
   invoiceError,
@@ -183,34 +184,18 @@ export const create = teamMutation('invoices.create')({
         throw invoiceError('invoices.invalid', 'That project belongs to another client');
       }
     }
-    const currency = args.currency ?? client.defaultCurrency;
-    const defaults = await taxDefaultsFor(ctx, client);
-    const discount = checkedDiscount(args.discount);
-    const vat = checkedTax(args.vat ?? defaults.vat, 'VAT');
-    const wht = checkedTax(args.wht ?? defaults.wht, 'WHT');
-    const { lineItems, totals } = invoiceTotals(checkedLines(args.lineItems), discount, vat, wht);
-    const rate = checkedRate(currency, args.fxRateToNgnMicro);
-    const latest = await latestFxRate(ctx, currency);
-
-    const invoiceId = await ctx.db.insert('invoices', {
+    const rate = checkedRate(args.currency ?? client.defaultCurrency, args.fxRateToNgnMicro);
+    const invoiceId = await draftInvoice(ctx, {
       clientId: client._id,
       projectId: args.projectId,
-      type: args.type ?? 'standard',
-      status: 'draft',
-      paymentTermsDays: checkedTerms(args.paymentTermsDays ?? (await paymentTermsFor(ctx, client))),
-      currency,
-      fxRateToNgnMicro: rate ?? latest?.rateToNgnMicro ?? (currency === 'NGN' ? MICRO_PER_UNIT : 0),
-      fxRateOverridden: rate !== undefined,
-      lineItems,
-      discount,
-      vat,
-      wht,
-      totals,
-      paidMinor: 0,
-      whtCreditedMinor: 0,
-      creditedMinor: 0,
-      balanceMinor: totals.totalMinor,
-      reminders: [],
+      type: args.type,
+      currency: args.currency,
+      lineItems: checkedLines(args.lineItems),
+      discount: checkedDiscount(args.discount),
+      vat: args.vat,
+      wht: args.wht,
+      paymentTermsDays: args.paymentTermsDays,
+      fxRateToNgnMicro: rate,
       notes: text(args.notes, 'Notes', { max: 2000 }),
       terms: text(args.terms, 'Terms', { max: 2000 }),
       createdByMemberId: ctx.principal.member._id,

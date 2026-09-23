@@ -270,3 +270,62 @@ export function reminderWording(kind: string): 'soon' | 'today' | 'late' {
   if (kind === 'due') return 'today';
   return 'late';
 }
+
+export type DraftInvoiceArgs = {
+  clientId: Id<'clients'>;
+  projectId?: Id<'projects'>;
+  contractDocumentId?: Id<'documents'>;
+  type?: Doc<'invoices'>['type'];
+  currency?: Currency;
+  lineItems: InvoiceLine[];
+  discount?: Discount;
+  vat?: TaxSetting;
+  wht?: TaxSetting;
+  paymentTermsDays?: number;
+  fxRateToNgnMicro?: number;
+  notes?: string;
+  terms?: string;
+  createdByMemberId: Id<'teamMembers'>;
+};
+
+/**
+ * Drafts an invoice: the client's currency, VAT treatment, WHT and payment terms unless something else is given, with
+ * the totals from the money library. Used by the invoice screen and by everything that raises invoices on its own
+ * (billing schedules, retainers, late fees).
+ */
+export async function draftInvoice(ctx: MutationCtx, args: DraftInvoiceArgs): Promise<Id<'invoices'>> {
+  const client = await ctx.db.get('clients', args.clientId);
+  if (!client) throw invoiceError('invoices.invalid', 'That client no longer exists');
+  const currency = args.currency ?? client.defaultCurrency;
+  const defaults = await taxDefaultsFor(ctx, client);
+  const discount = args.discount ?? { kind: 'none' };
+  const vat = checkedTax(args.vat ?? defaults.vat, 'VAT');
+  const wht = checkedTax(args.wht ?? defaults.wht, 'WHT');
+  const { lineItems, totals } = invoiceTotals(args.lineItems, discount, vat, wht);
+  const latest = args.fxRateToNgnMicro === undefined ? await latestFxRate(ctx, currency) : null;
+
+  return await ctx.db.insert('invoices', {
+    clientId: client._id,
+    projectId: args.projectId,
+    contractDocumentId: args.contractDocumentId,
+    type: args.type ?? 'standard',
+    status: 'draft',
+    paymentTermsDays: checkedTerms(args.paymentTermsDays ?? (await paymentTermsFor(ctx, client))),
+    currency,
+    fxRateToNgnMicro: args.fxRateToNgnMicro ?? latest?.rateToNgnMicro ?? (currency === 'NGN' ? MICRO_PER_UNIT : 0),
+    fxRateOverridden: args.fxRateToNgnMicro !== undefined,
+    lineItems,
+    discount,
+    vat,
+    wht,
+    totals,
+    paidMinor: 0,
+    whtCreditedMinor: 0,
+    creditedMinor: 0,
+    balanceMinor: totals.totalMinor,
+    reminders: [],
+    notes: args.notes,
+    terms: args.terms,
+    createdByMemberId: args.createdByMemberId,
+  });
+}
