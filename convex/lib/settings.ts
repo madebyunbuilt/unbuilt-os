@@ -17,7 +17,7 @@ export const DEFAULT_ORG_SETTINGS: OrgSettingsFields = {
   numbering: {},
   defaultVatBps: 750,
   // Disabled until the accountant confirms late fees; 5% a month is the rate under review.
-  lateFeePolicy: { enabled: false, monthlyBps: 500 },
+  lateFeePolicy: { enabled: false, monthlyBps: 500, autoSend: false },
   retentionYears: 7,
   brand: { primary: '#000000', accent: '#FFC400' },
 };
