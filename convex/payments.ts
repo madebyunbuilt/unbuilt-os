@@ -4,8 +4,9 @@ import { type Doc, type Id } from './_generated/dataModel';
 import { type MutationCtx } from './_generated/server';
 import { recordActivity, text } from './lib/crm';
 import { recordUpload } from './lib/files';
-import { teamMutation, teamQuery } from './lib/functions';
+import { internalMutation, teamMutation, teamQuery } from './lib/functions';
 import { assertAcceptsMoney, getInvoice, invoiceError, settle, studioToday } from './lib/invoices';
+import { notifyTeamMembers } from './lib/notify';
 import { formatMoney } from './lib/money';
 import { nextNumber } from './lib/numbering';
 import { isIsoDate } from './lib/validation';
@@ -194,6 +195,141 @@ export const record = teamMutation('payments.record')({
   },
 });
 
+/**
+ * Records a card payment Paystack has confirmed. Keyed by its reference, so the same event twice records one payment.
+ * The fee Paystack kept is stored for reporting; the client is charged the invoice amount (studio, 2026-09-23).
+ */
+export const recordFromPaystack = internalMutation({
+  args: {
+    reference: v.string(),
+    amountMinor: v.number(),
+    currency: v.string(),
+    feesMinor: v.optional(v.number()),
+    paystackTransactionId: v.string(),
+    whtMinor: v.number(),
+  },
+  handler: async (ctx, args): Promise<null> => {
+    const seen = await ctx.db
+      .query('payments')
+      .withIndex('by_reference', (q) => q.eq('reference', args.reference))
+      .unique();
+    if (seen) return null;
+    // inv_<invoiceId>_<attempt>
+    const invoiceId = ctx.db.normalizeId('invoices', args.reference.split('_')[1] ?? '');
+    if (!invoiceId) throw invoiceError('invoices.notFound', `No invoice behind ${args.reference}`);
+    const invoice = await getInvoice(ctx, invoiceId);
+    if (invoice.currency !== args.currency) {
+      throw invoiceError('invoices.invalid', `${args.reference} is in ${args.currency}, not ${invoice.currency}`);
+    }
+    assertAcceptsMoney(invoice);
+    const whtMinor = Math.min(Math.max(args.whtMinor, 0), Math.max(0, invoice.balanceMinor - args.amountMinor));
+    if (args.amountMinor + whtMinor > invoice.balanceMinor) {
+      throw invoiceError('invoices.overpaid', `${args.reference} is more than ${invoice.number} still owes`);
+    }
+
+    const paymentId = await ctx.db.insert('payments', {
+      invoiceId: invoice._id,
+      clientId: invoice.clientId,
+      amountMinor: args.amountMinor,
+      currency: invoice.currency,
+      method: 'paystack',
+      status: 'succeeded',
+      receivedOn: await studioToday(ctx),
+      reference: args.reference,
+      paystackTransactionId: args.paystackTransactionId,
+      feesMinor: args.feesMinor,
+      refundedMinor: 0,
+    });
+    if (whtMinor > 0) {
+      await ctx.db.insert('whtCredits', {
+        invoiceId: invoice._id,
+        clientId: invoice.clientId,
+        paymentId,
+        amountMinor: whtMinor,
+        currency: invoice.currency,
+        status: 'expected',
+      });
+    }
+    await ctx.db.patch(
+      'invoices',
+      invoice._id,
+      await settle(ctx, invoice, {
+        paidMinor: invoice.paidMinor + args.amountMinor,
+        whtCreditedMinor: invoice.whtCreditedMinor + whtMinor,
+        creditedMinor: invoice.creditedMinor,
+      }),
+    );
+    const receiptId = await ctx.db.insert('receipts', {
+      number: await nextNumber(ctx, 'receipt'),
+      paymentId,
+      invoiceId: invoice._id,
+      clientId: invoice.clientId,
+      emailed: true,
+    });
+    await ctx.db.patch('payments', paymentId, { receiptId });
+    await ctx.scheduler.runAfter(0, internal.financeSending.sendReceipt, {
+      receiptId,
+      memberId: invoice.createdByMemberId,
+    });
+    await recordActivity(ctx, {
+      subject: { table: 'clients', id: invoice.clientId },
+      clientId: invoice.clientId,
+      type: 'payment_event',
+      title: `${formatMoney(args.amountMinor, invoice.currency)} paid by card on ${invoice.number}`,
+      body: whtMinor > 0 ? `With ${formatMoney(whtMinor, invoice.currency)} WHT withheld` : undefined,
+      actor: { kind: 'system' },
+      meta: { invoiceId: invoice._id, paymentId, reference: args.reference },
+    });
+    await notifyTeamMembers(ctx, [invoice.createdByMemberId], {
+      event: 'invoice_paid',
+      title: `${formatMoney(args.amountMinor, invoice.currency)} received on ${invoice.number}`,
+      body: invoice.balanceMinor - args.amountMinor - whtMinor === 0 ? 'It is now settled.' : 'Part of what is owed.',
+      link: `/billing/invoices/${invoice._id}`,
+    });
+    return null;
+  },
+});
+
+/** A refund Paystack has accepted; the webhook confirms it when the money is on its way back. */
+export const markRefundSent = internalMutation({
+  args: { refundId: v.id('refunds'), paystackRefundId: v.string() },
+  handler: async (ctx, { refundId, paystackRefundId }) => {
+    await ctx.db.patch('refunds', refundId, { paystackRefundId });
+  },
+});
+
+export const markRefundProcessed = internalMutation({
+  args: { reference: v.string() },
+  handler: async (ctx, { reference }) => {
+    const payment = await ctx.db
+      .query('payments')
+      .withIndex('by_reference', (q) => q.eq('reference', reference))
+      .unique();
+    if (!payment) return;
+    const refunds = await ctx.db
+      .query('refunds')
+      .withIndex('by_payment', (q) => q.eq('paymentId', payment._id))
+      .collect();
+    for (const refund of refunds.filter((row) => row.status === 'pending')) {
+      await ctx.db.patch('refunds', refund._id, { status: 'processed', processedAt: Date.now() });
+    }
+  },
+});
+
+export const reportRefundFailed = internalMutation({
+  args: { refundId: v.id('refunds'), reason: v.string() },
+  handler: async (ctx, { refundId, reason }) => {
+    const refund = await ctx.db.get('refunds', refundId);
+    if (!refund) return;
+    await ctx.db.patch('refunds', refundId, { status: 'failed' });
+    await notifyTeamMembers(ctx, [refund.recordedByMemberId], {
+      event: 'refund_failed',
+      title: 'A card refund did not go through',
+      body: `${reason.slice(0, 200)} The invoice still shows the amount as owed again.`,
+    });
+  },
+});
+
 export const generateUploadUrl = teamMutation('payments.record')({
   args: {},
   handler: async (ctx) => await ctx.storage.generateUploadUrl(),
@@ -254,7 +390,10 @@ export const refund = teamMutation('payments.refund')({
       refundedMinor,
       status: refundedMinor === payment.amountMinor ? 'refunded' : 'partially_refunded',
     });
-    await ctx.db.insert('refunds', {
+    // A card payment is refunded through Paystack, and is pending until they confirm it; anything else went back by
+    // hand, so it is already done.
+    const byCard = payment.method === 'paystack' && payment.reference;
+    const refundId = await ctx.db.insert('refunds', {
       paymentId: payment._id,
       clientId: payment.clientId,
       amountMinor,
@@ -262,10 +401,17 @@ export const refund = teamMutation('payments.refund')({
       reason,
       method: args.method,
       reference: text(args.reference, 'Reference', { max: 120 }),
-      status: 'processed',
-      processedAt: Date.now(),
+      status: byCard ? 'pending' : 'processed',
+      processedAt: byCard ? undefined : Date.now(),
       recordedByMemberId: ctx.principal.member._id,
     });
+    if (byCard) {
+      await ctx.scheduler.runAfter(0, internal.paystack.sendRefund, {
+        refundId,
+        reference: payment.reference!,
+        amountMinor,
+      });
+    }
     await ctx.db.patch(
       'invoices',
       invoice._id,

@@ -1001,6 +1001,7 @@ export default defineSchema({
     .index('by_client_status', ['clientId', 'status'])
     .index('by_status_due', ['status', 'dueDate'])
     .index('by_project', ['projectId'])
+    .index('by_pay_token', ['payToken'])
     .searchIndex('search_number', { searchField: 'number' }),
 
   // Money received against an invoice. Manual for now; Paystack payments arrive with step 8.
@@ -1144,6 +1145,19 @@ export default defineSchema({
   })
     .index('by_payment', ['paymentId'])
     .index('by_client', ['clientId']),
+
+  // Every webhook a provider sends, kept so the same event is never processed twice (14-platform.md, Webhooks).
+  webhookEvents: defineTable({
+    provider: v.union(v.literal('paystack'), v.literal('resend'), v.literal('whatsapp')),
+    eventId: v.string(),
+    type: v.string(),
+    receivedAt: v.number(),
+    processedAt: v.optional(v.number()),
+    status: v.union(v.literal('received'), v.literal('processed'), v.literal('failed'), v.literal('ignored')),
+    error: v.optional(v.string()),
+    attempts: v.number(),
+    payload: v.string(),
+  }).index('by_provider_event', ['provider', 'eventId']),
 
   // Statement PDFs asked for by the team, for a client and a date range. Rendered by an action and kept, so the same
   // statement can be downloaded again.

@@ -5,6 +5,7 @@ import { internal } from './_generated/api';
 import { sendInvoiceEmail } from './lib/invoiceEmails';
 import { internalAction } from './lib/functions';
 import { formatMoney } from './lib/money';
+import { mintPayLink } from './lib/payLinks';
 import { renderInvoicePdf } from './lib/renderDocumentPdf';
 
 // Sending an invoice (08-billing-and-finance.md, Invoices, Send): number it, freeze its lines, totals and rate, render
@@ -29,6 +30,7 @@ export const send = internalAction({
       });
 
       const pdf = new Uint8Array(await renderInvoicePdf(prepared.pdf));
+      const payUrl = await mintPayLink(ctx, args.invoiceId);
       const storageId = await ctx.storage.store(new Blob([pdf], { type: 'application/pdf' }));
       const stored = await ctx.runMutation(internal.invoices.attachPdf, {
         invoiceId: args.invoiceId,
@@ -50,6 +52,7 @@ export const send = internalAction({
           dueDate: prepared.dueDate,
           message: args.message,
           whtNote: prepared.whtNote,
+          payUrl,
           bankAccounts: prepared.bankAccounts,
           pdf: { filename: `${prepared.number}.pdf`, content: pdf },
         });

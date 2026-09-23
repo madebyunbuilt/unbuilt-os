@@ -1,4 +1,4 @@
-import { Text } from 'react-email';
+import { Button, Text } from 'react-email';
 import { AuthEmailLayout, styles } from '../auth/layout';
 
 // A payment reminder to the billing contacts (08-billing-and-finance.md, Reminders). It says what is still owed and
@@ -17,6 +17,7 @@ export function InvoiceReminderEmail({
   balance,
   dueDate,
   wording,
+  payUrl,
   bankAccounts,
 }: {
   contactName: string;
@@ -25,6 +26,8 @@ export function InvoiceReminderEmail({
   balance: string;
   dueDate: string;
   wording: keyof typeof OPENERS;
+  /** A fresh pay link; the one in earlier emails for this invoice stops working. */
+  payUrl?: string;
   bankAccounts: { bankName: string; accountName: string; accountNumber: string; swift?: string; iban?: string }[];
 }) {
   return (
@@ -36,6 +39,11 @@ export function InvoiceReminderEmail({
         {contactName}, {OPENERS[wording](number, dueDate)} The amount still owed is {balance}. The invoice is attached
         again.
       </Text>
+      {payUrl && (
+        <Button href={payUrl} style={styles.button}>
+          View and pay {number}
+        </Button>
+      )}
       {bankAccounts.length > 0 && (
         <>
           <Text style={{ ...styles.text, margin: '24px 0 4px' }}>Pay by bank transfer to:</Text>
@@ -64,6 +72,7 @@ InvoiceReminderEmail.PreviewProps = {
   balance: '₦40,000.00',
   dueDate: '22 October 2026',
   wording: 'late',
+  payUrl: 'https://portal.unbuilt.studio/pay/abc123',
   bankAccounts: [{ bankName: 'GTBank', accountName: 'Unbuilt Studio Ltd', accountNumber: '0123456789' }],
 } satisfies Parameters<typeof InvoiceReminderEmail>[0];
 

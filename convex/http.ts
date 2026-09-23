@@ -2,6 +2,8 @@ import { httpRouter } from 'convex/server';
 import { authComponent, createAuth } from './auth';
 import { preflight, submit } from './enquiries';
 import { download } from './files';
+import * as paying from './paying';
+import { paystackWebhook } from './paystackWebhook';
 import * as signing from './signing';
 
 const http = httpRouter();
@@ -21,5 +23,12 @@ for (const step of ['view', 'code', 'verify', 'upload', 'sign', 'decline'] as co
   http.route({ path: `/public/sign/${step}`, method: 'POST', handler: signing[step] });
   http.route({ path: `/public/sign/${step}`, method: 'OPTIONS', handler: signing.preflight });
 }
+
+// Paying an invoice by card (08-billing-and-finance.md, Paystack).
+for (const step of ['view', 'start'] as const) {
+  http.route({ path: `/public/pay/${step}`, method: 'POST', handler: paying[step] });
+  http.route({ path: `/public/pay/${step}`, method: 'OPTIONS', handler: paying.preflight });
+}
+http.route({ path: '/webhooks/paystack', method: 'POST', handler: paystackWebhook });
 
 export default http;

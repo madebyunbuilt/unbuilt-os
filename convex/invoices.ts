@@ -4,8 +4,10 @@ import { type Doc } from './_generated/dataModel';
 import { type MutationCtx, type QueryCtx } from './_generated/server';
 import { getClient, recordActivity, text } from './lib/crm';
 import { recordUpload } from './lib/files';
-import { internalMutation, teamMutation, teamQuery } from './lib/functions';
+import { internalMutation, internalQuery, teamMutation, teamQuery } from './lib/functions';
 import { portalAppOrigin } from './lib/hosts';
+import { paystackTakes } from './lib/paystack';
+import { sha256Hex } from './lib/signatures';
 import {
   FX_RATE_MAX_AGE_DAYS,
   INVOICE_TYPES,
@@ -28,7 +30,7 @@ import {
   studioToday,
   taxDefaultsFor,
 } from './lib/invoices';
-import { type Currency, formatBpsAsPercent, formatMoney, MICRO_PER_UNIT } from './lib/money';
+import { type Currency, formatBpsAsPercent, formatMoney, MICRO_PER_UNIT, whtExpectedOnBalance } from './lib/money';
 import { nextNumber } from './lib/numbering';
 import { notifyTeamMembers } from './lib/notify';
 import { getOrgSettings } from './lib/settings';
@@ -442,6 +444,55 @@ export const prepareSend = internalMutation({
           : undefined,
       portalUrl: `${portalAppOrigin() ?? ''}/invoices/${invoice._id}`,
     };
+  },
+});
+
+/** What the pay page shows: the invoice behind a link token, and whether it can be paid by card at all. */
+export const byPayToken = internalQuery({
+  args: { token: v.string() },
+  handler: async (ctx, { token }) => {
+    const tokenHash = await sha256Hex(token);
+    const invoice = await ctx.db
+      .query('invoices')
+      .withIndex('by_pay_token', (q) => q.eq('payToken', tokenHash))
+      .unique();
+    if (!invoice) throw invoiceError('invoices.notFound', 'This payment link is not valid');
+    const [client, settings] = await Promise.all([ctx.db.get('clients', invoice.clientId), getOrgSettings(ctx)]);
+    const payable = OPEN_STATUSES.has(invoice.status) && invoice.balanceMinor > 0;
+    const whtMinor = invoice.wht.applies ? whtExpectedOnBalance(invoice.totals, invoice.balanceMinor) : 0;
+    return {
+      number: invoice.number ?? '',
+      status: invoice.status,
+      studioName: settings.legalName ?? settings.tradingName ?? 'Unbuilt Studio',
+      clientName: client?.displayName ?? '',
+      currency: invoice.currency,
+      totalMinor: invoice.totals.totalMinor,
+      balanceMinor: invoice.balanceMinor,
+      dueDate: invoice.dueDate,
+      payable,
+      // A client who withholds tax cannot pay the whole balance by card (studio, 2026-09-23).
+      whtMinor,
+      whtBps: invoice.wht.bps,
+      byCard: payable && paystackTakes(invoice.currency),
+      bankAccounts: settings.bankAccounts
+        .filter((account) => account.currency === invoice.currency)
+        .map(({ bankName, accountName, accountNumber, swift, iban }) => ({
+          bankName,
+          accountName,
+          accountNumber,
+          swift,
+          iban,
+        })),
+      pdfFileId: invoice.pdfFileId,
+    };
+  },
+});
+
+/** Stores the hash of the pay link's token; the token itself lives only in the email (like a signing link). */
+export const setPayToken = internalMutation({
+  args: { invoiceId: v.id('invoices'), tokenHash: v.string() },
+  handler: async (ctx, { invoiceId, tokenHash }) => {
+    await ctx.db.patch('invoices', invoiceId, { payToken: tokenHash });
   },
 });
 
