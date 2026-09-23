@@ -1338,6 +1338,71 @@ export default defineSchema({
     .index('by_member_date', ['loggedByMemberId', 'date'])
     .index('by_invoice', ['invoiceId']),
 
+  // Who the studio pays (08-billing-and-finance.md, Vendors and bills): contractors, who may also be team members, and
+  // suppliers. Bank details are sensitive: redacted in the audit log and returned only to the people who pay.
+  vendors: defineTable({
+    name: v.string(),
+    kind: v.union(v.literal('contractor'), v.literal('supplier')),
+    memberId: v.optional(v.id('teamMembers')),
+    email: v.optional(v.string()),
+    phone: v.optional(v.string()),
+    bankDetails: v.optional(
+      v.object({
+        bankName: v.string(),
+        accountName: v.string(),
+        accountNumber: v.string(),
+        swift: v.optional(v.string()),
+        iban: v.optional(v.string()),
+      }),
+    ),
+    tin: v.optional(v.string()),
+    // What the studio must withhold when it pays them, and remit on their behalf.
+    whtBps: v.optional(v.number()),
+    notes: v.optional(v.string()),
+    status: v.union(v.literal('active'), v.literal('archived')),
+    createdByMemberId: v.id('teamMembers'),
+  })
+    .index('by_status', ['status'])
+    .index('by_member', ['memberId']),
+
+  bills: defineTable({
+    vendorId: v.id('vendors'),
+    projectId: v.optional(v.id('projects')),
+    // The vendor's own invoice number, which is what both sides call it.
+    reference: v.string(),
+    description: v.string(),
+    amountMinor: v.number(),
+    // VAT the vendor charged, inside amountMinor. Withholding is worked out on the rest (studio, 2026-09-23).
+    vatMinor: v.optional(v.number()),
+    currency,
+    fxRateToNgnMicro: v.number(),
+    issueDate: v.string(),
+    dueDate: v.string(),
+    status: v.union(
+      v.literal('draft'),
+      v.literal('approved'),
+      v.literal('scheduled'),
+      v.literal('paid'),
+      v.literal('void'),
+    ),
+    scheduledFor: v.optional(v.string()),
+    fileId: v.optional(v.id('files')),
+    // Filled when it is paid: what was withheld, what actually left the account, and how it was sent.
+    whtMinor: v.optional(v.number()),
+    paidMinor: v.optional(v.number()),
+    paidAt: v.optional(v.number()),
+    paidOn: v.optional(v.string()),
+    paymentReference: v.optional(v.string()),
+    paidByMemberId: v.optional(v.id('teamMembers')),
+    voidReason: v.optional(v.string()),
+    approvedByMemberId: v.optional(v.id('teamMembers')),
+    createdByMemberId: v.id('teamMembers'),
+  })
+    .index('by_status_due', ['status', 'dueDate'])
+    .index('by_vendor', ['vendorId'])
+    .index('by_project', ['projectId'])
+    .index('by_paid_on', ['paidOn']),
+
   // Manual rates (08-billing-and-finance.md, Foreign exchange): NGN per one unit, × 1,000,000, by day.
   fxRates: defineTable({
     currency: v.union(v.literal('USD'), v.literal('EUR')),

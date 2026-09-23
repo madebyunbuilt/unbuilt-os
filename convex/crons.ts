@@ -39,4 +39,7 @@ crons.daily('retainer periods', { hourUTC: 6, minuteUTC: 15 }, internal.retainer
 // 09:30 Lagos, after the overdue marking: raise this month's late fee on invoices still unpaid past their grace period.
 crons.daily('late fees', { hourUTC: 8, minuteUTC: 30 }, internal.lateFees.runDue, {});
 
+// 08:00 Lagos: tell whoever pays about the bills due this week, and any already late.
+crons.daily('bills due', { hourUTC: 7, minuteUTC: 0 }, internal.bills.remindDue, {});
+
 export default crons;
