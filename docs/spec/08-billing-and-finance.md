@@ -285,6 +285,9 @@ studio's behalf.
   carries a freshly minted link, so the ones before it stop working.
 - **Card refunds** go through Paystack: the refund is recorded as pending, the invoice's balance reopens at once, and
   the refund is marked processed when Paystack's webhook says so. A failure tells whoever asked for it.
+- **The reference a client sees** is Paystack's transaction id for a card or transfer through them, or the reference the
+  studio recorded for a payment made by hand. The internal `inv_<invoiceId>_<attempt>` reference stays in Paystack's
+  dashboard and the studio's records; it never reaches a receipt.
 - **How the client paid is recorded**, from the verified transaction's `channel` and authorization: "Card · visa ending
   4081", "Bank transfer · GTBank", "USSD". It shows on the invoice's payments and on the receipt, in place of the bare
   method.

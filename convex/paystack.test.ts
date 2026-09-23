@@ -148,6 +148,26 @@ describe('recording a card payment', () => {
     expect(notices.some((notice) => notice.event === 'invoice_paid')).toBe(true);
   });
 
+  it('gives the client Paystack’s transaction id, never the internal reference', async () => {
+    const { as, memberId } = await owner();
+    const invoiceId = await sentInvoice(as, memberId, 100_000);
+    await t.mutation(internal.payments.recordFromPaystack, {
+      reference: paymentReference(invoiceId, 1),
+      amountMinor: 10_000_000,
+      currency: 'NGN',
+      paystackTransactionId: '6585624736',
+      paystackChannel: 'card',
+      paystackInstrument: 'Card · visa ending 4081',
+      whtMinor: 0,
+    });
+    const receipt = await t.run((ctx) => ctx.db.query('receipts').first());
+    const data = await t.query(internal.financeDocuments.receiptData, { receiptId: receipt!._id });
+    expect(data?.pdf.reference).toBe('6585624736');
+    expect(data?.pdf.method).toBe('Card · visa ending 4081');
+    const shown = await as.query(api.payments.forInvoice, { invoiceId });
+    expect(shown.payments[0].reference).toBe('6585624736');
+  });
+
   it('records the same reference once, however often Paystack sends it', async () => {
     const { as, memberId } = await owner();
     const invoiceId = await sentInvoice(as, memberId, 100_000);

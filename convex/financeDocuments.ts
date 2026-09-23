@@ -68,7 +68,9 @@ export const receiptData = internalQuery({
       amountMinor: payment.amountMinor,
       whtDeductedMinor,
       method: payment.paystackInstrument ?? METHODS[payment.method],
-      reference: payment.reference,
+      // The client's own reference: Paystack's transaction id for a card or transfer through them, or the reference
+      // the studio recorded for a payment made by hand. Never the internal inv_<id>_<attempt> one.
+      reference: payment.method === 'paystack' ? payment.paystackTransactionId : payment.reference,
       balanceAfterMinor: invoice.balanceMinor,
       createdAtMs: receipt._creationTime,
     };

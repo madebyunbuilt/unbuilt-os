@@ -73,7 +73,7 @@ export const forInvoice = teamQuery('invoices.view')({
             instrument: payment.paystackInstrument,
             status: payment.status,
             receivedOn: payment.receivedOn,
-            reference: payment.reference,
+            reference: payment.method === 'paystack' ? payment.paystackTransactionId : payment.reference,
             notes: payment.notes,
             proofFileId: payment.proofFileId,
             receipt: receipt
