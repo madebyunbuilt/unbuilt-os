@@ -6,7 +6,6 @@ import { useRouter } from 'next/navigation';
 import { useMemo, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import { api } from '@/convex/_generated/api';
 import { type Id } from '@/convex/_generated/dataModel';
 import { groupByDay } from '@/lib/notification-groups';
@@ -18,6 +17,10 @@ const UNREAD_CAP = 99;
 export function NotificationsBell({ surface }: { surface: Surface }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
+  const go = (href: string) => {
+    setOpen(false);
+    router.push(href);
+  };
   const result = useQuery(surface === 'team' ? api.notifications.teamList : api.notifications.portalList);
   const markRead = useMutation(surface === 'team' ? api.notifications.teamMarkRead : api.notifications.portalMarkRead);
   const markAllRead = useMutation(
@@ -68,7 +71,7 @@ export function NotificationsBell({ surface }: { surface: Surface }) {
             Mark all read
           </Button>
         </div>
-        <ScrollArea className="max-h-[min(28rem,70vh)]">
+        <div className="max-h-[min(28rem,70vh)] overflow-y-auto overscroll-contain">
           {result === undefined ? (
             <p className="px-4 py-6 text-sm text-muted-foreground">Loading…</p>
           ) : groups.length === 0 ? (
@@ -88,10 +91,7 @@ export function NotificationsBell({ surface }: { surface: Surface }) {
                         )}
                         onClick={() => {
                           if (!item.read) void markRead({ notificationId: item.id as Id<'notifications'> });
-                          if (item.link) {
-                            setOpen(false);
-                            router.push(item.link);
-                          }
+                          if (item.link) go(item.link);
                         }}
                       >
                         <span
@@ -115,7 +115,12 @@ export function NotificationsBell({ surface }: { surface: Surface }) {
               </section>
             ))
           )}
-        </ScrollArea>
+        </div>
+        <div className="border-t px-4 py-2 text-center">
+          <Button variant="link" className="h-auto p-0 text-sm" onClick={() => go('/notifications')}>
+            See all notifications
+          </Button>
+        </div>
       </PopoverContent>
     </Popover>
   );

@@ -43,6 +43,41 @@ async function list(ctx: QueryCtx, recipient: Recipient) {
   return { items: items.map(toClient), unreadCount: unreadItems.length };
 }
 
+/** How many a page of the full list holds. */
+const PAGE = 30;
+
+/**
+ * A page of someone's notifications, newest first, for the notifications screen: everything, or only the unread, from
+ * before `before` (the createdAt of the last one seen).
+ */
+async function feed(
+  ctx: QueryCtx,
+  recipient: Recipient,
+  { before, unreadOnly }: { before?: number; unreadOnly?: boolean },
+) {
+  const rows = unreadOnly
+    ? await unread(ctx, recipient)
+        .order('desc')
+        .filter((q) => (before === undefined ? true : q.lt(q.field('createdAt'), before)))
+        .take(PAGE + 1)
+    : await ctx.db
+        .query('notifications')
+        .withIndex('by_recipient_created', (q) => {
+          const scoped = q.eq('recipientKind', recipient.kind).eq('recipientId', recipient.id);
+          return before === undefined ? scoped : scoped.lt('createdAt', before);
+        })
+        .order('desc')
+        .take(PAGE + 1);
+  const items = rows.slice(0, PAGE);
+  const unreadItems = await unread(ctx, recipient).take(UNREAD_COUNT_CAP + 1);
+  return {
+    items: items.map(toClient),
+    unreadCount: unreadItems.length,
+    // The cursor for the next page; absent when there is nothing older.
+    nextBefore: rows.length > PAGE ? items.at(-1)?.createdAt : undefined,
+  };
+}
+
 async function markRead(ctx: MutationCtx, recipient: Recipient, notificationId: Doc<'notifications'>['_id']) {
   const notification = await ctx.db.get('notifications', notificationId);
   if (!notification || notification.recipientKind !== recipient.kind || notification.recipientId !== recipient.id) {
@@ -73,6 +108,16 @@ export const teamMarkRead = teamMutation(null)({
 export const teamMarkAllRead = teamMutation(null)({
   args: {},
   handler: (ctx) => markAllRead(ctx, { kind: 'team', id: ctx.principal.member._id }),
+});
+
+export const teamFeed = teamQuery(null)({
+  args: { before: v.optional(v.number()), unreadOnly: v.optional(v.boolean()) },
+  handler: (ctx, args) => feed(ctx, { kind: 'team', id: ctx.principal.member._id }, args),
+});
+
+export const portalFeed = portalQuery(null)({
+  args: { before: v.optional(v.number()), unreadOnly: v.optional(v.boolean()) },
+  handler: (ctx, args) => feed(ctx, { kind: 'client', id: ctx.principal.contact._id }, args),
 });
 
 export const portalList = portalQuery(null)({
