@@ -2,7 +2,7 @@ import { ConvexError } from 'convex/values';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { api, internal } from './_generated/api';
 import { type Id } from './_generated/dataModel';
-import { paymentReference, sameSignature, signatureFor } from './lib/paystack';
+import { describeChannel, paymentReference, sameSignature, signatureFor } from './lib/paystack';
 import { createTeamMember, newTest, seedRoles, type TestConvex } from './test.auth';
 
 // Card payments (08-billing-and-finance.md, Paystack). What matters here: a payment is recorded only from an event
@@ -101,6 +101,21 @@ describe('the webhook', () => {
   });
 });
 
+describe('how the client paid', () => {
+  it('says it in the studio’s words, from the channel Paystack reports', () => {
+    expect(describeChannel('card', { brand: 'visa', last4: '4081', bank: 'TEST BANK' })).toEqual({
+      channel: 'card',
+      instrument: 'Card · visa ending 4081',
+    });
+    expect(describeChannel('bank_transfer', { bank: 'GTBank' })).toEqual({
+      channel: 'bank_transfer',
+      instrument: 'Bank transfer · GTBank',
+    });
+    expect(describeChannel('ussd', undefined)).toEqual({ channel: 'ussd', instrument: 'USSD' });
+    expect(describeChannel(undefined, undefined)).toEqual({ channel: 'unknown', instrument: 'Paystack' });
+  });
+});
+
 describe('recording a card payment', () => {
   it('settles the invoice, keeps the fee, makes a receipt and tells the studio', async () => {
     const { as, memberId } = await owner();
@@ -113,6 +128,8 @@ describe('recording a card payment', () => {
       currency: 'NGN',
       feesMinor: 160_000,
       paystackTransactionId: '778899',
+      paystackChannel: 'card',
+      paystackInstrument: 'Card · visa ending 4081',
       whtMinor: 0,
     });
 
@@ -123,6 +140,7 @@ describe('recording a card payment', () => {
       status: 'succeeded',
       feesMinor: 160_000,
       paystackTransactionId: '778899',
+      paystackInstrument: 'Card · visa ending 4081',
       reference,
     });
     expect(await t.run((ctx) => ctx.db.query('receipts').first())).toMatchObject({ number: 'UNB-RCT-0001' });

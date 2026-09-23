@@ -69,6 +69,15 @@ export async function initialiseTransaction(args: {
   });
 }
 
+export type PaystackAuthorization = {
+  channel?: string;
+  brand?: string;
+  card_type?: string;
+  last4?: string;
+  bank?: string;
+  mobile_money_number?: string;
+};
+
 export type VerifiedTransaction = {
   status: string;
   reference: string;
@@ -77,8 +86,31 @@ export type VerifiedTransaction = {
   id: number;
   fees?: number;
   paid_at?: string;
+  /** card, bank_transfer, bank, ussd, qr, mobile_money, eft. */
+  channel?: string;
+  authorization?: PaystackAuthorization;
   metadata?: Record<string, unknown>;
 };
+
+const CHANNELS: Record<string, string> = {
+  card: 'Card',
+  bank: 'Bank account',
+  bank_transfer: 'Bank transfer',
+  ussd: 'USSD',
+  qr: 'QR',
+  mobile_money: 'Mobile money',
+  eft: 'Bank transfer',
+};
+
+/** How the client paid, in the studio's words: "Card · Visa ending 4081", "Bank transfer · GTBank". */
+export function describeChannel(channel: string | undefined, authorization: PaystackAuthorization | undefined) {
+  const name = CHANNELS[channel ?? ''] ?? 'Paystack';
+  const card = authorization?.last4
+    ? `${(authorization.brand ?? authorization.card_type ?? 'card').trim()} ending ${authorization.last4}`
+    : undefined;
+  const detail = card ?? authorization?.bank ?? authorization?.mobile_money_number;
+  return { channel: channel ?? 'unknown', instrument: detail ? `${name} · ${detail}` : name };
+}
 
 /** What Paystack says about a transaction. The only source the studio trusts for "this was paid". */
 export async function verifyTransaction(reference: string): Promise<VerifiedTransaction> {

@@ -1022,6 +1022,10 @@ export default defineSchema({
     receivedOn: v.string(),
     reference: v.optional(v.string()),
     paystackTransactionId: v.optional(v.string()),
+    // How the client actually paid through Paystack (card, bank_transfer, ussd…) and the instrument in words, e.g.
+    // "Visa ending 4081" or "GTBank transfer", from the verified transaction.
+    paystackChannel: v.optional(v.string()),
+    paystackInstrument: v.optional(v.string()),
     feesMinor: v.optional(v.number()),
     refundedMinor: v.number(),
     proofFileId: v.optional(v.id('files')),

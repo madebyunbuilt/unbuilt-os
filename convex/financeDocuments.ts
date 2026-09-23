@@ -67,7 +67,7 @@ export const receiptData = internalQuery({
       invoiceTotalMinor: invoice.totals.totalMinor,
       amountMinor: payment.amountMinor,
       whtDeductedMinor,
-      method: METHODS[payment.method],
+      method: payment.paystackInstrument ?? METHODS[payment.method],
       reference: payment.reference,
       balanceAfterMinor: invoice.balanceMinor,
       createdAtMs: receipt._creationTime,

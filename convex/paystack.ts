@@ -7,6 +7,7 @@ import { portalAppOrigin } from './lib/hosts';
 import { invoiceError } from './lib/invoices';
 import { formatMoney } from './lib/money';
 import {
+  describeChannel,
   initialiseTransaction,
   paymentReference,
   paystackTakes,
@@ -171,12 +172,15 @@ export const processEvent = internalAction({
         const verified = await verifyTransaction(reference);
         if (verified.status !== 'success') throw new Error(`Paystack says the charge is ${verified.status}`);
         const whtMinor = Number(verified.metadata?.whtMinor ?? 0);
+        const how = describeChannel(verified.channel, verified.authorization);
         await ctx.runMutation(internal.payments.recordFromPaystack, {
           reference: verified.reference,
           amountMinor: verified.amount,
           currency: verified.currency,
           feesMinor: verified.fees,
           paystackTransactionId: String(verified.id),
+          paystackChannel: how.channel,
+          paystackInstrument: how.instrument,
           whtMinor: Number.isFinite(whtMinor) ? whtMinor : 0,
         });
       } else if (type === 'refund.processed' && reference) {

@@ -285,6 +285,9 @@ studio's behalf.
   carries a freshly minted link, so the ones before it stop working.
 - **Card refunds** go through Paystack: the refund is recorded as pending, the invoice's balance reopens at once, and
   the refund is marked processed when Paystack's webhook says so. A failure tells whoever asked for it.
+- **How the client paid is recorded**, from the verified transaction's `channel` and authorization: "Card · visa ending
+  4081", "Bank transfer · GTBank", "USSD". It shows on the invoice's payments and on the receipt, in place of the bare
+  method.
 - **Which currencies take cards** comes from `PAYSTACK_CURRENCIES` (NGN unless the studio's account has more); anything
   else shows bank transfer only, as does a deployment with no Paystack key.
 
