@@ -265,6 +265,35 @@ studio's behalf.
   holders read a statement on screen or ask for its PDF, which is rendered by an action and kept. The portal view comes
   with the client portal.
 
+## Decisions and rules (studio, 2026-09-23)
+
+- **The card button charges the full balance**, never part of it. Staged agreements are billing schedules (an invoice
+  per stage); a one-off part payment is a bank transfer Finance records.
+- **A client who withholds tax** can tick that on the pay page: the checkout is then for the balance less the expected
+  WHT, the rest being what they remit, and the invoice is partly paid until the WHT credit is recorded. The withheld
+  amount travels in the transaction's metadata and is recorded with the payment.
+- **The studio absorbs Paystack's fee.** The client is charged exactly what is owed; the fee from the verified
+  transaction is stored on the payment for reporting. Charging the client the fee would make the payment differ from the
+  invoice; a studio wanting that puts it on the invoice as a line.
+- **The transaction is created when the client presses Pay**, not when the invoice is sent, so it always charges what is
+  owed at that moment (a payment or credit note in between never leaves a stale link). The reference is
+  `inv_<invoiceId>_<attempt>`.
+- **Nothing is recorded from the browser.** The callback page only says the payment is being confirmed and refreshes;
+  the money is recorded when Paystack's webhook signature verifies and the transaction is confirmed with Paystack's own
+  verify endpoint. The payment is keyed by its reference, so a repeated event records one payment.
+- **Pay links follow the signing links' rule**: only the token's hash is stored, and each invoice email or reminder
+  carries a freshly minted link, so the ones before it stop working.
+- **Card refunds** go through Paystack: the refund is recorded as pending, the invoice's balance reopens at once, and
+  the refund is marked processed when Paystack's webhook says so. A failure tells whoever asked for it.
+- **The reference a client sees** is Paystack's transaction id for a card or transfer through them, or the reference the
+  studio recorded for a payment made by hand. The internal `inv_<invoiceId>_<attempt>` reference stays in Paystack's
+  dashboard and the studio's records; it never reaches a receipt.
+- **How the client paid is recorded**, from the verified transaction's `channel` and authorization: "Card · visa ending
+  4081", "Bank transfer · GTBank", "USSD". It shows on the invoice's payments and on the receipt, in place of the bare
+  method.
+- **Which currencies take cards** comes from `PAYSTACK_CURRENCIES` (NGN unless the studio's account has more); anything
+  else shows bank transfer only, as does a deployment with no Paystack key.
+
 ## Screens
 
 - **Finance → Invoices** (`/billing/invoices`, `invoices.view`): invoices newest first, showing what is waiting for money
@@ -284,6 +313,10 @@ studio's behalf.
   - written off: reverse the write-off.
 - **The client's Invoices and payments tab** (`invoices.view`): their invoices, any credit held for them (paid back with
   `payments.refund`), their statement for a date range with its PDFs, and whether they get reminders.
+- **`/pay/[token]`**, on either host without a session: what is still owed and when it was due, a Pay button that opens
+  Paystack (with a tick for a client who withholds tax, showing the reduced amount), and the studio's bank details with
+  the invoice number as the reference. Coming back from Paystack it says the payment is being confirmed and refreshes
+  itself until the webhook lands. A settled invoice says so; a stale link says to use the newest email.
 - **Settings → Exchange rates** (`fx.manage`): the latest rate per currency and whether it is recent enough to send
   with, a form to set a day's rate, and the recent history.
 

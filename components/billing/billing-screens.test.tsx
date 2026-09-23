@@ -131,6 +131,7 @@ beforeEach(() => {
           status: 'succeeded',
           receivedOn: '2026-09-10',
           reference: 'GTB-1',
+          instrument: undefined,
           receipt: { id: 'r1', number: 'UNB-RCT-0001', pdfFileId: 'rf1', sentAt: 1 },
           wht: [],
         },
@@ -324,6 +325,29 @@ describe('InvoicePage', () => {
     });
     render(<InvoicePage invoiceId={'i1' as never} permissions={FINANCE} />);
     expect(screen.getByText('Credited in full')).toBeInTheDocument();
+  });
+
+  it('says how a card payment arrived', () => {
+    state.queries['payments.forInvoice'] = {
+      payments: [
+        {
+          id: 'p1',
+          amountMinor: 140_000,
+          refundedMinor: 0,
+          currency: 'NGN',
+          method: 'paystack',
+          instrument: 'Card · visa ending 4081',
+          status: 'succeeded',
+          receivedOn: '2026-09-23',
+          receipt: null,
+          wht: [],
+        },
+      ],
+      whtCredits: [],
+      refunds: [],
+    };
+    render(<InvoicePage invoiceId={'i1' as never} permissions={FINANCE} />);
+    expect(screen.getByText(/Card · visa ending 4081/)).toBeInTheDocument();
   });
 
   it('shows a zero VAT line with the reason, and warns when VAT is on but no line carries it', async () => {

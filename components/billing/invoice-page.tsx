@@ -240,7 +240,7 @@ export function InvoicePage({ invoiceId, permissions }: { invoiceId: Id<'invoice
                 <li key={payment.id} className="flex flex-wrap items-center gap-3 p-3 text-sm">
                   <div className="min-w-0">
                     <p className="font-medium">
-                      {cur(payment.amountMinor)} · {methodLabel(payment.method)}
+                      {cur(payment.amountMinor)} · {methodLabel(payment.method, payment.instrument)}
                       {payment.refundedMinor > 0 && (
                         <span className="text-muted-foreground"> · {cur(payment.refundedMinor)} refunded</span>
                       )}

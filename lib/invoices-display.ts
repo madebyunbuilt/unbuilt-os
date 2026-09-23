@@ -65,8 +65,11 @@ export const PAYMENT_METHODS = [
 
 export type PaymentMethod = (typeof PAYMENT_METHODS)[number]['value'];
 
-export const methodLabel = (method: string) =>
-  method === 'paystack' ? 'Paystack' : (PAYMENT_METHODS.find((option) => option.value === method)?.label ?? method);
+/** How a payment arrived. A Paystack payment says what the client actually used, e.g. "Card · visa ending 4081". */
+export const methodLabel = (method: string, instrument?: string) =>
+  method === 'paystack'
+    ? (instrument ?? 'Paystack')
+    : (PAYMENT_METHODS.find((option) => option.value === method)?.label ?? method);
 
 /** Today in the studio's calendar, for date inputs. Lagos is always UTC+1, with no daylight saving. */
 export function lagosToday(now: number = Date.now()): string {

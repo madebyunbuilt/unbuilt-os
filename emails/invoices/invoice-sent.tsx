@@ -1,4 +1,4 @@
-import { Text } from 'react-email';
+import { Button, Link, Text } from 'react-email';
 import { AuthEmailLayout, styles } from '../auth/layout';
 
 // What a client receives when the studio sends an invoice (08-billing-and-finance.md, Invoices). The PDF is attached,
@@ -14,6 +14,7 @@ export function InvoiceSentEmail({
   dueDate,
   message,
   whtNote,
+  payUrl,
   bankAccounts,
 }: {
   contactName: string;
@@ -26,6 +27,8 @@ export function InvoiceSentEmail({
   message?: string;
   /** Only for a client who withholds tax: the rate and amount, in their words. */
   whtNote?: string;
+  /** The pay page: card where the studio takes cards, and the bank details either way. */
+  payUrl?: string;
   /** The studio's accounts in the invoice's currency, so they can pay without opening the PDF. */
   bankAccounts: { bankName: string; accountName: string; accountNumber: string; swift?: string; iban?: string }[];
 }) {
@@ -39,6 +42,19 @@ export function InvoiceSentEmail({
         {dueDate}. It is attached as a PDF.
       </Text>
       {message && <Text style={styles.text}>{message}</Text>}
+      {payUrl && (
+        <>
+          <Button href={payUrl} style={styles.button}>
+            View and pay {number}
+          </Button>
+          <Text style={{ ...styles.muted, margin: '16px 0 0' }}>
+            Or paste this link into your browser:{' '}
+            <Link href={payUrl} style={{ color: '#000', wordBreak: 'break-all' }}>
+              {payUrl}
+            </Link>
+          </Text>
+        </>
+      )}
       {bankAccounts.length > 0 && (
         <>
           <Text style={{ ...styles.text, margin: '24px 0 4px' }}>Pay by bank transfer to:</Text>
@@ -82,6 +98,7 @@ InvoiceSentEmail.PreviewProps = {
   dueDate: '6 October 2026',
   message: 'Thanks again for the kick-off.',
   whtNote: 'If you withhold tax at 5% (₦50,000.00), please pay ₦1,025,000.00 and send us the WHT certificate.',
+  payUrl: 'https://portal.unbuilt.studio/pay/abc123',
   bankAccounts: [{ bankName: 'GTBank', accountName: 'Unbuilt Studio Ltd', accountNumber: '0123456789' }],
 } satisfies Parameters<typeof InvoiceSentEmail>[0];
 

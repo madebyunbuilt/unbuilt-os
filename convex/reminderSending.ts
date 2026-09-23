@@ -4,6 +4,7 @@ import { v } from 'convex/values';
 import { internal } from './_generated/api';
 import { internalAction } from './lib/functions';
 import { sendReminderEmail } from './lib/invoiceEmails';
+import { mintPayLink } from './lib/payLinks';
 import { reminderWording } from './lib/invoices';
 
 // Emails one payment reminder to the billing contacts, with the invoice's stored PDF attached again.
@@ -28,6 +29,7 @@ export const send = internalAction({
           dueDate: data.dueDate,
           wording: reminderWording(kind),
           bankAccounts: data.bankAccounts,
+          payUrl: await mintPayLink(ctx, invoiceId),
           pdf,
         });
       }
