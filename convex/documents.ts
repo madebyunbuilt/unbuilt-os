@@ -399,22 +399,28 @@ export const create = teamMutation('documents.create')({
     validUntilDate: v.optional(v.string()),
     contactId: v.optional(v.id('contacts')),
   },
-  handler: async (ctx, args) => {
-    const { fields } = await buildDocument(ctx, args);
-    const documentId = await ctx.db.insert('documents', fields);
-    // A document with no parent is its own chain root.
-    await ctx.db.patch('documents', documentId, { chainRootId: documentId });
-    await recordActivity(ctx, {
-      subject: { table: 'clients', id: args.clientId },
-      clientId: args.clientId,
-      type: 'system',
-      title: `${TYPE_LABELS[args.type]} drafted: ${fields.title}`,
-      actor: { kind: 'team', id: ctx.principal.member._id },
-      meta: { documentId },
-    });
-    return documentId;
-  },
+  handler: async (ctx, args) => await draftDocument(ctx, args),
 });
+
+/**
+ * Drafting a document from its template, shared by `create` and by anything that raises one of its own — a change
+ * request generates a `change_request` document when it goes to the client (06-projects.md, Change requests).
+ */
+export async function draftDocument(ctx: MutationCtx & Principal, args: CreateArgs): Promise<Id<'documents'>> {
+  const { fields } = await buildDocument(ctx, args);
+  const documentId = await ctx.db.insert('documents', fields);
+  // A document with no parent is its own chain root.
+  await ctx.db.patch('documents', documentId, { chainRootId: documentId });
+  await recordActivity(ctx, {
+    subject: { table: 'clients', id: args.clientId },
+    clientId: args.clientId,
+    type: 'system',
+    title: `${TYPE_LABELS[args.type]} drafted: ${fields.title}`,
+    actor: { kind: 'team', id: ctx.principal.member._id },
+    meta: { documentId },
+  });
+  return documentId;
+}
 
 /** Quote → proposal → SOW → contract: the new document keeps the client, project, deal, prices and the chain. */
 export const createFromParent = teamMutation('documents.create')({
