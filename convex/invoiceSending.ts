@@ -74,3 +74,64 @@ export const send = internalAction({
     }
   },
 });
+
+/**
+ * The same invoice emailed again (08-billing-and-finance.md, Sending again). Nothing is numbered and nothing is
+ * rendered: the PDF the client already has is fetched from storage and sent once more, with the pay link the invoice
+ * has always had. A failure tells whoever pressed send, and the invoice is untouched either way.
+ */
+export const sendAgain = internalAction({
+  args: {
+    invoiceId: v.id('invoices'),
+    memberId: v.id('teamMembers'),
+    contactIds: v.array(v.id('contacts')),
+    message: v.optional(v.string()),
+  },
+  handler: async (ctx, args): Promise<null> => {
+    try {
+      const data = await ctx.runQuery(internal.invoices.resendData, {
+        invoiceId: args.invoiceId,
+        contactIds: args.contactIds,
+        memberId: args.memberId,
+      });
+      if (!data) throw new Error('There is no stored PDF for this invoice to send again');
+      const blob = await ctx.storage.get(data.pdfStorageId);
+      if (!blob) throw new Error(`The stored PDF for ${data.number} could not be read`);
+      const pdf = { filename: `${data.number}.pdf`, content: new Uint8Array(await blob.arrayBuffer()) };
+      const payUrl = await mintPayLink(ctx, args.invoiceId);
+
+      for (const recipient of data.recipients) {
+        await sendInvoiceEmail({
+          to: recipient.email,
+          contactName: recipient.name,
+          number: data.number,
+          typeLabel: data.typeLabel,
+          studioName: data.studioName,
+          senderName: data.senderName,
+          amount: data.amount,
+          dueDate: data.dueDate,
+          message: args.message,
+          whtNote: data.whtNote,
+          payUrl,
+          bankAccounts: data.bankAccounts,
+          copyOfDate: data.sentOn,
+          pdf,
+        });
+      }
+
+      await ctx.runMutation(internal.invoices.markSentAgain, {
+        invoiceId: args.invoiceId,
+        memberId: args.memberId,
+        recipientContactIds: data.recipients.map((recipient) => recipient.id),
+      });
+      return null;
+    } catch (error) {
+      await ctx.runMutation(internal.invoices.reportSendFailed, {
+        invoiceId: args.invoiceId,
+        memberId: args.memberId,
+        reason: error instanceof Error ? error.message : 'The invoice could not be sent again',
+      });
+      throw error;
+    }
+  },
+});

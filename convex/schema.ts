@@ -985,6 +985,11 @@ export default defineSchema({
     terms: v.optional(v.string()),
     // Who it went to on the last send.
     recipientContactIds: v.optional(v.array(v.id('contacts'))),
+    // Every send, in order: the first and each time it was sent again, so a resend to somebody else does not erase who
+    // received it before. Invoices sent before this existed carry only recipientContactIds.
+    sends: v.optional(
+      v.array(v.object({ at: v.number(), contactIds: v.array(v.id('contacts')), memberId: v.id('teamMembers') })),
+    ),
     pdfFileId: v.optional(v.id('files')),
     pdfSha256: v.optional(v.string()),
     sentAt: v.optional(v.number()),

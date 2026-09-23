@@ -348,3 +348,73 @@ describe('who can do what', () => {
     await expectCode(member.as.mutation(api.invoices.create, { clientId, lineItems: lines }), 'auth.forbidden');
   });
 });
+
+describe('sending it again', () => {
+  it('emails the stored PDF again, records who got it, and changes nothing about the invoice', async () => {
+    const { as, memberId } = await owner();
+    const invoiceId = await as.mutation(api.invoices.create, { clientId, lineItems: lines });
+    await sendWithoutEmail(invoiceId, memberId);
+    const before = await invoice(invoiceId);
+
+    expect(await as.mutation(api.invoices.sendAgain, { invoiceId, contactIds: [adaId] })).toEqual({
+      sendingTo: ['ada@glossup.com'],
+    });
+    await t.mutation(internal.invoices.markSentAgain, {
+      invoiceId,
+      memberId,
+      recipientContactIds: [adaId],
+    });
+
+    const after = await invoice(invoiceId);
+    // The invoice itself is untouched: the same number, dates, totals, rate and PDF.
+    expect(after).toMatchObject({
+      number: before!.number,
+      issueDate: before!.issueDate,
+      dueDate: before!.dueDate,
+      totals: before!.totals,
+      fxRateToNgnMicro: before!.fxRateToNgnMicro,
+      pdfSha256: before!.pdfSha256,
+      status: 'sent',
+      sentAt: before!.sentAt,
+    });
+    // Both sends are on the record, and the latest recipients are the ones who just got it.
+    expect(after?.sends).toHaveLength(2);
+    expect(after?.sends?.map((send) => send.contactIds)).toEqual([[bisiId], [adaId]]);
+    expect(after?.recipientContactIds).toEqual([adaId]);
+    const activity = await t.run((ctx) => ctx.db.query('activities').collect());
+    expect(activity.some((entry) => entry.title === `${before!.number} sent again to Ada Obi`)).toBe(true);
+  });
+
+  it('defaults to whoever had it last', async () => {
+    const { as, memberId } = await owner();
+    const invoiceId = await as.mutation(api.invoices.create, { clientId, lineItems: lines });
+    await sendWithoutEmail(invoiceId, memberId);
+    expect(await as.mutation(api.invoices.sendAgain, { invoiceId })).toEqual({
+      sendingTo: ['accounts@glossup.com'],
+    });
+  });
+
+  it('refuses a draft, a closed invoice, and one with no stored PDF', async () => {
+    const { as, memberId } = await owner();
+    const draft = await as.mutation(api.invoices.create, { clientId, lineItems: lines });
+    await expectCode(as.mutation(api.invoices.sendAgain, { invoiceId: draft }), 'invoices.notSent');
+
+    // Numbered by a send whose render failed: there is no PDF to send again.
+    await t.mutation(internal.invoices.prepareSend, { invoiceId: draft, memberId });
+    await t.mutation(internal.invoices.markSent, { invoiceId: draft, memberId, recipientContactIds: [bisiId] });
+    await expectCode(as.mutation(api.invoices.sendAgain, { invoiceId: draft }), 'invoices.noPdf');
+
+    const voided = await as.mutation(api.invoices.create, { clientId, lineItems: lines });
+    await sendWithoutEmail(voided, memberId);
+    await as.mutation(api.invoices.voidInvoice, { invoiceId: voided, reason: 'Wrong client' });
+    await expectCode(as.mutation(api.invoices.sendAgain, { invoiceId: voided }), 'invoices.closed');
+  });
+
+  it('is for the people who send invoices', async () => {
+    const { as, memberId } = await owner();
+    const invoiceId = await as.mutation(api.invoices.create, { clientId, lineItems: lines });
+    await sendWithoutEmail(invoiceId, memberId);
+    const pm = await createTeamMember(t, roles.project_manager, { email: 'pm2@unbuilt.studio' });
+    await expectCode(pm.as.mutation(api.invoices.sendAgain, { invoiceId }), 'auth.forbidden');
+  });
+});

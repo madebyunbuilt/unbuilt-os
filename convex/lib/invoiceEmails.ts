@@ -20,6 +20,8 @@ export type InvoiceEmail = {
   whtNote?: string;
   payUrl?: string;
   bankAccounts: { bankName: string; accountName: string; accountNumber: string; swift?: string; iban?: string }[];
+  /** Set when this is the same invoice going out again: the date the client's copy is dated. */
+  copyOfDate?: string;
   pdf: { filename: string; content: Uint8Array };
 };
 
@@ -28,7 +30,9 @@ const DEFAULT_FROM = 'Unbuilt OS <onboarding@resend.dev>';
 export async function renderInvoiceEmail({ pdf: _pdf, to: _to, ...email }: InvoiceEmail) {
   const element = createElement(InvoiceSentEmail, email);
   return {
-    subject: `${email.typeLabel} ${email.number} from ${email.studioName}`,
+    subject: email.copyOfDate
+      ? `${email.typeLabel} ${email.number} from ${email.studioName} (copy)`
+      : `${email.typeLabel} ${email.number} from ${email.studioName}`,
     html: await render(element),
     text: await render(element, { plainText: true }),
   };

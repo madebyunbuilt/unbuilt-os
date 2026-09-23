@@ -191,6 +191,67 @@ export function SendInvoiceDialog({ invoice, canSeeContacts }: { invoice: Invoic
   );
 }
 
+/** Sending the same invoice again: it went to spam, or somebody new needs it. Nothing about the invoice changes. */
+export function SendAgainDialog({ invoice, canSeeContacts }: { invoice: Invoice; canSeeContacts: boolean }) {
+  const sendAgain = useMutation(api.invoices.sendAgain);
+  const contacts = useQuery(api.contacts.listForClient, canSeeContacts ? { clientId: invoice.clientId } : 'skip');
+  const active = (contacts ?? []).filter((contact) => contact.status === 'active');
+  // Whoever received it last, so the usual case is one press.
+  const lastTime = (invoice.recipientContactIds ?? []) as string[];
+  const defaults = active.filter((contact) =>
+    lastTime.length > 0 ? lastTime.includes(contact.id) : contact.isBilling || contact.isPrimary,
+  );
+  const [chosen, setChosen] = useState<string[] | null>(null);
+  const selected = chosen ?? defaults.map((contact) => contact.id);
+  const [message, setMessage] = useState('');
+  return (
+    <FormDialog
+      trigger={<Button variant="outline">Send again</Button>}
+      title="Send this invoice again"
+      description="The same invoice goes out: the same number, dates, amounts and PDF. The email says it is a copy, and the pay link is the one it has always had."
+      submitLabel="Send again"
+      onSubmit={() =>
+        sendAgain({
+          invoiceId: invoice.id,
+          contactIds: chosen ? (selected as Id<'contacts'>[]) : undefined,
+          message: message || undefined,
+        })
+      }
+    >
+      {canSeeContacts && (
+        <fieldset className="space-y-2">
+          <legend className="text-sm font-medium">Send it to</legend>
+          {active.length === 0 && <p className="text-sm text-muted-foreground">This client has no active contacts.</p>}
+          {active.map((contact) => (
+            <div key={contact.id} className="flex items-center gap-2">
+              <Checkbox
+                id={`invoice-again-${contact.id}`}
+                checked={selected.includes(contact.id)}
+                onCheckedChange={(value) =>
+                  setChosen(value === true ? [...selected, contact.id] : selected.filter((id) => id !== contact.id))
+                }
+              />
+              <Label htmlFor={`invoice-again-${contact.id}`} className="font-normal">
+                {contact.name} <span className="text-muted-foreground">· {contact.email}</span>
+                {lastTime.includes(contact.id) && <span className="text-muted-foreground"> · had it before</span>}
+              </Label>
+            </div>
+          ))}
+        </fieldset>
+      )}
+      <div className="space-y-2">
+        <Label htmlFor="invoice-again-message">A note with it (optional)</Label>
+        <Textarea
+          id="invoice-again-message"
+          rows={3}
+          value={message}
+          onChange={(event) => setMessage(event.target.value)}
+        />
+      </div>
+    </FormDialog>
+  );
+}
+
 /**
  * Recording money received. When the client deducts WHT and nothing is paid yet, the form starts at what they would
  * send (total less the expected WHT) with the WHT filled in.

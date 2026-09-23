@@ -216,6 +216,17 @@ studio's behalf.
 - **Sending** is checked in `invoices.send` and carried out by a scheduled Node action: number it (once; a retry keeps
   the number), set its dates, freeze its lines, totals and rate, render the PDF with its hash, then email the recipients
   with the PDF attached. It stays a draft until the email is away, and whoever pressed send is told if any step fails.
+- **Sending again** (`invoices.sendAgain`, studio, 2026-09-23) emails the same invoice to whoever needs it now: it
+  went to spam, the accounts person changed, the client asks for another copy. It is an email and nothing more. The
+  number, dates, totals and rate are untouched, `sentAt` and the status do not move, and the file attached is the
+  **stored PDF**, never a fresh render — re-rendering would give the client a different document under the same number
+  once the studio's address, bank details or their own contact details have moved on. An invoice with no stored PDF
+  cannot be sent again. It is allowed only while the invoice is open: a paid, void or written-off invoice is not sent
+  again, since its receipt or credit note is the record. The email says it is a copy of the invoice of that date, so
+  nobody pays twice. It defaults to whoever received it last, and any contact can be chosen instead.
+- **Every send is kept**, in `invoices.sends`, with who received it and when; `recipientContactIds` is the latest of
+  them. A resend to a new contact therefore never erases who had it before. Each send is written to the client's
+  activity ("UNB-INV-0007 sent again to Ada Obi"), which is what makes over-sending visible rather than a limit on it.
 - **Until online payments (step 8)**, invoices carry no pay link: the PDF shows the studio's bank accounts in the
   invoice's currency and asks for the invoice number as the reference.
 - **FX**: a rate is entered per currency per day (`fx.manage`; entering the same day again replaces it, and future days
