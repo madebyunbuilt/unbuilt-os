@@ -2,7 +2,9 @@ import { ConvexError } from 'convex/values';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { api, internal } from './_generated/api';
 import { type Id } from './_generated/dataModel';
+import { type ActionCtx } from './_generated/server';
 import { describeChannel, paymentReference, sameSignature, signatureFor } from './lib/paystack';
+import { mintPayLink } from './lib/payLinks';
 import { createTeamMember, newTest, seedRoles, type TestConvex } from './test.auth';
 
 // Card payments (08-billing-and-finance.md, Paystack). What matters here: a payment is recorded only from an event
@@ -259,5 +261,35 @@ describe('the pay link', () => {
       t.query(internal.invoices.byPayToken, { token: 'made-up-token-value-12345' }),
       'invoices.notFound',
     );
+  });
+
+  it('gives an invoice one link that every later email repeats, and a different one per invoice', async () => {
+    const { as, memberId } = await owner();
+    vi.stubEnv('PORTAL_URL', 'https://portal.example.com');
+    vi.stubEnv('PAY_LINK_SECRET', 'a-pay-link-secret-that-is-at-least-32-chars');
+    const invoiceId = await sentInvoice(as, memberId, 100_000);
+    const other = await sentInvoice(as, memberId, 50_000);
+
+    // The first send, then a reminder or a resend: the client can pay from whichever email they still have.
+    const first = await t.run((ctx) => mintPayLink(ctx as unknown as ActionCtx, invoiceId));
+    const again = await t.run((ctx) => mintPayLink(ctx as unknown as ActionCtx, invoiceId));
+    expect(again).toBe(first);
+    expect(await t.run((ctx) => mintPayLink(ctx as unknown as ActionCtx, other))).not.toBe(first);
+
+    const token = first!.slice(first!.lastIndexOf('/') + 1);
+    expect(await t.query(internal.invoices.byPayToken, { token })).toMatchObject({ number: 'UNB-INV-0001' });
+    // The secret is never written down: only the hash of the token reaches the invoice.
+    expect(await t.run((ctx) => ctx.db.get('invoices', invoiceId))).toMatchObject({
+      payToken: expect.not.stringContaining(token),
+    });
+  });
+
+  it('sends the invoice without a Pay button rather than failing when the link cannot be made', async () => {
+    const { as, memberId } = await owner();
+    vi.stubEnv('PORTAL_URL', 'https://portal.example.com');
+    vi.stubEnv('PAY_LINK_SECRET', '');
+    const invoiceId = await sentInvoice(as, memberId, 100_000);
+    // Nothing comes back, so the email carries the bank details and no Pay button (undefined crosses as null).
+    expect(await t.run((ctx) => mintPayLink(ctx as unknown as ActionCtx, invoiceId))).toBeNull();
   });
 });

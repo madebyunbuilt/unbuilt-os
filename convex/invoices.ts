@@ -477,6 +477,9 @@ export const byPayToken = internalQuery({
 export const setPayToken = internalMutation({
   args: { invoiceId: v.id('invoices'), tokenHash: v.string() },
   handler: async (ctx, { invoiceId, tokenHash }) => {
+    const invoice = await getInvoice(ctx, invoiceId);
+    // The link is the same one every time, so most sends have nothing to write.
+    if (invoice.payToken === tokenHash) return;
     await ctx.db.patch('invoices', invoiceId, { payToken: tokenHash });
   },
 });

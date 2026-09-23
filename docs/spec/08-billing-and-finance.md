@@ -295,8 +295,13 @@ studio's behalf.
 - **Nothing is recorded from the browser.** The callback page only says the payment is being confirmed and refreshes;
   the money is recorded when Paystack's webhook signature verifies and the transaction is confirmed with Paystack's own
   verify endpoint. The payment is keyed by its reference, so a repeated event records one payment.
-- **Pay links follow the signing links' rule**: only the token's hash is stored, and each invoice email or reminder
-  carries a freshly minted link, so the ones before it stop working.
+- **One pay link per invoice, the same in every email it appears in** (studio, 2026-09-23): the first send, every
+  reminder and every resend carry the same URL, so a client working from an older email can still pay. It keeps the
+  signing links' rule that only the token's hash is stored; rather than being drawn at random, the token is derived
+  from `PAY_LINK_SECRET` and the invoice's id, so any send can work out the same link without the plaintext ever being
+  written down. Rotating that secret replaces every link that has gone out. A deployment with no secret or no portal
+  address sends the invoice without a Pay button rather than failing: the PDF's bank details still reach the client.
+  (Signing links keep rotating, because each one authorises a signature; a pay link only opens a page.)
 - **Card refunds** go through Paystack: the refund is recorded as pending, the invoice's balance reopens at once, and
   the refund is marked processed when Paystack's webhook says so. A failure tells whoever asked for it.
 - **The reference a client sees** is Paystack's transaction id for a card or transfer through them, or the reference the
