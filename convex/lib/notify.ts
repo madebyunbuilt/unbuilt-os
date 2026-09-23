@@ -43,3 +43,40 @@ export async function activeMembersWith(
   }
   return ids;
 }
+
+export type ClientNotification = TeamNotification;
+
+/**
+ * Tells the client's own people, in the portal (14-platform.md, Notifications). Only contacts with portal access are
+ * written to: a notification nobody can open is noise, and the portal is where these are read.
+ */
+export async function notifyClientContacts(
+  ctx: { db: MutationCtx['db'] },
+  contactIds: Iterable<Id<'contacts'>>,
+  notification: ClientNotification,
+): Promise<void> {
+  const createdAt = Date.now();
+  for (const contactId of new Set(contactIds)) {
+    const contact = await ctx.db.get('contacts', contactId);
+    if (!contact || contact.status !== 'active' || !contact.portalAccess) continue;
+    await ctx.db.insert('notifications', {
+      recipientKind: 'client',
+      recipientId: contactId,
+      ...notification,
+      channels: { inApp: true },
+      createdAt,
+    });
+  }
+}
+
+/** The client's people who should hear about a project: those with portal access on that client. */
+export async function clientPortalContacts(
+  ctx: QueryCtx | MutationCtx,
+  clientId: Id<'clients'>,
+): Promise<Id<'contacts'>[]> {
+  const contacts = await ctx.db
+    .query('contacts')
+    .withIndex('by_client', (q) => q.eq('clientId', clientId))
+    .collect();
+  return contacts.filter((contact) => contact.status === 'active' && contact.portalAccess).map((c) => c._id);
+}

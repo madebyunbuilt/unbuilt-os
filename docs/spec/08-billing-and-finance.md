@@ -164,6 +164,28 @@ studio's behalf.
      entries at the overage rate.
 - Usage alerts at 80% and 100% of included hours go to the project manager and client admins.
 
+### How it is settled (studio, 2026-09-23)
+
+- **The fee is billed a period in advance**: the invoice raised on the invoice day is for the period that is starting,
+  and says which period it covers and how many hours it includes. **Overage is billed in arrears**, because it can only
+  be known once the period has ended, so the closed period's overage invoice goes out the same day, typed
+  `time_and_materials` at the overage rate for the minutes beyond what the period allowed.
+- A period runs from its invoice day to the day before the next one. An invoice day past the end of a short month falls
+  on that month's last day, and the next period picks up the day after, so periods never gap or overlap. A retainer
+  starting between invoice days gets a short first period up to the next one.
+- **Rollover carries unused minutes into the next period only**, and they expire after it. Minutes used are taken from
+  the carried ones **first**: otherwise carried minutes would nearly always expire unused while the period's own
+  minutes were being spent, and only the period's own unused minutes can carry on, which is what keeps rollover to one
+  month. With rollover off, nothing carries.
+- **Used minutes are approved time entries** on the retainer's project, dated inside the period (`09-support-and-sla.md`,
+  Retainer hours). The hours left are worked out when someone looks, not at the last cron run, so a screen is never
+  stale. Logged-but-unapproved time does not count.
+- **Usage alerts** go out once each per period, at 80% and again when everything the period allows is used, to the
+  project manager and to the client's contacts with portal access. Passing 100% without having passed 80% sends one
+  alert, not two.
+- **Changed terms apply from the next period**: the open period keeps the hours it was sold on. A **paused** retainer is
+  not invoiced and its open period stays as it is; an **ended** one stops rolling.
+
 ## Foreign exchange
 
 - `fx.manage` maintains `fxRates` per currency and date (manual entry; a provider can be added later behind the same table).
