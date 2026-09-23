@@ -79,7 +79,16 @@ export const receiptData = internalQuery({
       studioName,
       email: receipt.emailed,
       recipients: await invoiceRecipients(ctx, receipt.clientId),
-      summary: `thank you for your payment of ${formatMoney(payment.amountMinor, payment.currency)} against invoice ${invoice.number}.`,
+      summary: [
+        `thank you for your payment of ${formatMoney(payment.amountMinor, payment.currency)} against invoice ${invoice.number}`,
+        whtDeductedMinor > 0
+          ? `, with ${formatMoney(whtDeductedMinor, payment.currency)} withheld for the tax office`
+          : '',
+        '. ',
+        invoice.balanceMinor === 0
+          ? `${invoice.number} is now settled in full.`
+          : `${formatMoney(invoice.balanceMinor, invoice.currency)} is still owed on it.`,
+      ].join(''),
     };
   },
 });
@@ -113,7 +122,15 @@ export const creditNoteData = internalQuery({
       clientId: note.clientId,
       studioName,
       recipients: await invoiceRecipients(ctx, note.clientId),
-      summary: `we have issued a credit of ${formatMoney(note.amountMinor, note.currency)} against invoice ${invoice.number}.`,
+      summary: [
+        `we have issued a credit of ${formatMoney(note.amountMinor, note.currency)} against invoice ${invoice.number}. `,
+        invoice.balanceMinor === 0
+          ? `Nothing more is owed on ${invoice.number}.`
+          : `${formatMoney(invoice.balanceMinor, invoice.currency)} is still owed on it.`,
+        note.heldMinor > 0
+          ? ` ${formatMoney(note.heldMinor, note.currency)} is held as your credit, towards a later invoice or to be paid back to you.`
+          : '',
+      ].join(''),
     };
   },
 });

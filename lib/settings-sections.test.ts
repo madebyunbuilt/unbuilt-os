@@ -16,8 +16,8 @@ describe('settings sections', () => {
     expect(labels('admin')).toEqual(SETTINGS_SECTIONS.map((section) => section.label));
   });
 
-  it('show Finance only billing', () => {
-    expect(labels('finance')).toEqual(['Billing']);
+  it('show Finance billing and exchange rates', () => {
+    expect(labels('finance')).toEqual(['Billing', 'Exchange rates']);
   });
 
   it('show Project managers the SLA sections and document templates, and no organisation or billing', () => {

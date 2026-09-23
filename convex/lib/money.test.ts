@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
+  whtForPayment,
+  whtExpectedOnBalance,
   runningBalances,
   creditNoteVatSplit,
   splitCredit,
@@ -384,5 +386,27 @@ describe('runningBalances', () => {
         { debitMinor: 8_000_000, creditMinor: 0 },
       ]),
     ).toEqual({ balances: [-1_000_000, 7_000_000], closingMinor: 7_000_000 });
+  });
+});
+
+describe('whtExpectedOnBalance', () => {
+  it('scales the expected WHT to what is still owed', () => {
+    const invoice = { whtExpectedMinor: 600_000, totalMinor: 21_500_000 };
+    expect(whtExpectedOnBalance(invoice, 21_500_000)).toBe(600_000);
+    expect(whtExpectedOnBalance(invoice, 10_000_000)).toBe(279_070);
+    expect(whtExpectedOnBalance(invoice, 0)).toBe(0);
+  });
+});
+
+describe('whtForPayment', () => {
+  const invoice = { whtExpectedMinor: 600_000, totalMinor: 21_500_000 };
+  it('comes with a payment in the invoice’s proportion, and agrees with the WHT on the whole balance', () => {
+    expect(whtForPayment(1_000_000, invoice, 9_900_000)).toBe(28_708);
+    // The prefilled full settlement: ₦96,237.21 received with ₦2,762.79 withheld.
+    expect(whtForPayment(9_623_721, invoice, 9_900_000)).toBe(276_279);
+  });
+  it('never takes the payment and WHT past what is owed, and is nothing without WHT', () => {
+    expect(whtForPayment(9_900_000, invoice, 9_900_000)).toBe(0);
+    expect(whtForPayment(1_000_000, { whtExpectedMinor: 0, totalMinor: 100 }, 5_000_000)).toBe(0);
   });
 });

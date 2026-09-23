@@ -17,6 +17,7 @@ export function InvoiceReminderEmail({
   balance,
   dueDate,
   wording,
+  bankAccounts,
 }: {
   contactName: string;
   number: string;
@@ -24,6 +25,7 @@ export function InvoiceReminderEmail({
   balance: string;
   dueDate: string;
   wording: keyof typeof OPENERS;
+  bankAccounts: { bankName: string; accountName: string; accountNumber: string; swift?: string; iban?: string }[];
 }) {
   return (
     <AuthEmailLayout preview={`Invoice ${number}: ${balance} ${wording === 'late' ? 'overdue' : 'due'}`}>
@@ -32,8 +34,22 @@ export function InvoiceReminderEmail({
       </Text>
       <Text style={styles.text}>
         {contactName}, {OPENERS[wording](number, dueDate)} The amount still owed is {balance}. The invoice is attached
-        again, with the bank details to pay into.
+        again.
       </Text>
+      {bankAccounts.length > 0 && (
+        <>
+          <Text style={{ ...styles.text, margin: '24px 0 4px' }}>Pay by bank transfer to:</Text>
+          {bankAccounts.map((account, index) => (
+            <Text key={index} style={{ ...styles.text, margin: '0 0 8px' }}>
+              {account.bankName}
+              <br />
+              {account.accountName}
+              <br />
+              Account {account.accountNumber}
+            </Text>
+          ))}
+        </>
+      )}
       <Text style={{ ...styles.muted, margin: '24px 0 0' }}>
         If you have already paid, thank you, and please reply with the reference so {studioName} can match it.
       </Text>
@@ -48,6 +64,7 @@ InvoiceReminderEmail.PreviewProps = {
   balance: '₦40,000.00',
   dueDate: '22 October 2026',
   wording: 'late',
+  bankAccounts: [{ bankName: 'GTBank', accountName: 'Unbuilt Studio Ltd', accountNumber: '0123456789' }],
 } satisfies Parameters<typeof InvoiceReminderEmail>[0];
 
 export default InvoiceReminderEmail;

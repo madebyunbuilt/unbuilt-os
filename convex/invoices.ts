@@ -28,7 +28,7 @@ import {
   studioToday,
   taxDefaultsFor,
 } from './lib/invoices';
-import { type Currency, MICRO_PER_UNIT } from './lib/money';
+import { type Currency, formatBpsAsPercent, formatMoney, MICRO_PER_UNIT } from './lib/money';
 import { nextNumber } from './lib/numbering';
 import { notifyTeamMembers } from './lib/notify';
 import { getOrgSettings } from './lib/settings';
@@ -113,6 +113,8 @@ export const get = teamQuery('invoices.view')({
       vat: invoice.vat,
       wht: invoice.wht,
       fxRateOverridden: invoice.fxRateOverridden ?? false,
+      // For the VAT line's wording when none is charged.
+      vatTreatment: (await ctx.db.get('clients', invoice.clientId))?.vatTreatment ?? 'standard',
       notes: invoice.notes,
       terms: invoice.terms,
       pdfFileId: invoice.pdfFileId,
@@ -125,6 +127,19 @@ export const get = teamQuery('invoices.view')({
       writeOffReason: invoice.writeOffReason,
       noReminders: invoice.noReminders ?? false,
       createdByName: creator?.name ?? 'Former member',
+    };
+  },
+});
+
+/** What a new invoice for this client would charge: its VAT treatment, WHT and payment terms, before anything is typed. */
+export const defaultsFor = teamQuery('invoices.create')({
+  args: { clientId: v.id('clients') },
+  handler: async (ctx, { clientId }) => {
+    const client = await getClient(ctx, clientId);
+    return {
+      ...(await taxDefaultsFor(ctx, client)),
+      paymentTermsDays: await paymentTermsFor(ctx, client),
+      currency: client.defaultCurrency,
     };
   },
 });
@@ -419,6 +434,12 @@ export const prepareSend = internalMutation({
       totalMinor: totals.totalMinor,
       currency: invoice.currency,
       dueDate: longDate(dueDate),
+      bankAccounts: pdf.bankAccounts,
+      // Only for a client who withholds tax, and in their own figures.
+      whtNote:
+        invoice.wht.applies && totals.whtExpectedMinor > 0
+          ? `If you withhold tax at ${formatBpsAsPercent(invoice.wht.bps)}% (${formatMoney(totals.whtExpectedMinor, invoice.currency)}), please pay ${formatMoney(totals.totalMinor - totals.whtExpectedMinor, invoice.currency)} and send us the WHT certificate.`
+          : undefined,
       portalUrl: `${portalAppOrigin() ?? ''}/invoices/${invoice._id}`,
     };
   },

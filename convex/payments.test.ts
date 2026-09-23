@@ -167,6 +167,60 @@ describe('payments', () => {
   });
 });
 
+describe('what the client is told', () => {
+  it('names the WHT certificate and the bank accounts only when they apply', async () => {
+    const { as, memberId } = await owner();
+    await t.run(async (ctx) => {
+      const settings = (await ctx.db.query('orgSettings').first())!;
+      await ctx.db.patch('orgSettings', settings._id, {
+        bankAccounts: [
+          { label: 'Naira', currency: 'NGN', bankName: 'GTBank', accountName: 'Unbuilt', accountNumber: '0123456789' },
+          {
+            label: 'Dollars',
+            currency: 'USD',
+            bankName: 'Zenith',
+            accountName: 'Unbuilt',
+            accountNumber: '9876543210',
+          },
+        ],
+      });
+    });
+    const plain = await as.mutation(api.invoices.create, {
+      clientId,
+      lineItems: [{ description: 'Work', quantityMilli: 1_000, unitPriceMinor: 10_000_000 }],
+    });
+    const quiet = await t.mutation(internal.invoices.prepareSend, { invoiceId: plain, memberId });
+    expect(quiet.whtNote).toBeUndefined();
+    expect(quiet.bankAccounts.map((account) => account.bankName)).toEqual(['GTBank']);
+
+    const withheld = await as.mutation(api.invoices.create, {
+      clientId,
+      lineItems: [{ description: 'Work', quantityMilli: 1_000, unitPriceMinor: 10_000_000 }],
+      wht: { applies: true, bps: 500 },
+    });
+    const noted = await t.mutation(internal.invoices.prepareSend, { invoiceId: withheld, memberId });
+    expect(noted.whtNote).toBe(
+      'If you withhold tax at 5% (₦5,000.00), please pay ₦95,000.00 and send us the WHT certificate.',
+    );
+  });
+
+  it('tells the client where they stand on a receipt and a credit note', async () => {
+    const { as, memberId } = await owner();
+    const invoiceId = await sentInvoice(as, memberId, 100_000);
+    await pay(as, invoiceId, 60_000, 0);
+    const receipt = await t.run((ctx) => ctx.db.query('receipts').first());
+    const receiptData = await t.query(internal.financeDocuments.receiptData, { receiptId: receipt!._id });
+    expect(receiptData?.summary).toContain('₦60,000.00');
+    expect(receiptData?.summary).toContain('₦40,000.00 is still owed on it');
+
+    await as.mutation(api.credits.create, { invoiceId, reason: 'Scope cut', amountMinor: 5_000_000 });
+    const note = await t.run((ctx) => ctx.db.query('creditNotes').first());
+    const noteData = await t.query(internal.financeDocuments.creditNoteData, { creditNoteId: note!._id });
+    expect(noteData?.summary).toContain('Nothing more is owed');
+    expect(noteData?.summary).toContain('₦10,000.00 is held as your credit');
+  });
+});
+
 describe('withholding tax', () => {
   it('records the certificate, and reverses a disputed deduction back onto the balance', async () => {
     const { as, memberId } = await owner();
@@ -219,6 +273,16 @@ describe('credit notes', () => {
     ]);
   });
 
+  it('never calls a credited invoice paid or partly paid when no money came in', async () => {
+    const { as, memberId } = await owner();
+    const invoiceId = await sentInvoice(as, memberId, 100_000);
+    await as.mutation(api.credits.create, { invoiceId, reason: 'Scope cut', amountMinor: 4_000_000 });
+    expect(await invoice(invoiceId)).toMatchObject({ status: 'sent', balanceMinor: 6_000_000 });
+    // Cleared entirely by credit: settled, with nothing paid (the screens say "Credited in full").
+    await as.mutation(api.credits.create, { invoiceId, reason: 'Cancelled', amountMinor: 6_000_000 });
+    expect(await invoice(invoiceId)).toMatchObject({ status: 'paid', paidMinor: 0, balanceMinor: 0 });
+  });
+
   it('reverses VAT in the invoice’s own proportion, and never credits more than the invoice', async () => {
     const { as, memberId } = await owner();
     // ₦100,000 + 7.5% VAT = ₦107,500.
@@ -260,7 +324,8 @@ describe('credit notes', () => {
       'invoices.overCredit',
     );
     await as.mutation(api.credits.apply, { clientCreditId: credit._id, invoiceId: second, amountMinor: 2_000_000 });
-    expect(await invoice(second)).toMatchObject({ status: 'partially_paid', balanceMinor: 6_000_000 });
+    // Credit corrects rather than pays, so the invoice is still simply sent.
+    expect(await invoice(second)).toMatchObject({ status: 'sent', balanceMinor: 6_000_000, creditedMinor: 2_000_000 });
 
     await as.mutation(api.credits.refund, {
       clientCreditId: credit._id,

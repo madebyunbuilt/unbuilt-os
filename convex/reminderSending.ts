@@ -27,6 +27,7 @@ export const send = internalAction({
           balance: data.balance,
           dueDate: data.dueDate,
           wording: reminderWording(kind),
+          bankAccounts: data.bankAccounts,
           pdf,
         });
       }

@@ -66,6 +66,15 @@ export const reminderData = internalQuery({
       balance: formatMoney(invoice.balanceMinor, invoice.currency),
       dueDate: longDate(invoice.dueDate),
       recipients: await invoiceRecipients(ctx, invoice.clientId, invoice.recipientContactIds),
+      bankAccounts: settings.bankAccounts
+        .filter((account) => account.currency === invoice.currency)
+        .map(({ bankName, accountName, accountNumber, swift, iban }) => ({
+          bankName,
+          accountName,
+          accountNumber,
+          swift,
+          iban,
+        })),
       pdfStorageId: pdf?.storageId,
       createdByMemberId: invoice.createdByMemberId,
     };

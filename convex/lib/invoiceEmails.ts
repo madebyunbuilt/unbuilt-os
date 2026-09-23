@@ -17,6 +17,8 @@ export type InvoiceEmail = {
   amount: string;
   dueDate: string;
   message?: string;
+  whtNote?: string;
+  bankAccounts: { bankName: string; accountName: string; accountNumber: string; swift?: string; iban?: string }[];
   pdf: { filename: string; content: Uint8Array };
 };
 
@@ -55,6 +57,7 @@ export type ReminderEmail = {
   balance: string;
   dueDate: string;
   wording: 'soon' | 'today' | 'late';
+  bankAccounts: { bankName: string; accountName: string; accountNumber: string; swift?: string; iban?: string }[];
   pdf?: { filename: string; content: Uint8Array };
 };
 

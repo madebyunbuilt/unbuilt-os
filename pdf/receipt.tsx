@@ -26,7 +26,7 @@ export function ReceiptPdf(payload: ReceiptPdfPayload) {
       <Row label={`Still owed on ${payload.invoiceNumber}`} value={money(payload.balanceAfterMinor)} />
       {payload.whtDeductedMinor > 0 && (
         <Text style={[slip.section, slip.muted]}>
-          Please send us the WHT credit note for {money(payload.whtDeductedMinor)} so we can match it to this payment.
+          Please send us the WHT certificate for {money(payload.whtDeductedMinor)} so we can match it to this payment.
         </Text>
       )}
     </FinanceSlip>

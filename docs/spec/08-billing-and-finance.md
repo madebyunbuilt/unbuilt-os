@@ -229,8 +229,27 @@ studio's behalf.
   reason kept (studio, 2026-09-22).
 - **Write-off** moves the remaining balance to bad debt with a reason, keeping every payment; money cannot be recorded
   on it until the write-off is reversed, which makes the balance owed again.
-- **The invoice's status** after any of these comes from one rule: balance 0 is paid, part settled is partly paid,
-  otherwise overdue, opened or sent.
+- **The invoice's status** after any of these comes from one rule: balance 0 is paid, past due is overdue, money
+  received (a payment or WHT) is partly paid, otherwise opened or sent. Credits correct an invoice rather than pay it,
+  so they never make it partly paid, and one settled entirely by credit is shown as "Credited in full".
+- **Expected WHT after a credit** is scaled to what is still owed (`money.whtExpectedOnBalance`): the invoice keeps the
+  figure it was sent with, and the page and the payment form use the scaled one.
+- **What the client reads** says only what applies to them: the invoice email and PDF mention withholding tax only when
+  that client deducts it, and then in their own figures; the studio's accounts for the invoice's currency are printed in
+  the invoice and reminder emails as well as the PDF, and nothing promises bank details that are not there. The tax
+  office's document is called the **WHT certificate** everywhere, so it is never confused with the studio's credit
+  notes. A receipt says what is still owed, or that the invoice is settled; a credit note says the same and names any
+  credit held for the client.
+- **The VAT line always shows an amount**, never a dash: "VAT at 7.5%" with the amount when it is charged, otherwise
+  "VAT (zero-rated)", "VAT (exempt)" or "VAT" with ₦0.00, so a reader can see VAT was considered and why it is nothing.
+  The total is the work itself; only the VAT is zero.
+- **A line's VAT box shows only while the invoice charges VAT**, and an invoice charging VAT with no line carrying it
+  says so on the draft and the page, without blocking it.
+- **A new invoice shows what the client is charged** before it is created: VAT and WHT start from the client's own
+  treatment (`invoices.defaultsFor`) and can be changed on the spot.
+- **The WHT box on a payment follows the amount** received, in the invoice's proportion (`money.whtForPayment`: ₦10,000
+  received on an invoice expecting ₦6,000 WHT on ₦215,000 comes with ₦287.08), never taking the two past what is owed,
+  until a figure is typed into it; the client's remittance advice is the authority.
 
 - **Overdue**: past its due date with money still owed is overdue, whether or not part was paid (studio, 2026-09-22).
   The daily run at 09:00 Lagos marks it; a payment that leaves money owed keeps it overdue.
@@ -245,6 +264,28 @@ studio's behalf.
   recorded against it; void invoices never count. Held credit applied later is not a line of its own. `invoices.view`
   holders read a statement on screen or ask for its PDF, which is rendered by an action and kept. The portal view comes
   with the client portal.
+
+## Screens
+
+- **Finance → Invoices** (`/billing/invoices`, `invoices.view`): invoices newest first, showing what is waiting for money
+  by default, with status, total, what is still owed and the due date. "New invoice" (`invoices.create`) chooses the
+  client, an optional project, the currency, the lines (rate card items fill description and price), a discount, the
+  payment terms, a rate for USD or EUR, notes and terms.
+- **The invoice page** shows the lines and totals, what has been paid, withheld and credited, and what is still owed,
+  then its payments (with receipts to download), WHT credits and credit notes. What it offers depends on its state and
+  the viewer's permissions:
+  - a draft: send it, to the billing contacts ticked or others (`invoices.send`); edit it, including VAT and WHT
+    (`invoices.update`); delete it if it was never numbered;
+  - open: record a payment, starting at what is still owed, or at the total less the expected WHT on a first payment
+    (`payments.record`); apply held credit in the same currency; issue a credit note, showing what will be held when it
+    exceeds the balance (`creditnotes.create`); refund a payment (`payments.refund`); record a WHT certificate, dispute
+    it or reverse it; write it off (`invoices.writeoff`); void it while nothing is on it (`invoices.void`); switch its
+    reminders off (`invoices.update`);
+  - written off: reverse the write-off.
+- **The client's Invoices and payments tab** (`invoices.view`): their invoices, any credit held for them (paid back with
+  `payments.refund`), their statement for a date range with its PDFs, and whether they get reminders.
+- **Settings → Exchange rates** (`fx.manage`): the latest rate per currency and whether it is recent enough to send
+  with, a form to set a day's rate, and the recent history.
 
 ## Acceptance criteria
 

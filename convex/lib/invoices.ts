@@ -215,12 +215,14 @@ export async function settle(ctx: QueryCtx | MutationCtx, invoice: Doc<'invoices
     ...next,
   });
   const today = await studioToday(ctx);
-  // Past due with money still owed is overdue, even when part was paid (studio, 2026-09-22).
+  // Past due with money still owed is overdue, even when part was paid (studio, 2026-09-22). Credits alone correct the
+  // invoice rather than pay it, so they never make it "partly paid".
+  const moneyIn = next.paidMinor + next.whtCreditedMinor > 0;
   const status: Doc<'invoices'>['status'] = settled
     ? 'paid'
     : invoice.dueDate && invoice.dueDate < today
       ? 'overdue'
-      : partiallySettled
+      : partiallySettled && moneyIn
         ? 'partially_paid'
         : invoice.firstViewedAt
           ? 'viewed'
