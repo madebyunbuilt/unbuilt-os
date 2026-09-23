@@ -33,4 +33,7 @@ crons.daily('invoice reminders', { hourUTC: 8, minuteUTC: 0 }, internal.billingC
 // 07:00 Lagos: raise the invoices for billing schedule items whose date has come, before the day's work starts.
 crons.daily('scheduled billing', { hourUTC: 6, minuteUTC: 0 }, internal.billingSchedules.invoiceDueItems, {});
 
+// 07:15 Lagos: roll retainers whose period has ended onto the next one, and send the hours-used alerts.
+crons.daily('retainer periods', { hourUTC: 6, minuteUTC: 15 }, internal.retainers.runDue, {});
+
 export default crons;

@@ -1212,6 +1212,48 @@ export default defineSchema({
     .index('by_status', ['status'])
     .index('by_contract', ['contractDocumentId']),
 
+  // An ongoing monthly arrangement (08-billing-and-finance.md, Retainers): a fee for a number of included minutes,
+  // billed a period in advance, with anything beyond the included minutes billed after the period at the overage rate.
+  retainers: defineTable({
+    clientId: v.id('clients'),
+    projectId: v.id('projects'),
+    slaPolicyId: v.optional(v.id('slaPolicies')),
+    currency,
+    monthlyFeeMinor: v.number(),
+    includedMinutes: v.number(),
+    overageRateMinor: v.number(),
+    // 1–31; a day past the end of a short month falls on its last day.
+    invoiceDayOfMonth: v.number(),
+    startDate: v.string(),
+    endDate: v.optional(v.string()),
+    status: v.union(v.literal('active'), v.literal('paused'), v.literal('ended')),
+    autoSend: v.boolean(),
+    // Unused minutes carry into the next period only, and expire after it (studio, 2026-09-23).
+    rolloverUnusedMinutes: v.boolean(),
+    createdByMemberId: v.id('teamMembers'),
+  })
+    .index('by_project', ['projectId'])
+    .index('by_client', ['clientId'])
+    .index('by_status', ['status']),
+
+  retainerPeriods: defineTable({
+    retainerId: v.id('retainers'),
+    // YYYY-MM-DD, inclusive of both ends.
+    periodStart: v.string(),
+    periodEnd: v.string(),
+    // The retainer's own minutes for this period; rollover is counted on top and used first.
+    includedMinutes: v.number(),
+    rolloverMinutes: v.number(),
+    usedMinutes: v.number(),
+    invoiceId: v.optional(v.id('invoices')),
+    overageInvoiceId: v.optional(v.id('invoices')),
+    alert80SentAt: v.optional(v.number()),
+    alert100SentAt: v.optional(v.number()),
+    closedAt: v.optional(v.number()),
+  })
+    .index('by_retainer_start', ['retainerId', 'periodStart'])
+    .index('by_open', ['retainerId', 'closedAt']),
+
   // Manual rates (08-billing-and-finance.md, Foreign exchange): NGN per one unit, × 1,000,000, by day.
   fxRates: defineTable({
     currency: v.union(v.literal('USD'), v.literal('EUR')),
