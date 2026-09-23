@@ -16,6 +16,11 @@ export default defineConfig({
           environment: 'edge-runtime',
           include: ['convex/**/*.test.ts'],
           server: { deps: { inline: ['convex-test'] } },
+          // Each test builds a fresh database from the whole schema, which grows with every module. When that setup
+          // runs past the default 10 s the hook fails mid-way and the next test inherits half a database, so the real
+          // cause ("hook timed out") arrives buried under errors like "user email already exists" in unrelated files.
+          hookTimeout: 60_000,
+          testTimeout: 30_000,
         },
       },
       {
