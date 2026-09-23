@@ -63,8 +63,22 @@ Each reminder is sent once and recorded on `invoices.reminders`. Clients or invo
 - When `orgSettings.lateFeePolicy.enabled`, an invoice still unpaid after due date + grace days gets a **separate**
   `late_fee` invoice. It is monthly, at `monthlyBps` of the outstanding balance, linked through `lateFeeParentInvoiceId`,
   and never compounded on previous late fees.
-- Created as drafts for Finance to review by default; a setting allows auto-send.
+- Created as drafts for Finance to review by default; a setting allows auto-send
+  (`orgSettings.lateFeePolicy.autoSend`).
 - `invoices.latefees.waive` can void a late fee with a reason.
+
+#### How it is settled (studio, 2026-09-23)
+
+- **A late fee carries no VAT**, and nothing to withhold tax against: it is a charge for being paid late, not a service.
+  Its line is untaxed, so the total is the fee and nothing more.
+- It is charged on the parent invoice's **balance still owed** on the day it is raised, so a part payment reduces the
+  next fee. A late fee never earns a late fee of its own, which is what keeps them from compounding.
+- **At most one fee per invoice per month.** The month runs from the last fee raised for that invoice, not from the
+  calendar: a fee still sitting in drafts has no issue date yet, so the day it was raised is what holds the month open.
+  A **waived** fee stops holding it, so the next run charges again.
+- The first fee falls due on the day after the due date plus the grace days; nothing is charged before then.
+- A client or an invoice set to "no reminders" earns no late fees either: the studio has already said it is not chasing
+  this one.
 
 ## Payments
 

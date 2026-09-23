@@ -36,4 +36,7 @@ crons.daily('scheduled billing', { hourUTC: 6, minuteUTC: 0 }, internal.billingS
 // 07:15 Lagos: roll retainers whose period has ended onto the next one, and send the hours-used alerts.
 crons.daily('retainer periods', { hourUTC: 6, minuteUTC: 15 }, internal.retainers.runDue, {});
 
+// 09:30 Lagos, after the overdue marking: raise this month's late fee on invoices still unpaid past their grace period.
+crons.daily('late fees', { hourUTC: 8, minuteUTC: 30 }, internal.lateFees.runDue, {});
+
 export default crons;

@@ -42,7 +42,13 @@ export default defineSchema({
     numbering: v.record(v.string(), numberFormat),
     defaultPaymentTermsDays: v.optional(v.number()),
     defaultVatBps: v.number(),
-    lateFeePolicy: v.object({ enabled: v.boolean(), monthlyBps: v.number(), graceDays: v.optional(v.number()) }),
+    lateFeePolicy: v.object({
+      enabled: v.boolean(),
+      monthlyBps: v.number(),
+      graceDays: v.optional(v.number()),
+      // Late fees wait as drafts for Finance unless this is on (08-billing-and-finance.md, Late fees).
+      autoSend: v.optional(v.boolean()),
+    }),
     invoiceFooter: v.optional(v.string()),
     quoteValidityDays: v.optional(v.number()),
     // 06-projects.md, Change requests: at or above this, in the studio's own currency, a change request is approved by
@@ -1047,6 +1053,7 @@ export default defineSchema({
     .index('by_status_due', ['status', 'dueDate'])
     .index('by_project', ['projectId'])
     .index('by_pay_token', ['payToken'])
+    .index('by_late_fee_parent', ['lateFeeParentInvoiceId'])
     .searchIndex('search_number', { searchField: 'number' }),
 
   // Money received against an invoice. Manual for now; Paystack payments arrive with step 8.

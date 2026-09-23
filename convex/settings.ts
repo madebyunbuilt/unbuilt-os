@@ -156,7 +156,12 @@ export const updateBilling = teamMutation('settings.billing.sensitive')({
     numbering: v.record(v.string(), v.object({ prefix: v.string(), padding: v.number() })),
     defaultPaymentTermsDays: v.optional(v.number()),
     defaultVatBps: v.number(),
-    lateFeePolicy: v.object({ enabled: v.boolean(), monthlyBps: v.number(), graceDays: v.optional(v.number()) }),
+    lateFeePolicy: v.object({
+      enabled: v.boolean(),
+      monthlyBps: v.number(),
+      graceDays: v.optional(v.number()),
+      autoSend: v.optional(v.boolean()),
+    }),
     invoiceFooter: v.optional(v.string()),
     quoteValidityDays: v.optional(v.number()),
   },
