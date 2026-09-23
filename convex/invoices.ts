@@ -309,6 +309,87 @@ export const send = teamMutation('invoices.send')({
   },
 });
 
+/**
+ * Emails a sent invoice again — it went to spam, the accounts person changed, the client asks for another copy. It is
+ * an email and nothing more: the same number, dates, totals, rate and stored PDF go out, and the send is recorded.
+ */
+export const sendAgain = teamMutation('invoices.send')({
+  args: {
+    invoiceId: v.id('invoices'),
+    contactIds: v.optional(v.array(v.id('contacts'))),
+    message: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const invoice = await getInvoice(ctx, args.invoiceId);
+    if (invoice.status === 'draft' || invoice.status === 'scheduled') {
+      throw invoiceError('invoices.notSent', 'This invoice has not been sent yet');
+    }
+    if (!OPEN_STATUSES.has(invoice.status)) {
+      throw invoiceError(
+        'invoices.closed',
+        `A ${invoice.status.replace('_', ' ')} invoice is not sent again; its receipt or credit note is the record`,
+      );
+    }
+    // The client must get the file they already have, not a fresh render of an invoice whose surroundings have moved on.
+    if (!invoice.number || !invoice.pdfFileId) {
+      throw invoiceError('invoices.noPdf', 'There is no stored PDF for this invoice to send again');
+    }
+    const recipients = await invoiceRecipients(ctx, invoice.clientId, args.contactIds ?? invoice.recipientContactIds);
+    if (recipients.length === 0) {
+      throw invoiceError('invoices.noRecipients', 'Add a billing contact with an email address to send this to');
+    }
+    await ctx.scheduler.runAfter(0, internal.invoiceSending.sendAgain, {
+      invoiceId: invoice._id,
+      memberId: ctx.principal.member._id,
+      contactIds: recipients.map((recipient) => recipient.id),
+      message: text(args.message, 'Message', { max: 2000 }),
+    });
+    return { sendingTo: recipients.map((recipient) => recipient.email) };
+  },
+});
+
+/** What the resend email needs: the invoice as it went out, and where its stored PDF lives. */
+export const resendData = internalQuery({
+  args: { invoiceId: v.id('invoices'), contactIds: v.array(v.id('contacts')), memberId: v.id('teamMembers') },
+  handler: async (ctx, { invoiceId, contactIds, memberId }) => {
+    const invoice = await getInvoice(ctx, invoiceId);
+    const [client, settings, sender] = await Promise.all([
+      getClient(ctx, invoice.clientId),
+      getOrgSettings(ctx),
+      ctx.db.get('teamMembers', memberId),
+    ]);
+    const pdf = invoice.pdfFileId ? await ctx.db.get('files', invoice.pdfFileId) : null;
+    if (!pdf) return null;
+    const studioName = settings.legalName ?? settings.tradingName ?? 'Unbuilt Studio';
+    return {
+      number: invoice.number ?? '',
+      typeLabel: TYPE_LABELS[invoice.type],
+      studioName,
+      senderName: sender?.name ?? studioName,
+      clientName: client.displayName,
+      amount: formatMoney(invoice.totals.totalMinor, invoice.currency),
+      dueDate: invoice.dueDate ? longDate(invoice.dueDate) : '',
+      // The date the client's copy is dated, so the email says which one this is a copy of.
+      sentOn: invoice.issueDate ? longDate(invoice.issueDate) : '',
+      recipients: await invoiceRecipients(ctx, invoice.clientId, contactIds),
+      bankAccounts: settings.bankAccounts
+        .filter((account) => account.currency === invoice.currency)
+        .map(({ bankName, accountName, accountNumber, swift, iban }) => ({
+          bankName,
+          accountName,
+          accountNumber,
+          swift,
+          iban,
+        })),
+      whtNote:
+        invoice.wht.applies && invoice.totals.whtExpectedMinor > 0
+          ? `If you withhold tax at ${formatBpsAsPercent(invoice.wht.bps)}% (${formatMoney(invoice.totals.whtExpectedMinor, invoice.currency)}), please pay ${formatMoney(invoice.totals.totalMinor - invoice.totals.whtExpectedMinor, invoice.currency)} and send us the WHT certificate.`
+          : undefined,
+      pdfStorageId: pdf.storageId,
+    };
+  },
+});
+
 const longDate = (value: string) =>
   new Intl.DateTimeFormat('en-GB', { dateStyle: 'long', timeZone: 'UTC' }).format(Date.parse(`${value}T00:00:00Z`));
 
@@ -477,6 +558,9 @@ export const byPayToken = internalQuery({
 export const setPayToken = internalMutation({
   args: { invoiceId: v.id('invoices'), tokenHash: v.string() },
   handler: async (ctx, { invoiceId, tokenHash }) => {
+    const invoice = await getInvoice(ctx, invoiceId);
+    // The link is the same one every time, so most sends have nothing to write.
+    if (invoice.payToken === tokenHash) return;
     await ctx.db.patch('invoices', invoiceId, { payToken: tokenHash });
   },
 });
@@ -515,7 +599,12 @@ export const markSent = internalMutation({
   handler: async (ctx, { invoiceId, memberId, recipientContactIds }) => {
     const invoice = await getInvoice(ctx, invoiceId);
     const now = Date.now();
-    await ctx.db.patch('invoices', invoiceId, { status: 'sent', sentAt: now, recipientContactIds });
+    await ctx.db.patch('invoices', invoiceId, {
+      status: 'sent',
+      sentAt: now,
+      recipientContactIds,
+      sends: [...(invoice.sends ?? []), { at: now, contactIds: recipientContactIds, memberId }],
+    });
     await recordActivity(ctx, {
       subject: { table: 'clients', id: invoice.clientId },
       clientId: invoice.clientId,
@@ -526,6 +615,37 @@ export const markSent = internalMutation({
     });
   },
 });
+
+/**
+ * The same invoice emailed again, to whoever needs it now (08-billing-and-finance.md, Sending again). Nothing about the
+ * invoice changes: it keeps its number, dates, totals, rate and the PDF already stored. Only the log of sends grows.
+ */
+export const markSentAgain = internalMutation({
+  args: { invoiceId: v.id('invoices'), memberId: v.id('teamMembers'), recipientContactIds: v.array(v.id('contacts')) },
+  handler: async (ctx, { invoiceId, memberId, recipientContactIds }) => {
+    const invoice = await getInvoice(ctx, invoiceId);
+    const names = await Promise.all(recipientContactIds.map((id) => ctx.db.get('contacts', id)));
+    await ctx.db.patch('invoices', invoiceId, {
+      recipientContactIds,
+      sends: [...(invoice.sends ?? []), { at: Date.now(), contactIds: recipientContactIds, memberId }],
+    });
+    await recordActivity(ctx, {
+      subject: { table: 'clients', id: invoice.clientId },
+      clientId: invoice.clientId,
+      type: 'system',
+      title: `${invoice.number} sent again to ${listNames(names.map((contact) => contact?.name))}`,
+      actor: { kind: 'team', id: memberId },
+      meta: { invoiceId },
+    });
+  },
+});
+
+const listNames = (names: (string | undefined)[]) => {
+  const known = names.filter((name): name is string => Boolean(name));
+  if (known.length === 0) return 'the billing contacts';
+  if (known.length === 1) return known[0];
+  return `${known.slice(0, -1).join(', ')} and ${known.at(-1)}`;
+};
 
 export const reportSendFailed = internalMutation({
   args: { invoiceId: v.id('invoices'), memberId: v.id('teamMembers'), reason: v.string() },

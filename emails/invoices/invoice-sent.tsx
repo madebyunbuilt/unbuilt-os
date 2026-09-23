@@ -16,6 +16,7 @@ export function InvoiceSentEmail({
   whtNote,
   payUrl,
   bankAccounts,
+  copyOfDate,
 }: {
   contactName: string;
   number: string;
@@ -31,6 +32,8 @@ export function InvoiceSentEmail({
   payUrl?: string;
   /** The studio's accounts in the invoice's currency, so they can pay without opening the PDF. */
   bankAccounts: { bankName: string; accountName: string; accountNumber: string; swift?: string; iban?: string }[];
+  /** Set when the studio is sending the same invoice again, so the client knows it is not a second one to pay. */
+  copyOfDate?: string;
 }) {
   return (
     <AuthEmailLayout preview={`${typeLabel} ${number} from ${studioName}: ${amount}, due ${dueDate}`}>
@@ -41,6 +44,11 @@ export function InvoiceSentEmail({
         {contactName}, {senderName} at {studioName} has sent you {typeLabel.toLowerCase()} {number} for {amount}, due on{' '}
         {dueDate}. It is attached as a PDF.
       </Text>
+      {copyOfDate && (
+        <Text style={styles.text}>
+          This is another copy of the {typeLabel.toLowerCase()} dated {copyOfDate}, not a new one to pay.
+        </Text>
+      )}
       {message && <Text style={styles.text}>{message}</Text>}
       {payUrl && (
         <>

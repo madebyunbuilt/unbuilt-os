@@ -12,6 +12,7 @@ import {
   RefundPaymentDialog,
   RemindersToggle,
   ReverseWriteOffButton,
+  SendAgainDialog,
   SendInvoiceDialog,
   VoidInvoiceDialog,
   WhtActions,
@@ -112,6 +113,9 @@ export function InvoicePage({ invoiceId, permissions }: { invoiceId: Id<'invoice
               canUseRateCard={can('ratecard.view')}
               trigger={<Button variant="outline">Edit the draft</Button>}
             />
+          )}
+          {open && invoice.pdfFileId && can('invoices.send') && (
+            <SendAgainDialog invoice={invoice} canSeeContacts={can('clients.view')} />
           )}
           {open && can('payments.record') && <RecordPaymentDialog invoice={invoice} />}
           {open && can('payments.record') && usableCredit.length > 0 && (

@@ -405,6 +405,30 @@ describe('InvoicePage', () => {
       }),
     );
     expect(screen.getByRole('button', { name: 'Delete the draft' })).toBeInTheDocument();
+    // Nothing to send again until it has been sent once.
+    expect(screen.queryByRole('button', { name: 'Send again' })).not.toBeInTheDocument();
+  });
+
+  it('sends a sent invoice again, to whoever had it last', async () => {
+    state.queries['invoices.get'] = invoice({
+      status: 'sent',
+      paidMinor: 0,
+      balanceMinor: 10_000_000,
+      recipientContactIds: ['ct1'],
+    });
+    render(<InvoicePage invoiceId={'i1' as never} permissions={FINANCE} />);
+    await userEvent.click(screen.getByRole('button', { name: 'Send again' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Send this invoice again' });
+    expect(within(dialog).getByLabelText(/Ada Obi/)).toBeChecked();
+    expect(within(dialog).getByLabelText(/Accounts/)).not.toBeChecked();
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Send again' }));
+    await waitFor(() =>
+      expect(state.mutations['invoices.sendAgain']).toHaveBeenCalledWith({
+        invoiceId: 'i1',
+        contactIds: undefined,
+        message: undefined,
+      }),
+    );
   });
 
   it('offers held credit in the same currency', async () => {
