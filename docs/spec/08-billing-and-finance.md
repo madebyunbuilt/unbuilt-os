@@ -239,6 +239,24 @@ studio's behalf.
 - Bills due within 7 days and overdue bills notify `bills.pay` holders.
 - Paying a bill records the date and reference; the studio's WHT deduction on vendor payments is recorded for remittance.
 
+### How it is settled (studio, 2026-09-23)
+
+- **Withholding is on the amount before the vendor's VAT**, the same rule as on the studio's own invoices: VAT is the
+  tax authority's money already and is never withheld against. A bill records `vatMinor` inside its total for this; with
+  no VAT recorded, the whole amount is withheld against.
+- The vendor's `whtBps` is what is normally withheld, and a rate typed on the payment overrides it for that bill alone.
+  A vendor with no rate has nothing withheld.
+- **The bill is the record of the deduction**: paying it keeps `whtMinor` (what the tax authority is owed) and
+  `paidMinor` (what actually left the account), so `bills.whtToRemit` adds up a range by currency, with each vendor's
+  TIN, for the remittance.
+- **Bank details are sensitive**: redacted in the audit log like the studio's own accounts, and returned only to people
+  who pay bills or keep the vendor records. Everyone else is told whether details exist, not what they are.
+- **draft → approved → scheduled → paid**, or void. A draft is deleted outright; anything approved stays on record and
+  is voided with a reason instead. A paid bill no longer changes, and a voided one is never paid.
+- Vendors are **archived, never deleted**, so the bills paid to them stay on record, and an archived vendor takes no new
+  bills.
+- A payment cannot be dated in the future, and a bill takes the FX rate of its issue date.
+
 ## Statements and exports
 
 - **Client statement of account** for a date range: opening balance, invoices, payments, credit notes, WHT credits,

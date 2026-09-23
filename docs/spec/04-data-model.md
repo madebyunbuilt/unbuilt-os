@@ -310,12 +310,15 @@ Indexes: `by_invoice`, `by_reference`.
 `projectId?` `category` `description` `amountMinor` `currency` `fxRateToNgnMicro` `date` `receiptFileId?` `billable`
 `status` (logged, approved, rejected, reimbursed, invoiced) `loggedByMemberId` `approvedBy?` `invoiceId?`.
 
-**vendors** — `name` `kind` (contractor, supplier) `memberId?` `email` `bankDetails` (sensitive) `tin?` `whtBps?`
-`notes`.
+**vendors** — `name` `kind` (contractor, supplier) `memberId?` `email?` `phone?` `bankDetails?` (sensitive) `tin?`
+`whtBps?` `notes?` `status` (active, archived) `createdByMemberId`.
 
 **bills**
-`vendorId` `projectId?` `reference` `description` `amountMinor` `currency` `fxRateToNgnMicro` `issueDate` `dueDate`
-`status` (draft, approved, scheduled, paid, void) `fileId?` `paidAt?` `paymentReference?`.
+`vendorId` `projectId?` `reference` `description` `amountMinor` `vatMinor?` `currency` `fxRateToNgnMicro` `issueDate`
+`dueDate` `status` (draft, approved, scheduled, paid, void) `scheduledFor?` `fileId?` `whtMinor?` `paidMinor?` `paidAt?`
+`paidOn?` `paymentReference?` `paidByMemberId?` `voidReason?` `approvedByMemberId?` `createdByMemberId`.
+`vatMinor` is the VAT the vendor charged, inside `amountMinor`; withholding is worked out on the rest. `whtMinor` and
+`paidMinor` are filled at payment, so the bill is the record of what was withheld and what left the account.
 
 ## Support and SLAs
 

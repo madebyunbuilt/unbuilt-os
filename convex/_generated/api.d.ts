@@ -13,6 +13,7 @@ import type * as auth from "../auth.js";
 import type * as authFlows from "../authFlows.js";
 import type * as billingChase from "../billingChase.js";
 import type * as billingSchedules from "../billingSchedules.js";
+import type * as bills from "../bills.js";
 import type * as businessHours from "../businessHours.js";
 import type * as changeRequests from "../changeRequests.js";
 import type * as clauses from "../clauses.js";
@@ -40,6 +41,7 @@ import type * as lateFees from "../lateFees.js";
 import type * as lib_audit from "../lib/audit.js";
 import type * as lib_authEmails from "../lib/authEmails.js";
 import type * as lib_authPlugins from "../lib/authPlugins.js";
+import type * as lib_bills from "../lib/bills.js";
 import type * as lib_businessTime from "../lib/businessTime.js";
 import type * as lib_changeRequests from "../lib/changeRequests.js";
 import type * as lib_crm from "../lib/crm.js";
@@ -110,6 +112,7 @@ import type * as team from "../team.js";
 import type * as teamInvites from "../teamInvites.js";
 import type * as time from "../time.js";
 import type * as timeOff from "../timeOff.js";
+import type * as vendors from "../vendors.js";
 
 import type {
   ApiFromModules,
@@ -123,6 +126,7 @@ declare const fullApi: ApiFromModules<{
   authFlows: typeof authFlows;
   billingChase: typeof billingChase;
   billingSchedules: typeof billingSchedules;
+  bills: typeof bills;
   businessHours: typeof businessHours;
   changeRequests: typeof changeRequests;
   clauses: typeof clauses;
@@ -150,6 +154,7 @@ declare const fullApi: ApiFromModules<{
   "lib/audit": typeof lib_audit;
   "lib/authEmails": typeof lib_authEmails;
   "lib/authPlugins": typeof lib_authPlugins;
+  "lib/bills": typeof lib_bills;
   "lib/businessTime": typeof lib_businessTime;
   "lib/changeRequests": typeof lib_changeRequests;
   "lib/crm": typeof lib_crm;
@@ -220,6 +225,7 @@ declare const fullApi: ApiFromModules<{
   teamInvites: typeof teamInvites;
   time: typeof time;
   timeOff: typeof timeOff;
+  vendors: typeof vendors;
 }>;
 
 /**
