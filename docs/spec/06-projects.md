@@ -88,6 +88,26 @@
   - Record the approval on the timeline.
 - Declined change requests stay on record with the reason.
 
+### How it is settled (studio, 2026-09-23)
+
+- A change request is priced in the **project's own currency**, since the two are added together.
+- It takes its number when it goes to the client, never on the draft, so an abandoned draft burns none. Sending
+  generates the `change_request` document from the template with the amount as its line, and sends it like any other
+  document. A change request that has gone out is no longer edited or deleted; it is withdrawn, with a reason.
+- **Whether it needs a signature is settled when it is sent**, so the rule cannot move under a client already reading
+  it. The client's own setting wins (`clients.changeRequestSignature`: always, never, or by threshold); otherwise the
+  amount must reach `orgSettings.changeRequestSignatureMinor`, which starts at ₦500,000 (`18-open-questions.md`).
+  Above the threshold the signature **is** the approval: the studio cannot record one by hand.
+- **Approval happens exactly once**, whichever way it arrives — the portal, a signature, or the studio recording a
+  decision the client gave elsewhere. `appliedAt` is what makes that true, so a replayed signature changes nothing.
+- The budget and the due date move **together with the money**: the budget grows by the amount and the due date by the
+  days, so the project still says what was agreed.
+- **`with_the_schedule`** appends an item to the project's active billing schedule for the amount, waiting on the end
+  of the project like any item that names no milestone. The schedule still adds up, because the project's amount grew
+  by the same figure; appending is allowed after earlier items have been invoiced, while editing those items is not.
+  A project with no active schedule is billed now instead, rather than quietly not at all.
+- **`invoice_now`** drafts a `change_request` invoice for the amount and tells whoever raised the change request.
+
 ## Client status updates
 
 - Each active project produces a weekly draft update every Friday at 12:00 Lagos time. The draft contains:

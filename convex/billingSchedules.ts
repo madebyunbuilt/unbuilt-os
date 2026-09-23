@@ -175,6 +175,39 @@ export const skipItem = teamMutation('schedules.manage')({
   },
 });
 
+/**
+ * Adds an item to an active schedule, for an approved change request (06-projects.md). The project's amount grew by
+ * the same figure, so the schedule still adds up; appending is allowed after earlier items have been invoiced, while
+ * editing those items is not. It waits on the end of the project, like any item that names no milestone. Returns
+ * nothing when the project has no active schedule for it to join.
+ */
+export async function appendScheduleItem(
+  ctx: MutationCtx,
+  args: { projectId: Id<'projects'>; label: string; amountMinor: number },
+): Promise<string | null> {
+  const schedule = await ctx.db
+    .query('billingSchedules')
+    .withIndex('by_project', (q) => q.eq('projectId', args.projectId))
+    .first();
+  if (!schedule || schedule.status !== 'active') return null;
+  const id = `i${schedule.items.length + 1}`;
+  await ctx.db.patch('billingSchedules', schedule._id, {
+    amountMinor: schedule.amountMinor + args.amountMinor,
+    items: [
+      ...schedule.items,
+      {
+        id,
+        label: args.label,
+        kind: 'fixed' as const,
+        amountMinor: args.amountMinor,
+        trigger: 'on_milestone_approved' as const,
+        status: 'pending' as const,
+      },
+    ],
+  });
+  return id;
+}
+
 /** Raises the invoice for one item and marks it invoiced. Sends it when the schedule says so. */
 async function invoiceItem(ctx: MutationCtx, schedule: Doc<'billingSchedules'>, itemId: string) {
   const item = schedule.items.find((row) => row.id === itemId);

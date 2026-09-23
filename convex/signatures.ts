@@ -419,8 +419,10 @@ async function recordSignature(
     await ctx.db.patch('signatureRequests', current._id, { status: 'completed', completedAt: evidence.now });
     await ctx.db.patch('documents', document._id, { status: 'signed', signedAt: evidence.now });
     await ctx.scheduler.runAfter(0, internal.signatureCompletion.complete, { requestId: current._id });
-    // A signed contract may be what a billing schedule was waiting for (08-billing-and-finance.md).
+    // A signed contract may be what a billing schedule was waiting for (08-billing-and-finance.md), and a signed
+    // change request is itself the client's approval (06-projects.md).
     await ctx.scheduler.runAfter(0, internal.billingSchedules.onDocumentSigned, { documentId: document._id });
+    await ctx.scheduler.runAfter(0, internal.changeRequests.onDocumentSigned, { documentId: document._id });
   } else {
     current = await inviteNext(ctx, current);
     await ctx.db.patch('documents', document._id, { status: 'partially_signed' });

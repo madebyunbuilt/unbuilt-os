@@ -14,7 +14,7 @@ Sources:
 - a retainer period
 - approved time entries (time and materials)
 - approved billable expenses
-- an approved change request
+- an approved change request (`06-projects.md`, Change requests: billed at once, or appended to the billing schedule)
 - a managed asset renewal
 - a late fee
 

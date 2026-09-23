@@ -45,6 +45,9 @@ export default defineSchema({
     lateFeePolicy: v.object({ enabled: v.boolean(), monthlyBps: v.number(), graceDays: v.optional(v.number()) }),
     invoiceFooter: v.optional(v.string()),
     quoteValidityDays: v.optional(v.number()),
+    // 06-projects.md, Change requests: at or above this, in the studio's own currency, a change request is approved by
+    // signature rather than by a click. Unset means the default in convex/lib/changeRequests.ts.
+    changeRequestSignatureMinor: v.optional(v.number()),
     retentionYears: v.number(),
     brand: v.object({ primary: v.string(), accent: v.string() }),
     // 07-documents-and-esign.md, Legal note: stays off until the Owner records that counsel reviewed the signing process.
@@ -193,6 +196,8 @@ export default defineSchema({
     paymentTermsDays: v.optional(v.number()),
     // No invoice reminders to this client (08-billing-and-finance.md, Reminders).
     noReminders: v.optional(v.boolean()),
+    // How this client approves change requests: by the studio's threshold unless they always or never sign.
+    changeRequestSignature: v.optional(v.union(v.literal('threshold'), v.literal('always'), v.literal('never'))),
     timezone: v.string(),
     ownerMemberId: v.optional(v.id('teamMembers')),
     source: v.optional(v.string()),
@@ -466,6 +471,41 @@ export default defineSchema({
     approvedAt: v.optional(v.number()),
     approvedByContactId: v.optional(v.id('contacts')),
   }).index('by_project_order', ['projectId', 'order']),
+
+  // A priced change to agreed scope (06-projects.md, Change requests). The client approves it — by signature above the
+  // studio's threshold — and approval moves the project's budget and due date and bills the amount, exactly once.
+  changeRequests: defineTable({
+    number: v.optional(v.string()),
+    projectId: v.id('projects'),
+    clientId: v.id('clients'),
+    title: v.string(),
+    description: v.string(),
+    reason: v.string(),
+    impact: v.object({ amountMinor: v.number(), currency, days: v.number() }),
+    // Whether the amount is invoiced as soon as it is approved, or joins the project's billing schedule.
+    billing: v.union(v.literal('invoice_now'), v.literal('with_the_schedule')),
+    status: v.union(
+      v.literal('draft'),
+      v.literal('sent'),
+      v.literal('approved'),
+      v.literal('declined'),
+      v.literal('withdrawn'),
+    ),
+    // Settled when it is sent, so the rule cannot move under a change request the client is already looking at.
+    needsSignature: v.optional(v.boolean()),
+    documentId: v.optional(v.id('documents')),
+    decidedByContactId: v.optional(v.id('contacts')),
+    decidedByMemberId: v.optional(v.id('teamMembers')),
+    decidedAt: v.optional(v.number()),
+    declineReason: v.optional(v.string()),
+    // Set by the approval, and what makes it happen only once.
+    appliedAt: v.optional(v.number()),
+    invoiceId: v.optional(v.id('invoices')),
+    scheduleItemId: v.optional(v.string()),
+    createdByMemberId: v.id('teamMembers'),
+  })
+    .index('by_project_status', ['projectId', 'status'])
+    .index('by_document', ['documentId']),
 
   deliverables: defineTable({
     projectId: v.id('projects'),
