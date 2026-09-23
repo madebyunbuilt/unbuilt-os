@@ -51,6 +51,8 @@ export default defineSchema({
     }),
     invoiceFooter: v.optional(v.string()),
     quoteValidityDays: v.optional(v.number()),
+    // 08-billing-and-finance.md, Expenses: what a billable expense is recharged at. Unset means at cost.
+    expenseMarkupBps: v.optional(v.number()),
     // 06-projects.md, Change requests: at or above this, in the studio's own currency, a change request is approved by
     // signature rather than by a click. Unset means the default in convex/lib/changeRequests.ts.
     changeRequestSignatureMinor: v.optional(v.number()),
@@ -1300,6 +1302,41 @@ export default defineSchema({
   })
     .index('by_retainer_start', ['retainerId', 'periodStart'])
     .index('by_open', ['retainerId', 'closedAt']),
+
+  // What the studio spent on a client's behalf or its own (08-billing-and-finance.md, Expenses). A billable one that
+  // has been approved joins an invoice at cost, unless the studio sets a markup.
+  expenses: defineTable({
+    projectId: v.optional(v.id('projects')),
+    clientId: v.optional(v.id('clients')),
+    category: v.string(),
+    description: v.string(),
+    amountMinor: v.number(),
+    currency,
+    // The rate on the day it was spent, so reports in NGN do not move when today's rate does.
+    fxRateToNgnMicro: v.number(),
+    date: v.string(),
+    receiptFileId: v.optional(v.id('files')),
+    billable: v.boolean(),
+    // Whether the studio owes the member their money back, and when it was paid.
+    reimbursable: v.boolean(),
+    reimbursedAt: v.optional(v.number()),
+    status: v.union(
+      v.literal('logged'),
+      v.literal('approved'),
+      v.literal('rejected'),
+      v.literal('reimbursed'),
+      v.literal('invoiced'),
+    ),
+    decisionNote: v.optional(v.string()),
+    loggedByMemberId: v.id('teamMembers'),
+    approvedBy: v.optional(v.id('teamMembers')),
+    approvedAt: v.optional(v.number()),
+    invoiceId: v.optional(v.id('invoices')),
+  })
+    .index('by_project', ['projectId'])
+    .index('by_status', ['status'])
+    .index('by_member_date', ['loggedByMemberId', 'date'])
+    .index('by_invoice', ['invoiceId']),
 
   // Manual rates (08-billing-and-finance.md, Foreign exchange): NGN per one unit, × 1,000,000, by day.
   fxRates: defineTable({

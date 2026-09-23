@@ -214,6 +214,23 @@ studio's behalf.
   (setting).
 - Reimbursable expenses are marked reimbursed when paid back.
 
+### How it is settled (studio, 2026-09-23)
+
+- **At cost.** `orgSettings.expenseMarkupBps` starts unset, so an expense is recharged for exactly what the studio
+  paid. A studio that sets a markup recharges cost plus that percentage.
+- An expense takes its project's client and currency, and **the FX rate of the day it was spent**, so a report in NGN
+  does not move when today's rate does. A currency with no rate on or before that day is refused rather than guessed.
+- It cannot be dated in the future, and categories are a fixed list, so the reports mean something.
+- **A member changes and deletes only their own, and only while it is still logged.** Once approved or turned down it
+  is the record of a decision. Turning one down needs a note, and the member is told either way.
+- **Reading** is open to anyone who logs expenses or approves them — Finance approves without logging its own. A member
+  sees only their own; an approver sees them all.
+- **Joining an invoice**: only approved (or reimbursed), billable, not already invoiced, in the invoice's own currency,
+  on a **draft** invoice — a sent invoice is immutable, so nothing is added to it. The line names the category, the
+  description and the date it was spent; the receipt itself stays inside the studio and never reaches the client.
+- Reimbursing and recharging are separate: the studio can owe a member their money back whether or not the client is
+  billed for it, and a reimbursed expense can still be recharged.
+
 ## Vendors and bills
 
 - Vendors: contractors (optionally linked to a team member) and suppliers, with bank details (sensitive) and optional WHT
