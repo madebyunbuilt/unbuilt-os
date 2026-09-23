@@ -102,6 +102,17 @@ describe('team notifications', () => {
   });
 });
 
+describe('the bell', () => {
+  it('holds the latest ten, however many there are', async () => {
+    const dayo = await createTeamMember(t, roles.member, { email: 'dayo@unbuilt.studio' });
+    for (let i = 1; i <= 14; i++) await notify('team', dayo.memberId, `Notice ${i}`, { createdAt: 1_000 + i });
+    const bell = await dayo.as.query(api.notifications.teamList, {});
+    expect(bell.items).toHaveLength(10);
+    expect(bell.items[0].title).toBe('Notice 14');
+    expect(bell.unreadCount).toBe(14);
+  });
+});
+
 describe('the full list', () => {
   it('pages through, oldest last, and can show only the unread', async () => {
     const dayo = await createTeamMember(t, roles.member, { email: 'dayo@unbuilt.studio' });

@@ -7,7 +7,8 @@ import { authError } from './lib/principals';
 // In-app notifications (14-platform.md, Notifications): the bell, the list and read state. Every principal reads only
 // their own. Creating notifications, and email and WhatsApp delivery, arrive with the communications step.
 
-const LIST_LIMIT = 50;
+/** What the bell holds: a glance at the latest, with the whole lot on /notifications. */
+const LIST_LIMIT = 10;
 /** The badge shows "99+" beyond this. */
 export const UNREAD_COUNT_CAP = 99;
 

@@ -7,7 +7,7 @@
 - Outbound messages go through a `@convex-dev/workpool` queue with retries and backoff. Provider failures never fail the
   mutation that triggered them.
 - In-app: a bell with unread count, a list grouped by day, mark as read, mark all read, links to the target. The bell
-  shows the latest and scrolls inside its panel; "See all notifications" opens `/notifications` (both surfaces), which
+  shows the latest ten and scrolls inside its panel; "See all notifications" opens `/notifications` (both surfaces), which
   pages through everything, filters to the unread, and marks all read.
 - Preferences per event and channel for team members and client users. Security and legal events (sign-in, signed
   copies, payment receipts) cannot be turned off for email.
