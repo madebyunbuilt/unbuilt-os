@@ -31,6 +31,10 @@ export default defineConfig({
           environment: 'jsdom',
           include: ['{app,components,lib}/**/*.test.{ts,tsx}'],
           setupFiles: ['./tests/setup-dom.ts'],
+          // jsdom is held at 30.0.1 in package.json: on 30.1.0 a Radix dropdown never opens under user-event, so the
+          // account menu and the project status menu cannot be driven in a test. The menu markup and its roles are
+          // fine — rendered on its own it is found by getByRole — so this is the test environment, not the app.
+          // Worth retrying whenever jsdom or user-event moves again.
           // Screen tests type into real forms; on a busy machine the 5 s default is too tight.
           testTimeout: 20_000,
         },
