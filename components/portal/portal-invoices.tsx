@@ -13,6 +13,20 @@ import { portalInvoiceStatus } from '@/lib/portal-display';
 // A client's invoices (12-client-portal.md, Invoices): what is owed, what was paid, and how to pay the rest. Nothing
 // the studio wrote off appears, and no internal reference is ever shown.
 
+/**
+ * A link to one stored PDF. Each row asks for its own short-lived URL, which is why this is a component rather than a
+ * loop: the files are client-visible and the server decides whether this client may read them.
+ */
+function FileLink({ fileId, children }: { fileId: Id<'files'>; children: string }) {
+  const file = useQuery(api.files.portalDownloadUrl, { fileId });
+  if (!file) return null;
+  return (
+    <a href={file.url} target="_blank" rel="noreferrer" className="text-sm underline whitespace-nowrap">
+      {children}
+    </a>
+  );
+}
+
 export function PortalInvoices() {
   const invoices = useQuery(api.portalBilling.invoices, {});
   if (invoices === undefined) return <p className="text-muted-foreground">Loading invoices…</p>;
@@ -60,6 +74,7 @@ export function PortalInvoice({ invoiceId }: { invoiceId: Id<'invoices'> }) {
     return <p className="rounded-md border border-dashed p-6 text-muted-foreground">This invoice is not available.</p>;
   }
   const currency = invoice.currency as Currency;
+  const lastPayment = invoice.payments.at(-1);
 
   return (
     <div className="space-y-6">
@@ -116,6 +131,14 @@ export function PortalInvoice({ invoiceId }: { invoiceId: Id<'invoices'> }) {
         )}
       </dl>
 
+      {!invoice.payable && lastPayment && (
+        <p className="rounded-md border p-3 text-sm text-muted-foreground">
+          Settled on {formatDay(lastPayment.receivedOn)}. The invoice below is the one that was sent; your proof of
+          payment is {lastPayment.receiptNumber ? `receipt ${lastPayment.receiptNumber}` : 'the receipt'} under what you
+          have paid.
+        </p>
+      )}
+
       <div className="flex flex-wrap gap-2">
         {invoice.payable && invoice.byCard && pay?.url && (
           // A new tab: paying redirects the whole window to Paystack and comes back to the public pay page, which has
@@ -166,9 +189,12 @@ export function PortalInvoice({ invoiceId }: { invoiceId: Id<'invoices'> }) {
                     {payment.reference ? ` · ${payment.reference}` : ''}
                   </p>
                 </div>
-                {payment.receiptNumber && (
-                  <span className="text-muted-foreground">Receipt {payment.receiptNumber}</span>
-                )}
+                {payment.receiptNumber &&
+                  (payment.receiptFileId ? (
+                    <FileLink fileId={payment.receiptFileId}>{`Receipt ${payment.receiptNumber}`}</FileLink>
+                  ) : (
+                    <span className="text-muted-foreground">Receipt {payment.receiptNumber}</span>
+                  ))}
               </li>
             ))}
           </ul>
@@ -182,12 +208,15 @@ export function PortalInvoice({ invoiceId }: { invoiceId: Id<'invoices'> }) {
           </h2>
           <ul className="divide-y rounded-lg border">
             {invoice.creditNotes.map((note) => (
-              <li key={note.id} className="flex items-center justify-between gap-3 p-4 text-sm">
+              <li key={note.id} className="flex flex-wrap items-center justify-between gap-3 p-4 text-sm">
                 <span>
                   {note.number}
                   {note.issuedOn ? ` · ${formatDay(note.issuedOn)}` : ''}
                 </span>
-                <span className="tabular-nums">{formatMoney(note.amountMinor, currency)}</span>
+                <span className="flex items-center gap-3">
+                  <span className="tabular-nums">{formatMoney(note.amountMinor, currency)}</span>
+                  {note.pdfFileId && <FileLink fileId={note.pdfFileId}>Download</FileLink>}
+                </span>
               </li>
             ))}
           </ul>

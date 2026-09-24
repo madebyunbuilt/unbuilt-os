@@ -49,6 +49,10 @@ client (see `03-auth-and-permissions.md`).
   portal lands in the same place. An invoice whose token predates that rule is offered no link at all, rather than one
   that would not open; the bank details are always shown either way.
 - **The reference shown to a client is Paystack's**, never `inv_<invoiceId>_<attempt>`, which is the studio's own.
+- **A paid invoice still downloads as the invoice that was sent** (studio, 2026-09-24), with no "paid" stamp added: it
+  is a fixed document, and re-rendering it would hand the client a different file under the same number, no longer
+  matching its stored hash. The page says it was settled and points at the receipt, which is the proof of payment.
+  Receipts and credit notes download from the invoice they belong to.
 - **A signed document says where it actually stands** (studio, 2026-09-24): `awaiting_signature` is set the moment the
   document is sent, so it means only that it went out. What the client is told comes from the signing request instead —
   needs your signature when they are the one invited, your turn is coming when somebody signs first, waiting for

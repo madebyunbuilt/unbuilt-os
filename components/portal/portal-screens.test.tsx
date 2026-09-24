@@ -226,6 +226,69 @@ describe('a client’s invoice', () => {
     expect(screen.getByText(/certificate for ₦5,000.00/)).toBeInTheDocument();
   });
 
+  it('lets a client open the receipt for what they paid', () => {
+    state.queries['portalBilling.invoice'] = invoice({
+      payments: [
+        {
+          id: 'p1',
+          amountMinor: 10_000_00,
+          receivedOn: '2026-09-22',
+          method: 'bank_transfer',
+          reference: 'GTB/123',
+          receiptId: 'r1',
+          receiptNumber: 'UNB-RCT-0001',
+          receiptFileId: 'f9',
+        },
+      ],
+    });
+    state.queries['portalBilling.payLink'] = { url: null };
+    state.queries['files.portalDownloadUrl'] = { url: 'https://files.example.com/receipt.pdf', name: 'receipt.pdf' };
+    render(<PortalInvoice invoiceId={'i1' as never} />);
+    expect(screen.getByRole('link', { name: 'Receipt UNB-RCT-0001' })).toHaveAttribute(
+      'href',
+      'https://files.example.com/receipt.pdf',
+    );
+  });
+
+  it('lets a client open a credit note', () => {
+    state.queries['portalBilling.invoice'] = invoice({
+      creditNotes: [
+        { id: 'cn1', number: 'UNB-CN-0001', amountMinor: 5_000_00, issuedOn: '2026-09-22', pdfFileId: 'f8' },
+      ],
+    });
+    state.queries['portalBilling.payLink'] = { url: null };
+    state.queries['files.portalDownloadUrl'] = { url: 'https://files.example.com/credit.pdf', name: 'credit.pdf' };
+    render(<PortalInvoice invoiceId={'i1' as never} />);
+    expect(screen.getByRole('link', { name: 'Download' })).toHaveAttribute(
+      'href',
+      'https://files.example.com/credit.pdf',
+    );
+  });
+
+  it('tells a client a settled invoice is the one that was sent, and where the proof is', () => {
+    state.queries['portalBilling.invoice'] = invoice({
+      status: 'paid',
+      paidMinor: 100_000_00,
+      balanceMinor: 0,
+      payable: false,
+      payments: [
+        {
+          id: 'p1',
+          amountMinor: 100_000_00,
+          receivedOn: '2026-09-22',
+          method: 'bank_transfer',
+          reference: 'GTB/123',
+          receiptId: 'r1',
+          receiptNumber: 'UNB-RCT-0001',
+          receiptFileId: 'f9',
+        },
+      ],
+    });
+    render(<PortalInvoice invoiceId={'i1' as never} />);
+    expect(screen.getByText(/Settled on 22 Sep 2026/)).toBeInTheDocument();
+    expect(screen.getByText(/receipt UNB-RCT-0001/)).toBeInTheDocument();
+  });
+
   it('says a settled invoice is settled, and offers no payment', () => {
     state.queries['portalBilling.invoice'] = invoice({
       status: 'paid',
