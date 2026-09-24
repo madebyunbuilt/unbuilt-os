@@ -89,7 +89,7 @@ export const reminderFailed = internalMutation({
       event: 'invoice_reminder_failed',
       title: `A reminder for ${invoice?.number ?? 'an invoice'} did not go out`,
       body: reason.slice(0, 300),
-      link: `/invoices/${invoiceId}`,
+      link: `/billing/invoices/${invoiceId}`,
     });
   },
 });

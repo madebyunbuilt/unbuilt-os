@@ -280,7 +280,7 @@ export const decide = teamMutation('expenses.approve')({
       event: decision === 'approved' ? 'expense_approved' : 'expense_rejected',
       title: `Your ${formatMoney(expense.amountMinor, expense.currency)} expense was ${decision}`,
       body: reason ?? expense.description,
-      link: `/expenses/${expenseId}`,
+      link: '/billing/expenses',
     });
   },
 });
