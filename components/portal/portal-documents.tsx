@@ -13,7 +13,23 @@ import { api } from '@/convex/_generated/api';
 import { type Id } from '@/convex/_generated/dataModel';
 import { type Currency, formatMoney } from '@/convex/lib/money';
 import { formatDay } from '@/lib/crm-display';
-import { portalDocumentStatus } from '@/lib/portal-display';
+import { type PortalSigning, portalDocumentStatus } from '@/lib/portal-display';
+
+/** What to tell somebody about a document that is signed rather than accepted, without promising an email that is not coming. */
+function signingNote(signing: PortalSigning): string {
+  switch (signing) {
+    case 'mine':
+      return 'This one is signed rather than accepted. Your signing link is in your email — it opens a page where you confirm your email address and sign.';
+    case 'waiting_turn':
+      return 'This one is signed rather than accepted. Somebody signs before you; your link arrives by email when it is your turn.';
+    case 'signed_mine':
+      return 'You have signed this. It is finished once everybody else has.';
+    case 'others':
+      return 'This one is signed rather than accepted, and it is with your colleagues to sign.';
+    default:
+      return 'This one is signed rather than accepted. Unbuilt has not asked for signatures yet; when they do, your link arrives by email.';
+  }
+}
 
 // Documents as the client sees them (12-client-portal.md, Documents): what was sent, what it says, and the one thing
 // they are being asked to do about it.
@@ -48,7 +64,7 @@ export function PortalDocuments() {
                     {formatMoney(document.totals.totalMinor, document.currency as Currency)}
                   </p>
                 )}
-                <ToneBadge {...portalDocumentStatus(document.status, document.asks)} />
+                <ToneBadge {...portalDocumentStatus(document.status, document.asks, document.signing)} />
               </div>
             </div>
           </Link>
@@ -134,7 +150,7 @@ export function PortalDocument({ documentId }: { documentId: Id<'documents'> }) 
               {document.validUntilDate ? ` · valid until ${formatDay(document.validUntilDate)}` : ''}
             </p>
           </div>
-          <ToneBadge {...portalDocumentStatus(document.status, document.asks)} />
+          <ToneBadge {...portalDocumentStatus(document.status, document.asks, document.signing)} />
         </div>
       </div>
 
@@ -161,10 +177,7 @@ export function PortalDocument({ documentId }: { documentId: Id<'documents'> }) 
       </div>
 
       {document.asks === 'signature' && document.status !== 'signed' && (
-        <p className="rounded-md border p-4 text-sm">
-          This one is signed rather than accepted. When Unbuilt asks for your signature you will get an email with your
-          own signing link.
-        </p>
+        <p className="rounded-md border p-4 text-sm">{signingNote(document.signing)}</p>
       )}
 
       <DocumentBlocks

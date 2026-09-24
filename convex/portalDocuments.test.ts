@@ -186,6 +186,78 @@ describe('accepting a quote', () => {
     expect(await admin.as.query(api.portalDocuments.get, { documentId })).toMatchObject({ canDecide: true });
   });
 
+  it('says only that a signed document was sent, until somebody is actually asked to sign it', async () => {
+    const documentId = await pm.as.mutation(api.documents.create, {
+      type: 'nda',
+      clientId: admin.clientId,
+      title: 'Test NDA',
+    });
+    await t.run(async (ctx) => ctx.db.patch('documents', documentId, { status: 'awaiting_signature' }));
+    // The status says awaiting_signature from the moment it goes out, so on its own it would claim too much.
+    expect(await admin.as.query(api.portalDocuments.get, { documentId })).toMatchObject({
+      asks: 'signature',
+      signing: 'not_requested',
+    });
+
+    await t.run(async (ctx) => {
+      await ctx.db.insert('signatureRequests', {
+        documentId,
+        documentVersion: 1,
+        pdfSha256: 'x'.repeat(64),
+        order: 'parallel',
+        status: 'pending',
+        expiresAt: Date.now() + 86_400_000,
+        createdByMemberId: pm.memberId,
+        signers: [
+          {
+            id: 'c1',
+            name: 'Ada Obi',
+            email: 'ada@glossup.com',
+            kind: 'client_contact',
+            contactId: admin.contactId,
+            order: 1,
+            status: 'invited',
+          },
+        ],
+      });
+    });
+    expect(await admin.as.query(api.portalDocuments.get, { documentId })).toMatchObject({ signing: 'mine' });
+  });
+
+  it('tells a colleague it is with somebody else, not that it needs them', async () => {
+    const member = await memberAt(admin.clientId, 'junior@glossup.com');
+    const documentId = await pm.as.mutation(api.documents.create, {
+      type: 'nda',
+      clientId: admin.clientId,
+      title: 'Test NDA',
+    });
+    await t.run(async (ctx) => {
+      await ctx.db.patch('documents', documentId, { status: 'awaiting_signature' });
+      await ctx.db.insert('signatureRequests', {
+        documentId,
+        documentVersion: 1,
+        pdfSha256: 'x'.repeat(64),
+        order: 'parallel',
+        status: 'pending',
+        expiresAt: Date.now() + 86_400_000,
+        createdByMemberId: pm.memberId,
+        signers: [
+          {
+            id: 'c1',
+            name: 'Ada Obi',
+            email: 'ada@glossup.com',
+            kind: 'client_contact',
+            contactId: admin.contactId,
+            order: 1,
+            status: 'invited',
+          },
+        ],
+      });
+    });
+    expect(await member.as.query(api.portalDocuments.get, { documentId })).toMatchObject({ signing: 'others' });
+    expect(await admin.as.query(api.portalDocuments.get, { documentId })).toMatchObject({ signing: 'mine' });
+  });
+
   it('refuses to accept something that is signed rather than accepted', async () => {
     const documentId = await pm.as.mutation(api.documents.create, {
       type: 'contract',

@@ -52,6 +52,25 @@ async function canCommit(ctx: QueryCtx | MutationCtx, principal: ClientPrincipal
   );
 }
 
+/**
+ * Where a document that is signed rather than accepted actually stands for this contact. The status alone says
+ * `awaiting_signature` from the moment it is sent, whether or not anybody has been asked yet and whether or not this
+ * is the person being asked — so telling them it needs their signature on that basis would often be untrue.
+ */
+async function signingFor(ctx: QueryCtx | MutationCtx, principal: ClientPrincipal, document: Doc<'documents'>) {
+  const requests = await ctx.db
+    .query('signatureRequests')
+    .withIndex('by_document', (q) => q.eq('documentId', document._id))
+    .collect();
+  const open = requests.find((request) => request.status === 'pending');
+  if (!open) return 'not_requested' as const;
+  const mine = open.signers.find((signer) => signer.contactId === principal.contact._id);
+  if (!mine) return 'others' as const;
+  if (mine.status === 'signed') return 'signed_mine' as const;
+  // Waiting behind somebody else in a sequential order: their link has not been sent yet.
+  return mine.status === 'invited' ? ('mine' as const) : ('waiting_turn' as const);
+}
+
 function documentView(document: Doc<'documents'>) {
   return {
     id: document._id,
@@ -82,10 +101,15 @@ export const list = portalQuery('portal.documents.view')({
       .query('documents')
       .withIndex('by_client', (q) => q.eq('clientId', principal.clientId))
       .collect();
-    return documents
-      .filter((document) => VISIBLE.has(document.status))
-      .map(documentView)
-      .sort((a, b) => (b.sentAt ?? 0) - (a.sentAt ?? 0));
+    const views = await Promise.all(
+      documents
+        .filter((document) => VISIBLE.has(document.status))
+        .map(async (document) => ({
+          ...documentView(document),
+          signing: ACCEPTED_TYPES.has(document.type) ? null : await signingFor(ctx, principal, document),
+        })),
+    );
+    return views.sort((a, b) => (b.sentAt ?? 0) - (a.sentAt ?? 0));
   },
 });
 
@@ -119,6 +143,7 @@ export const get = portalQuery('portal.documents.view')({
       blocks: fillBlocks(document.blocks, { ...values, ...shown }),
       lineItems: document.lineItems ?? [],
       canDecide: DECIDABLE_STATUSES.has(document.status) && (await canCommit(ctx, principal, document)),
+      signing: ACCEPTED_TYPES.has(document.type) ? null : await signingFor(ctx, principal, document),
     };
   },
 });

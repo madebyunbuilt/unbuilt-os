@@ -36,18 +36,41 @@ export function milestoneStatus(status: string): { label: string; tone: StatusTo
   }
 }
 
+/**
+ * Where a signed document stands for the person reading it. `awaiting_signature` on its own means only that the
+ * document went out, so the label comes from whether a signing request exists and who it names.
+ */
+export type PortalSigning = 'not_requested' | 'mine' | 'waiting_turn' | 'signed_mine' | 'others' | null;
+
+function signingLabel(signing: PortalSigning): { label: string; tone: StatusTone } {
+  switch (signing) {
+    case 'mine':
+      return { label: 'Needs your signature', tone: 'attention' };
+    case 'waiting_turn':
+      return { label: 'Your turn is coming', tone: 'draft' };
+    case 'signed_mine':
+      return { label: 'You have signed', tone: 'built' };
+    case 'others':
+      return { label: 'Waiting for signatures', tone: 'draft' };
+    default:
+      // Sent, but nobody has been asked to sign it yet.
+      return { label: 'Sent to you', tone: 'draft' };
+  }
+}
+
 /** A document's state in the words a client would use, given what they are being asked to do with it. */
 export function portalDocumentStatus(
   status: string,
   asks: 'decision' | 'signature',
+  signing: PortalSigning = null,
 ): { label: string; tone: StatusTone } {
   switch (status) {
     case 'sent':
     case 'viewed':
-      return { label: asks === 'decision' ? 'Needs your decision' : 'Sent to you', tone: 'attention' };
+      return asks === 'decision' ? { label: 'Needs your decision', tone: 'attention' } : signingLabel(signing);
     case 'awaiting_signature':
     case 'partially_signed':
-      return { label: 'Needs your signature', tone: 'attention' };
+      return signingLabel(signing);
     case 'accepted':
       return { label: 'Accepted', tone: 'built' };
     case 'signed':

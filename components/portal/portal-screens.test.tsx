@@ -48,6 +48,7 @@ const quote = (overrides: object = {}) => ({
   signedAt: undefined,
   pdfFileId: undefined,
   asks: 'decision',
+  signing: null,
   blocks: [{ kind: 'paragraph', text: 'Everything for Glossup.' }],
   lineItems: [],
   canDecide: true,
@@ -103,17 +104,38 @@ describe('a client’s documents', () => {
     expect(screen.queryByRole('button', { name: 'Decline' })).not.toBeInTheDocument();
   });
 
-  it('explains that a contract is signed rather than accepted', () => {
-    state.queries['portalDocuments.get'] = quote({
-      type: 'contract',
-      typeLabel: 'Contract',
+  const nda = (signing: string) =>
+    quote({
+      type: 'nda',
+      typeLabel: 'Non-disclosure agreement',
       asks: 'signature',
       status: 'awaiting_signature',
       canDecide: false,
+      totals: undefined,
+      currency: undefined,
+      signing,
     });
+
+  it('does not claim a signature is needed before anybody has been asked', () => {
+    state.queries['portalDocuments.get'] = nda('not_requested');
     render(<PortalDocument documentId={'d1' as never} />);
-    expect(screen.getByText(/signed rather than accepted/)).toBeInTheDocument();
+    expect(screen.getByText('Sent to you')).toBeInTheDocument();
+    expect(screen.getByText(/has not asked for signatures yet/)).toBeInTheDocument();
+    expect(screen.queryByText('Needs your signature')).not.toBeInTheDocument();
+  });
+
+  it('says a signature is needed once this person is the one being asked', () => {
+    state.queries['portalDocuments.get'] = nda('mine');
+    render(<PortalDocument documentId={'d1' as never} />);
     expect(screen.getByText('Needs your signature')).toBeInTheDocument();
+    expect(screen.getByText(/link is in your email/)).toBeInTheDocument();
+  });
+
+  it('says it is with a colleague when somebody else is signing', () => {
+    state.queries['portalDocuments.get'] = nda('others');
+    render(<PortalDocument documentId={'d1' as never} />);
+    expect(screen.getByText('Waiting for signatures')).toBeInTheDocument();
+    expect(screen.getByText(/with your colleagues to sign/)).toBeInTheDocument();
   });
 });
 
