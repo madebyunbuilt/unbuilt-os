@@ -15,7 +15,6 @@ const APP_DIR = join(ROOT, 'app');
  * whole of what is knowingly ahead of the screens.
  */
 const NOT_BUILT_YET: Record<string, string> = {
-  '/billing/bills': 'the bills screen, with the rest of the step 9 screens',
   '/portal/projects/:param': 'the client portal, step 10',
 };
 
