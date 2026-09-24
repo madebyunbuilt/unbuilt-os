@@ -81,8 +81,9 @@ export const list = teamQuery('invoices.view')({
   args: {
     status: v.optional(v.string()),
     clientId: v.optional(v.id('clients')),
+    projectId: v.optional(v.id('projects')),
   },
-  handler: async (ctx, { status, clientId }) => {
+  handler: async (ctx, { status, clientId, projectId }) => {
     const invoices = clientId
       ? await ctx.db
           .query('invoices')
@@ -91,6 +92,7 @@ export const list = teamQuery('invoices.view')({
       : await ctx.db.query('invoices').order('desc').take(1000);
     const views = await Promise.all(
       invoices
+        .filter((invoice) => !projectId || invoice.projectId === projectId)
         .filter((invoice) =>
           !status || status === 'all'
             ? true

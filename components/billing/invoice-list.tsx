@@ -20,15 +20,17 @@ import { INVOICE_STATUSES, type InvoiceStatus, invoiceStatus } from '@/lib/invoi
 export function InvoiceList({
   permissions,
   clientId,
+  projectId,
   heading,
 }: {
   permissions: string[];
   clientId?: Id<'clients'>;
+  projectId?: Id<'projects'>;
   heading?: string;
 }) {
   const router = useRouter();
   const [status, setStatus] = useState(clientId ? 'all' : 'open');
-  const invoices = useQuery(api.invoices.list, { clientId, status });
+  const invoices = useQuery(api.invoices.list, { clientId, projectId, status });
 
   return (
     <div className="space-y-4">

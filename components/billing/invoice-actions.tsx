@@ -112,6 +112,57 @@ export function SendInvoiceDialog({ invoice, canSeeContacts }: { invoice: Invoic
   );
 }
 
+/**
+ * Putting approved billable expenses on a draft invoice, at cost unless the studio has set a markup
+ * (08-billing-and-finance.md, Expenses). Only the client's own, in this invoice's currency, that no invoice has taken.
+ */
+export function AddExpensesDialog({ invoice }: { invoice: Invoice }) {
+  const addToInvoice = useMutation(api.expenses.addToInvoice);
+  const waiting = useQuery(api.expenses.billableFor, {
+    clientId: invoice.clientId,
+    currency: invoice.currency as Currency,
+  });
+  const [chosen, setChosen] = useState<string[]>([]);
+  const rows = waiting ?? [];
+  const total = rows.filter((row) => chosen.includes(row.id)).reduce((sum, row) => sum + row.rechargeMinor, 0);
+
+  if (rows.length === 0) return null;
+  return (
+    <FormDialog
+      trigger={<Button variant="outline">Add expenses</Button>}
+      title="Add expenses to this invoice"
+      description="Approved expenses for this client that no invoice has taken yet, recharged at what the studio paid."
+      submitLabel={total > 0 ? `Add ${formatMoney(total, invoice.currency as Currency)}` : 'Add'}
+      canSubmit={chosen.length > 0}
+      onSubmit={() => addToInvoice({ invoiceId: invoice.id, expenseIds: chosen as Id<'expenses'>[] })}
+    >
+      <fieldset className="space-y-2">
+        <legend className="text-sm font-medium">Which ones</legend>
+        {rows.map((row) => (
+          <div key={row.id} className="flex items-start gap-2">
+            <Checkbox
+              id={`expense-${row.id}`}
+              checked={chosen.includes(row.id)}
+              onCheckedChange={(value) =>
+                setChosen(value === true ? [...chosen, row.id] : chosen.filter((id) => id !== row.id))
+              }
+            />
+            <Label htmlFor={`expense-${row.id}`} className="font-normal">
+              {row.description}
+              <span className="block text-sm text-muted-foreground">
+                {row.categoryLabel} · {row.date} · {formatMoney(row.rechargeMinor, invoice.currency as Currency)}
+                {row.rechargeMinor !== row.amountMinor
+                  ? ` (cost ${formatMoney(row.amountMinor, invoice.currency as Currency)})`
+                  : ''}
+              </span>
+            </Label>
+          </div>
+        ))}
+      </fieldset>
+    </FormDialog>
+  );
+}
+
 /** Sending the same invoice again: it went to spam, or somebody new needs it. Nothing about the invoice changes. */
 export function SendAgainDialog({ invoice, canSeeContacts }: { invoice: Invoice; canSeeContacts: boolean }) {
   const sendAgain = useMutation(api.invoices.sendAgain);

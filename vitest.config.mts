@@ -20,7 +20,8 @@ export default defineConfig({
           // runs past the default 10 s the hook fails mid-way and the next test inherits half a database, so the real
           // cause ("hook timed out") arrives buried under errors like "user email already exists" in unrelated files.
           hookTimeout: 60_000,
-          testTimeout: 30_000,
+          // The same cost lands inside a test that walks several mutations, so it gets the same room as the hook.
+          testTimeout: 60_000,
         },
       },
       {
