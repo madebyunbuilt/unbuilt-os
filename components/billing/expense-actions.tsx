@@ -40,11 +40,14 @@ export function ExpenseFormDialog({
   const [category, setCategory] = useState(expense?.category ?? 'software');
   const [description, setDescription] = useState(expense?.description ?? '');
   const [amount, setAmount] = useState(expense ? toAmountInput(expense.amountMinor) : '');
-  const [currency, setCurrency] = useState<Currency>((expense?.currency as Currency) ?? 'NGN');
+  const [chosenCurrency, setCurrency] = useState<Currency>((expense?.currency as Currency) ?? 'NGN');
   const [date, setDate] = useState(expense?.date ?? lagosToday());
   const [project, setProject] = useState(expense?.projectId ?? projectId ?? '');
   const [billable, setBillable] = useState(expense?.billable ?? false);
   const [reimbursable, setReimbursable] = useState(expense?.reimbursable ?? false);
+  // An expense on a project is spent in that project's currency, which is the only one its client can be billed in.
+  const projectCurrency = (projects ?? []).find((row) => row.id === project)?.currency as Currency | undefined;
+  const currency = projectCurrency ?? chosenCurrency;
 
   return (
     <FormDialog
@@ -114,6 +117,7 @@ export function ExpenseFormDialog({
             <NativeSelect
               id="expense-currency"
               value={currency}
+              disabled={Boolean(projectCurrency)}
               onChange={(event) => setCurrency(event.target.value as Currency)}
             >
               <option value="NGN">NGN</option>
@@ -143,7 +147,8 @@ export function ExpenseFormDialog({
           ))}
         </NativeSelect>
         <p className="text-sm text-muted-foreground">
-          A project puts it against that client, which is what lets it be billed on.
+          A project puts it against that client, which is what lets it be billed on
+          {projectCurrency ? `, and is spent in ${projectCurrency}` : ''}.
         </p>
       </div>
 

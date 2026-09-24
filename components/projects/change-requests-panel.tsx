@@ -34,13 +34,15 @@ function ChangeRequestFormDialog({
 }) {
   const create = useMutation(api.changeRequests.create);
   const update = useMutation(api.changeRequests.update);
+  // A change request is priced in the project's own currency; the server sets it and will not take another.
+  const project = useQuery(api.projects.get, { projectId });
   const [title, setTitle] = useState(changeRequest?.title ?? '');
   const [description, setDescription] = useState(changeRequest?.description ?? '');
   const [reason, setReason] = useState(changeRequest?.reason ?? '');
   const [amount, setAmount] = useState(changeRequest ? toAmountInput(changeRequest.impact.amountMinor) : '');
   const [days, setDays] = useState(String(changeRequest?.impact.days ?? 0));
   const [billing, setBilling] = useState(changeRequest?.billing ?? 'invoice_now');
-  const currency = (changeRequest?.impact.currency as Currency) ?? 'NGN';
+  const currency = (changeRequest?.impact.currency ?? project?.currency) as Currency | undefined;
 
   return (
     <FormDialog
@@ -48,13 +50,15 @@ function ChangeRequestFormDialog({
       title={changeRequest ? 'Change this request' : 'New change request'}
       description="A priced change to what was agreed. Approving it moves the project's budget and due date, and bills the amount."
       submitLabel={changeRequest ? 'Save' : 'Create'}
-      canSubmit={title.trim().length > 0 && description.trim().length > 0 && reason.trim().length > 0}
+      canSubmit={
+        Boolean(currency) && title.trim().length > 0 && description.trim().length > 0 && reason.trim().length > 0
+      }
       onSubmit={async () => {
         const details = {
           title,
           description,
           reason,
-          amountMinor: amount.trim() ? parseMoneyInput(amount, currency) : 0,
+          amountMinor: amount.trim() ? parseMoneyInput(amount, currency!) : 0,
           days: Number(days) || 0,
           billing: billing as 'invoice_now',
         };
@@ -82,7 +86,7 @@ function ChangeRequestFormDialog({
 
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="space-y-2">
-          <Label htmlFor="cr-amount">What it adds ({currency})</Label>
+          <Label htmlFor="cr-amount">What it adds{currency ? ` (${currency})` : ''}</Label>
           <Input
             id="cr-amount"
             inputMode="decimal"

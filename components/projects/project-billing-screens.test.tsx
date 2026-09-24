@@ -96,7 +96,7 @@ beforeEach(() => {
     'billingSchedules.forProject': null,
     'retainers.forProject': null,
     'invoices.list': [],
-    'projects.get': { id: 'p1', clientId: 'c1', name: 'Glossup app' },
+    'projects.get': { id: 'p1', clientId: 'c1', name: 'Glossup app', currency: 'USD' },
     'changeRequests.listForProject': [],
     'contacts.listForClient': [{ id: 'ct1', name: 'Ada Obi', status: 'active' }],
   };
@@ -208,7 +208,7 @@ describe('change requests on a project', () => {
     await userEvent.type(within(dialog).getByLabelText('What is changing'), 'A second onboarding screen');
     await userEvent.type(within(dialog).getByLabelText('In full, for the client'), 'One more screen.');
     await userEvent.type(within(dialog).getByLabelText('Why it is needed'), 'User testing.');
-    await userEvent.type(within(dialog).getByLabelText(/What it adds/), '200000');
+    await userEvent.type(within(dialog).getByLabelText('What it adds (USD)'), '200000');
     await userEvent.clear(within(dialog).getByLabelText('Days it adds'));
     await userEvent.type(within(dialog).getByLabelText('Days it adds'), '5');
     await userEvent.selectOptions(within(dialog).getByLabelText('How it is billed'), 'with_the_schedule');
@@ -225,6 +225,14 @@ describe('change requests on a project', () => {
         billing: 'with_the_schedule',
       }),
     );
+  });
+
+  it('prices it in the project’s own currency, not the studio’s', async () => {
+    render(<ChangeRequestsPanel projectId={'p1' as never} permissions={PM} />);
+    await userEvent.click(screen.getByRole('button', { name: 'New change request' }));
+    const dialog = await screen.findByRole('dialog', { name: 'New change request' });
+    // The project is in dollars, so the field says so rather than defaulting to the studio's own currency.
+    expect(within(dialog).getByLabelText('What it adds (USD)')).toBeInTheDocument();
   });
 
   it('offers recording a decision only while it is with the client, and not when it must be signed', () => {
