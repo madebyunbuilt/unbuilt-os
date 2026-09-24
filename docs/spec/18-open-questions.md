@@ -30,19 +30,19 @@ these.
 
 ## For the studio
 
-| Question                                                                 | Default in the build                                                      |
-| ------------------------------------------------------------------------ | ------------------------------------------------------------------------- |
-| Convex deployment region                                                 | **Decided 2026-09-13:** EU West (Ireland) for dev, staging and production |
-| Is Paystack USD enabled on the business account                          | USD via bank transfer until enabled                                       |
-| Team sign-in: magic link only, or also passkeys                          | Magic link + TOTP, passkeys optional                                      |
-| Final SLA targets per policy                                             | Defaults in `09`; Standard, Priority and Retainer all start with them     |
-| Change request signature threshold                                       | ₦500,000 or equivalent                                                    |
-| Default billing schedule for fixed-price projects                        | 50% on signature, 50% on final approval                                   |
-| Markup on billable expenses                                              | 0%                                                                        |
-| A card payment that arrives for more than the invoice still owes         | Refused and not recorded; the money sits at Paystack until someone acts   |
-| Which email address receives the website enquiry acknowledgement replies | `hello@unbuilt.studio`                                                    |
-| Brand assets for PWA icons and PDFs                                      | From the existing brand kit                                               |
-| Custom domains `os.unbuilt.studio` and `portal.unbuilt.studio`           | Assumed; set up DNS once `unbuilt.studio` moves to the new Vercel setup   |
+| Question                                                                 | Default in the build                                                                   |
+| ------------------------------------------------------------------------ | -------------------------------------------------------------------------------------- |
+| Convex deployment region                                                 | **Decided 2026-09-13:** EU West (Ireland) for dev, staging and production              |
+| Is Paystack USD enabled on the business account                          | USD via bank transfer until enabled                                                    |
+| Team sign-in: magic link only, or also passkeys                          | Magic link + TOTP, passkeys optional                                                   |
+| Final SLA targets per policy                                             | Defaults in `09`; Standard, Priority and Retainer all start with them                  |
+| Change request signature threshold                                       | ₦500,000 or equivalent                                                                 |
+| Default billing schedule for fixed-price projects                        | 50% on signature, 50% on final approval                                                |
+| Markup on billable expenses                                              | 0%                                                                                     |
+| A card payment that arrives for more than the invoice still owes         | **Decided 2026-09-24:** take it, settle the invoice, hold the excess as credit (below) |
+| Which email address receives the website enquiry acknowledgement replies | `hello@unbuilt.studio`                                                                 |
+| Brand assets for PWA icons and PDFs                                      | From the existing brand kit                                                            |
+| Custom domains `os.unbuilt.studio` and `portal.unbuilt.studio`           | Assumed; set up DNS once `unbuilt.studio` moves to the new Vercel setup                |
 
 ### The overpaid card payment
 
@@ -51,6 +51,7 @@ down. It happens when the balance moves while a client has the checkout open —
 is applied, in the hour the Paystack link lives. The client's money has left their account and the studio's books do
 not show it until somebody reads the Paystack dashboard.
 
-The fix to weigh when this is picked up: take the payment, settle the invoice, and put the excess on the client's
-account as held credit, the way a credit note already does, so an overpayment becomes a balance to spend or refund
-rather than a silent failure. It touches how money is recorded, so it is the studio's call, not the builder's.
+**Decided 2026-09-24** (studio, to the builder's recommendation): take the payment, settle the invoice, and put the
+excess on the client's account as held credit, the way a credit note already does, so an overpayment becomes a balance
+to spend or refund rather than a silent failure. Not yet built — it waits until the payments code is open again, since
+the current behaviour refuses the payment rather than recording a wrong number, which fails in the safe direction.

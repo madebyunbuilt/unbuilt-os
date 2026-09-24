@@ -132,16 +132,24 @@ export const TEAM_NAVIGATION: readonly NavSection[] = [
   },
 ];
 
+// The portal is served under /portal in this app. On its own host (12-client-portal.md) that prefix is what a rewrite
+// maps the host root onto, so the paths stay the ones written here.
 export const PORTAL_NAVIGATION: readonly NavSection[] = [
   {
     items: [
-      { label: 'Home', href: '/', icon: 'home', built: true },
-      { label: 'Projects', href: '/projects', icon: 'folder', anyOf: ['portal.projects.view'], built: false },
-      { label: 'Documents', href: '/documents', icon: 'file', anyOf: ['portal.documents.view'], built: false },
-      { label: 'Invoices', href: '/invoices', icon: 'receipt', anyOf: ['portal.invoices.view'], built: false },
-      { label: 'Support', href: '/tickets', icon: 'lifebuoy', anyOf: ['portal.tickets.view'], built: false },
-      { label: 'Reports', href: '/reports', icon: 'chart', anyOf: ['portal.reports.view'], built: false },
-      { label: 'Colleagues', href: '/colleagues', icon: 'users', anyOf: ['portal.colleagues.manage'], built: false },
+      { label: 'Home', href: '/portal', icon: 'home', built: true },
+      { label: 'Projects', href: '/portal/projects', icon: 'folder', anyOf: ['portal.projects.view'], built: true },
+      { label: 'Documents', href: '/portal/documents', icon: 'file', anyOf: ['portal.documents.view'], built: false },
+      { label: 'Invoices', href: '/portal/invoices', icon: 'receipt', anyOf: ['portal.invoices.view'], built: false },
+      { label: 'Support', href: '/portal/tickets', icon: 'lifebuoy', anyOf: ['portal.tickets.view'], built: false },
+      { label: 'Reports', href: '/portal/reports', icon: 'chart', anyOf: ['portal.reports.view'], built: false },
+      {
+        label: 'Colleagues',
+        href: '/portal/colleagues',
+        icon: 'users',
+        anyOf: ['portal.colleagues.manage'],
+        built: false,
+      },
     ],
   },
 ];
