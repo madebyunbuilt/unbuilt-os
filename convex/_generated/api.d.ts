@@ -52,6 +52,7 @@ import type * as lib_documentTemplateSeeds from "../lib/documentTemplateSeeds.js
 import type * as lib_documents from "../lib/documents.js";
 import type * as lib_enquiries from "../lib/enquiries.js";
 import type * as lib_expenses from "../lib/expenses.js";
+import type * as lib_failures from "../lib/failures.js";
 import type * as lib_files from "../lib/files.js";
 import type * as lib_financeEmails from "../lib/financeEmails.js";
 import type * as lib_functions from "../lib/functions.js";
@@ -165,6 +166,7 @@ declare const fullApi: ApiFromModules<{
   "lib/documents": typeof lib_documents;
   "lib/enquiries": typeof lib_enquiries;
   "lib/expenses": typeof lib_expenses;
+  "lib/failures": typeof lib_failures;
   "lib/files": typeof lib_files;
   "lib/financeEmails": typeof lib_financeEmails;
   "lib/functions": typeof lib_functions;

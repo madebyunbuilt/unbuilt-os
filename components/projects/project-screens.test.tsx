@@ -189,6 +189,22 @@ describe('ProjectList', () => {
 });
 
 describe('ProjectHeader', () => {
+  it('shows the billing tabs to whoever holds the billing permissions', () => {
+    state.pathname = '/projects/p1';
+    render(
+      <ProjectHeader
+        projectId={'p1' as never}
+        permissions={[...PM, 'invoices.view', 'schedules.manage', 'changerequests.create']}
+      />,
+    );
+    const nav = screen.getByRole('navigation', { name: 'Project sections' });
+    expect(within(nav).getByRole('link', { name: 'Invoices' })).toHaveAttribute('href', '/projects/p1/invoices');
+    expect(within(nav).getByRole('link', { name: 'Change requests' })).toHaveAttribute(
+      'href',
+      '/projects/p1/change-requests',
+    );
+  });
+
   it('links built tabs, keeps the rest inert, and changes status with a reason', async () => {
     state.pathname = '/projects/p1/milestones';
     render(<ProjectHeader projectId={'p1' as never} permissions={PM} />);
@@ -198,8 +214,11 @@ describe('ProjectHeader', () => {
       'aria-current',
       'page',
     );
-    expect(within(nav).queryByRole('link', { name: 'Invoices' })).not.toBeInTheDocument();
-    expect(within(nav).getByText('Invoices')).toHaveAttribute('aria-disabled', 'true');
+    // Billing tabs need billing permissions, which this project manager does not hold.
+    expect(within(nav).queryByText('Invoices')).not.toBeInTheDocument();
+    expect(within(nav).queryByText('Change requests')).not.toBeInTheDocument();
+    expect(within(nav).queryByRole('link', { name: 'Updates' })).not.toBeInTheDocument();
+    expect(within(nav).getByText('Updates')).toHaveAttribute('aria-disabled', 'true');
 
     await userEvent.click(screen.getByRole('button', { name: 'Change status' }));
     // Archiving needs projects.archive, and a planning project cannot be completed.

@@ -109,6 +109,33 @@ describe('change requests', () => {
     await expectCode(pm.as.mutation(api.changeRequests.remove, { changeRequestId: id }), 'changeRequests.sent');
   });
 
+  it('generates a document with nothing left to fill in, so it can actually be sent', async () => {
+    const id = await pm.as.mutation(api.changeRequests.create, { projectId, ...smallChange });
+    const { documentId } = await pm.as.mutation(api.changeRequests.send, { changeRequestId: id });
+
+    // The template asks how the change is paid for. Without an answer the send fails after the change request has
+    // already been marked sent, and the studio is told in a notification rather than on the screen.
+    const document = await t.run((ctx) => ctx.db.get('documents', documentId));
+    expect(document?.paymentScheduleSummary).toContain('₦200,000.00');
+
+    // What the send itself does first: it must not throw for want of a detail.
+    await expect(
+      t.mutation(internal.documents.prepareSend, { documentId, memberId: pm.memberId }),
+    ).resolves.toMatchObject({ number: expect.any(String) });
+  });
+
+  it('says a change added to the schedule is billed with it', async () => {
+    const id = await pm.as.mutation(api.changeRequests.create, {
+      projectId,
+      ...smallChange,
+      billing: 'with_the_schedule',
+    });
+    const { documentId } = await pm.as.mutation(api.changeRequests.send, { changeRequestId: id });
+    expect(await t.run((ctx) => ctx.db.get('documents', documentId))).toMatchObject({
+      paymentScheduleSummary: expect.stringContaining('added to the payment schedule'),
+    });
+  });
+
   it('moves the budget and the due date and drafts the invoice, exactly once', async () => {
     const id = await pm.as.mutation(api.changeRequests.create, { projectId, ...smallChange });
     await pm.as.mutation(api.changeRequests.send, { changeRequestId: id });

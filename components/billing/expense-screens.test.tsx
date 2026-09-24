@@ -61,7 +61,7 @@ const expense = (overrides: object = {}) => ({
 beforeEach(() => {
   state.queries = {
     'expenses.list': [expense()],
-    'projects.list': [{ id: 'p1', code: 'UNB-P-0001', name: 'Glossup app' }],
+    'projects.list': [{ id: 'p1', code: 'UNB-P-0001', name: 'Glossup app', currency: 'USD' }],
   };
   state.queryArgs = {};
   state.mutations = {};
@@ -86,13 +86,27 @@ describe('the expenses screen', () => {
         category: 'travel',
         description: 'Taxi to the shoot',
         amountMinor: 800_000,
-        currency: 'NGN',
+        currency: 'USD',
         date: expect.any(String),
         projectId: 'p1',
         billable: true,
         reimbursable: true,
       }),
     );
+  });
+
+  it('spends in the project’s currency once a project is chosen', async () => {
+    render(<ExpenseList permissions={MEMBER} />);
+    await userEvent.click(screen.getByRole('button', { name: 'Log an expense' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Log an expense' });
+
+    // The studio's own spend is in whatever the person picks.
+    expect(within(dialog).getByLabelText('Currency')).toBeEnabled();
+    await userEvent.selectOptions(within(dialog).getByLabelText('Project (optional)'), 'p1');
+    // On a project it is that project's currency, and not the person's to change.
+    const currency = within(dialog).getByLabelText('Currency');
+    expect(currency).toHaveValue('USD');
+    expect(currency).toBeDisabled();
   });
 
   it('will not let a client be billed until a project says which client', async () => {

@@ -6,6 +6,7 @@ import { type Id } from './_generated/dataModel';
 import { sendDocumentEmail } from './lib/documentEmails';
 import { internalAction } from './lib/functions';
 import { renderDocumentPdf } from './lib/renderDocumentPdf';
+import { failureReason } from './lib/failures';
 
 // Sending a document (07-documents-and-esign.md, Send). The order is the one set out there: snapshot the version, render
 // the PDF, store it with its hash, assign the number on the first send, then email the client. Each database step is its
@@ -71,7 +72,7 @@ export const send = internalAction({
       await ctx.runMutation(internal.documents.reportSendFailed, {
         documentId: args.documentId,
         memberId: args.memberId,
-        reason: error instanceof Error ? error.message : 'The document could not be sent',
+        reason: failureReason(error, 'The document could not be sent'),
       });
       throw error;
     }

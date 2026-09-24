@@ -13,7 +13,7 @@
   - **Time**
   - **Change requests**
   - **Documents**
-  - **Invoices**
+  - **Invoices** — with the project's billing schedule and its retainer, since those are what raise the invoices
   - **Files**
   - **Vault**
   - **Tickets**

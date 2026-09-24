@@ -47,7 +47,7 @@ vi.mock('@/convex/_generated/api', () => {
         'projects',
         'rateCard',
         'files',
-        'rateCard',
+        'expenses',
       ].map((name) => [name, functions(name)]),
     ),
   };
@@ -407,6 +407,48 @@ describe('InvoicePage', () => {
     expect(screen.getByRole('button', { name: 'Delete the draft' })).toBeInTheDocument();
     // Nothing to send again until it has been sent once.
     expect(screen.queryByRole('button', { name: 'Send again' })).not.toBeInTheDocument();
+  });
+
+  it('adds approved expenses to a draft at what the studio paid', async () => {
+    state.queries['invoices.get'] = invoice({
+      status: 'draft',
+      number: undefined,
+      issueDate: undefined,
+      dueDate: undefined,
+      paidMinor: 0,
+      balanceMinor: 10_000_000,
+      pdfFileId: undefined,
+    });
+    state.queries['expenses.billableFor'] = [
+      {
+        id: 'e1',
+        description: 'Licence for three hero images',
+        categoryLabel: 'Stock and assets',
+        date: '2026-09-22',
+        amountMinor: 25_000_00,
+        rechargeMinor: 25_000_00,
+      },
+    ];
+    render(<InvoicePage invoiceId={'i1' as never} permissions={FINANCE} />);
+    await userEvent.click(screen.getByRole('button', { name: 'Add expenses' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Add expenses to this invoice' });
+    // Nothing is added until something is ticked.
+    expect(within(dialog).getByRole('button', { name: 'Add' })).toBeDisabled();
+    await userEvent.click(within(dialog).getByLabelText(/Licence for three hero images/));
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Add ₦25,000.00' }));
+    await waitFor(() =>
+      expect(state.mutations['expenses.addToInvoice']).toHaveBeenCalledWith({
+        invoiceId: 'i1',
+        expenseIds: ['e1'],
+      }),
+    );
+  });
+
+  it('offers nothing to add when no expense is waiting', () => {
+    state.queries['invoices.get'] = invoice({ status: 'draft', number: undefined, pdfFileId: undefined });
+    state.queries['expenses.billableFor'] = [];
+    render(<InvoicePage invoiceId={'i1' as never} permissions={FINANCE} />);
+    expect(screen.queryByRole('button', { name: 'Add expenses' })).not.toBeInTheDocument();
   });
 
   it('sends a sent invoice again, to whoever had it last', async () => {

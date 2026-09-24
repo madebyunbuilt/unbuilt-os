@@ -6,6 +6,7 @@ import { internalAction } from './lib/functions';
 import { sendReminderEmail } from './lib/invoiceEmails';
 import { mintPayLink } from './lib/payLinks';
 import { reminderWording } from './lib/invoices';
+import { failureReason } from './lib/failures';
 
 // Emails one payment reminder to the billing contacts, with the invoice's stored PDF attached again.
 
@@ -38,7 +39,7 @@ export const send = internalAction({
       await ctx.runMutation(internal.billingChase.reminderFailed, {
         invoiceId,
         memberId: data.createdByMemberId,
-        reason: error instanceof Error ? error.message : 'The reminder could not be sent',
+        reason: failureReason(error, 'The reminder could not be sent'),
       });
       throw error;
     }

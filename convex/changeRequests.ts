@@ -172,6 +172,13 @@ export const send = teamMutation('changerequests.send')({
         projectId: changeRequest.projectId,
         title: `${number}: ${changeRequest.title}`,
         currency: changeRequest.impact.currency,
+        // The template's payment terms ask how this is paid for; the change request already knows.
+        paymentScheduleSummary:
+          changeRequest.impact.amountMinor === 0
+            ? 'This change costs nothing; there is nothing further to pay.'
+            : changeRequest.billing === 'with_the_schedule'
+              ? `${formatMoney(changeRequest.impact.amountMinor, changeRequest.impact.currency)} added to the payment schedule already agreed for this project, and invoiced with it.`
+              : `${formatMoney(changeRequest.impact.amountMinor, changeRequest.impact.currency)} invoiced once this change is approved, on the payment terms already agreed.`,
         lineItems:
           changeRequest.impact.amountMinor > 0
             ? [

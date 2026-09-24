@@ -12,6 +12,7 @@ import {
   RefundPaymentDialog,
   RemindersToggle,
   ReverseWriteOffButton,
+  AddExpensesDialog,
   SendAgainDialog,
   SendInvoiceDialog,
   VoidInvoiceDialog,
@@ -107,6 +108,7 @@ export function InvoicePage({ invoiceId, permissions }: { invoiceId: Id<'invoice
           {isDraft && can('invoices.send') && (
             <SendInvoiceDialog invoice={invoice} canSeeContacts={can('clients.view')} />
           )}
+          {isDraft && can('invoices.update') && <AddExpensesDialog invoice={invoice} />}
           {isDraft && can('invoices.update') && (
             <InvoiceFormDialog
               invoice={invoice}
