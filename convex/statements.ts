@@ -3,19 +3,12 @@ import { internal } from './_generated/api';
 import { getClient } from './lib/crm';
 import { recordUpload } from './lib/files';
 import { internalMutation, internalQuery, teamMutation, teamQuery } from './lib/functions';
-import { invoiceError } from './lib/invoices';
 import { getOrgSettings } from './lib/settings';
-import { buildStatement } from './lib/statements';
-import { isIsoDate } from './lib/validation';
+import { buildStatement, checkedRange } from './lib/statements';
 import { type StatementPdfPayload } from '../pdf/types';
 
 // Client statements of account (08-billing-and-finance.md, Statements). The team reads one on screen for any range, or
 // asks for the PDF, which an action renders and keeps. The portal view arrives with the client portal (step 10).
-
-function checkedRange(fromDate: string, toDate: string) {
-  if (!isIsoDate(fromDate) || !isIsoDate(toDate)) throw invoiceError('invoices.invalid', 'Choose a start and end date');
-  if (fromDate > toDate) throw invoiceError('invoices.invalid', 'The start date is after the end date');
-}
 
 export const forClient = teamQuery('invoices.view')({
   args: { clientId: v.id('clients'), fromDate: v.string(), toDate: v.string() },

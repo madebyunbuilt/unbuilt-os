@@ -41,6 +41,14 @@ client (see `03-auth-and-permissions.md`).
   descriptions and team rates never appear. Time is shown only as retainer totals.
 - **Client admin vs member**: see the client roles table in `03-auth-and-permissions.md`. Invoices and approving change
   requests are admin-only by default; this is configurable per client.
+- **A client is never told their debt was written off** (studio, 2026-09-24): a written-off invoice is absent from the
+  portal entirely, the same way it is absent from a statement. Drafts are absent too, being the studio's own working
+  copies.
+- **Paying from the portal opens the same pay page an emailed link opens.** The token is derived from the invoice, so
+  the portal works it out rather than minting a second one, and a client who arrives from their inbox or from the
+  portal lands in the same place. An invoice whose token predates that rule is offered no link at all, rather than one
+  that would not open; the bank details are always shown either way.
+- **The reference shown to a client is Paystack's**, never `inv_<invoiceId>_<attempt>`, which is the studio's own.
 - **A signed document says where it actually stands** (studio, 2026-09-24): `awaiting_signature` is set the moment the
   document is sent, so it means only that it went out. What the client is told comes from the signing request instead —
   needs your signature when they are the one invited, your turn is coming when somebody signs first, waiting for

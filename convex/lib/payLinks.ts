@@ -20,7 +20,7 @@ function payLinkSecret(): string {
   return secret;
 }
 
-async function deriveToken(invoiceId: Id<'invoices'>): Promise<string> {
+export async function deriveToken(invoiceId: Id<'invoices'>): Promise<string> {
   const key = await crypto.subtle.importKey(
     'raw',
     new TextEncoder().encode(payLinkSecret()),

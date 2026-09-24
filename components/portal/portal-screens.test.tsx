@@ -2,6 +2,7 @@ import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { PortalDocument, PortalDocuments } from './portal-documents';
+import { PortalInvoice } from './portal-invoices';
 import { PortalHome } from './portal-home';
 
 // The portal's screens (12-client-portal.md): a client is offered the one thing they are being asked to do, and is
@@ -21,7 +22,9 @@ vi.mock('convex/react', () => ({
 }));
 vi.mock('@/convex/_generated/api', () => {
   const functions = (name: string) => new Proxy({}, { get: (_, fn: string) => ({ _name: `${name}.${fn}` }) });
-  return { api: Object.fromEntries(['portal', 'portalDocuments', 'files'].map((n) => [n, functions(n)])) };
+  return {
+    api: Object.fromEntries(['portal', 'portalDocuments', 'portalBilling', 'files'].map((n) => [n, functions(n)])),
+  };
 });
 
 const quote = (overrides: object = {}) => ({
@@ -158,5 +161,81 @@ describe('the portal home', () => {
     };
     render(<PortalHome />);
     expect(screen.getByRole('link', { name: /Invoice UNB-INV-0001/ })).toHaveAttribute('href', '/invoices/i1');
+  });
+});
+
+describe('a client’s invoice', () => {
+  const invoice = (overrides: object = {}) => ({
+    id: 'i1',
+    number: 'UNB-INV-0001',
+    typeLabel: 'Invoice',
+    status: 'sent',
+    currency: 'NGN',
+    issueDate: '2026-09-24',
+    dueDate: '2026-10-08',
+    totalMinor: 100_000_00,
+    balanceMinor: 100_000_00,
+    paidMinor: 0,
+    creditedMinor: 0,
+    whtCreditedMinor: 0,
+    pdfFileId: undefined,
+    payable: true,
+    lineItems: [],
+    totals: {
+      subtotalMinor: 100_000_00,
+      discountMinor: 0,
+      taxableMinor: 100_000_00,
+      vatMinor: 0,
+      totalMinor: 100_000_00,
+      whtExpectedMinor: 0,
+    },
+    vat: { applies: false, bps: 0 },
+    whtOnBalanceMinor: 0,
+    payments: [],
+    creditNotes: [],
+    byCard: true,
+    bankAccounts: [{ bankName: 'GTBank', accountName: 'Unbuilt Studio', accountNumber: '0123456789' }],
+    ...overrides,
+  });
+
+  it('offers the pay button only when there is a link to open', async () => {
+    state.queries['portalBilling.invoice'] = invoice();
+    state.queries['portalBilling.payLink'] = { url: null };
+    render(<PortalInvoice invoiceId={'i1' as never} />);
+    expect(screen.queryByRole('link', { name: 'Pay this invoice' })).not.toBeInTheDocument();
+    // The bank details are always there, so there is still a way to pay.
+    expect(screen.getByText('0123456789')).toBeInTheDocument();
+  });
+
+  it('pays through the same page an emailed link opens', () => {
+    state.queries['portalBilling.invoice'] = invoice();
+    state.queries['portalBilling.payLink'] = { url: 'https://portal.example.com/pay/abc' };
+    render(<PortalInvoice invoiceId={'i1' as never} />);
+    expect(screen.getByRole('link', { name: 'Pay this invoice' })).toHaveAttribute(
+      'href',
+      'https://portal.example.com/pay/abc',
+    );
+  });
+
+  it('tells a client who withholds tax what to send, and what to remit', () => {
+    state.queries['portalBilling.invoice'] = invoice({ whtOnBalanceMinor: 5_000_00 });
+    state.queries['portalBilling.payLink'] = { url: null };
+    render(<PortalInvoice invoiceId={'i1' as never} />);
+    expect(screen.getByText(/pay ₦95,000.00/)).toBeInTheDocument();
+    expect(screen.getByText(/certificate for ₦5,000.00/)).toBeInTheDocument();
+  });
+
+  it('says a settled invoice is settled, and offers no payment', () => {
+    state.queries['portalBilling.invoice'] = invoice({
+      status: 'paid',
+      paidMinor: 100_000_00,
+      balanceMinor: 0,
+      payable: false,
+    });
+    render(<PortalInvoice invoiceId={'i1' as never} />);
+    // "Paid" is both the badge and the row saying how much: the settled line is the one that is unique.
+    expect(screen.getAllByText('Paid').length).toBeGreaterThan(0);
+    expect(screen.getByText('Settled')).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Pay this invoice' })).not.toBeInTheDocument();
   });
 });

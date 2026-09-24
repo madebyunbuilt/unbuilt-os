@@ -83,3 +83,17 @@ export function portalDocumentStatus(
       return { label: 'Sent to you', tone: 'draft' };
   }
 }
+
+/** An invoice in the client's words: they care what is left to pay, not the studio's lifecycle. */
+export function portalInvoiceStatus(status: string): { label: string; tone: StatusTone } {
+  switch (status) {
+    case 'paid':
+      return { label: 'Paid', tone: 'built' };
+    case 'partially_paid':
+      return { label: 'Part paid', tone: 'draft' };
+    case 'overdue':
+      return { label: 'Overdue', tone: 'attention' };
+    default:
+      return { label: 'To pay', tone: 'attention' };
+  }
+}
