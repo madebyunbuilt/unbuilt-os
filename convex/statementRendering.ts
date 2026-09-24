@@ -4,6 +4,7 @@ import { v } from 'convex/values';
 import { internal } from './_generated/api';
 import { internalAction } from './lib/functions';
 import { renderStatementPdf } from './lib/renderDocumentPdf';
+import { failureReason } from './lib/failures';
 
 // Renders a statement PDF and keeps it on its statement row.
 
@@ -19,7 +20,7 @@ export const render = internalAction({
     } catch (error) {
       await ctx.runMutation(internal.statements.attachPdf, {
         statementId,
-        failure: error instanceof Error ? error.message : 'The statement could not be made',
+        failure: failureReason(error, 'The statement could not be made'),
       });
     }
     return null;

@@ -7,6 +7,7 @@ import { internalAction } from './lib/functions';
 import { formatMoney } from './lib/money';
 import { mintPayLink } from './lib/payLinks';
 import { renderInvoicePdf } from './lib/renderDocumentPdf';
+import { failureReason } from './lib/failures';
 
 // Sending an invoice (08-billing-and-finance.md, Invoices, Send): number it, freeze its lines, totals and rate, render
 // the PDF and store it with its hash, then email the billing contacts with the PDF. Each database step is its own
@@ -68,7 +69,7 @@ export const send = internalAction({
       await ctx.runMutation(internal.invoices.reportSendFailed, {
         invoiceId: args.invoiceId,
         memberId: args.memberId,
-        reason: error instanceof Error ? error.message : 'The invoice could not be sent',
+        reason: failureReason(error, 'The invoice could not be sent'),
       });
       throw error;
     }
@@ -129,7 +130,7 @@ export const sendAgain = internalAction({
       await ctx.runMutation(internal.invoices.reportSendFailed, {
         invoiceId: args.invoiceId,
         memberId: args.memberId,
-        reason: error instanceof Error ? error.message : 'The invoice could not be sent again',
+        reason: failureReason(error, 'The invoice could not be sent again'),
       });
       throw error;
     }

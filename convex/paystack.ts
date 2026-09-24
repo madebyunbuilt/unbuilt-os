@@ -15,6 +15,7 @@ import {
   verifyTransaction,
 } from './lib/paystack';
 import { sha256Hex } from './lib/signatures';
+import { failureReason } from './lib/failures';
 
 // Card payments through Paystack (08-billing-and-finance.md, Paystack). The transaction is created when the client
 // presses Pay, for exactly what is owed then, so a link never charges a stale amount. Nothing is recorded as paid from
@@ -195,7 +196,7 @@ export const processEvent = internalAction({
       await ctx.runMutation(internal.paystack.finishEvent, {
         eventId,
         status: 'failed',
-        error: error instanceof Error ? error.message : 'The event could not be processed',
+        error: failureReason(error, 'The event could not be processed'),
       });
       throw error;
     }
@@ -212,7 +213,7 @@ export const sendRefund = internalAction({
     } catch (error) {
       await ctx.runMutation(internal.payments.reportRefundFailed, {
         refundId,
-        reason: error instanceof Error ? error.message : 'Paystack refused the refund',
+        reason: failureReason(error, 'Paystack refused the refund'),
       });
       throw error;
     }

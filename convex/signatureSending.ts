@@ -4,6 +4,7 @@ import { internalAction } from './lib/functions';
 import { portalAppOrigin } from './lib/hosts';
 import { assertCanSendEmail, sendSignatureEmail } from './lib/signatureEmails';
 import { newToken, sha256Hex } from './lib/signatures';
+import { failureReason } from './lib/failures';
 
 // Emailing a signer their link (07-documents-and-esign.md, The signing ceremony). The token is minted here, inside the
 // action, so the raw value only ever lives in memory and in the email: scheduler arguments are stored, and only the
@@ -46,7 +47,7 @@ export const sendLink = internalAction({
       await ctx.runMutation(internal.signatures.reportLinkFailed, {
         requestId: args.requestId,
         signerId: args.signerId,
-        reason: error instanceof Error ? error.message : 'The signing link could not be sent',
+        reason: failureReason(error, 'The signing link could not be sent'),
       });
       throw error;
     }

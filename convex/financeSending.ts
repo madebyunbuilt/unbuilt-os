@@ -5,6 +5,7 @@ import { internal } from './_generated/api';
 import { sendFinanceEmail } from './lib/financeEmails';
 import { internalAction } from './lib/functions';
 import { renderCreditNotePdf, renderReceiptPdf } from './lib/renderDocumentPdf';
+import { failureReason } from './lib/failures';
 
 // Renders a receipt or credit note, stores it on its record, and emails the billing contacts. The money was recorded
 // before this runs, so a failure here only leaves the PDF or email missing; whoever recorded it is told.
@@ -42,7 +43,7 @@ export const sendReceipt = internalAction({
       await ctx.runMutation(internal.financeDocuments.reportFailed, {
         memberId,
         what: 'A receipt',
-        reason: error instanceof Error ? error.message : 'It could not be made',
+        reason: failureReason(error, 'It could not be made'),
       });
       throw error;
     }
@@ -82,7 +83,7 @@ export const sendCreditNote = internalAction({
       await ctx.runMutation(internal.financeDocuments.reportFailed, {
         memberId,
         what: 'A credit note',
-        reason: error instanceof Error ? error.message : 'It could not be made',
+        reason: failureReason(error, 'It could not be made'),
       });
       throw error;
     }

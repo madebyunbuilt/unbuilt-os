@@ -8,6 +8,7 @@ import { internalAction } from './lib/functions';
 import { type CertificateSigner, type DocumentPdfPayload } from '../pdf/types';
 import { appendPdf, renderCertificatePdf, renderDocumentPdf } from './lib/renderDocumentPdf';
 import { sendSignatureEmail } from './lib/signatureEmails';
+import { failureReason } from './lib/failures';
 
 // Completion (07-documents-and-esign.md, Completion). When the last signer signs, this builds the signed PDF: the
 // document with the signatures on its own lines (drawn again from the payload kept at send, and only if that redraws to
@@ -105,7 +106,7 @@ export const complete = internalAction({
     } catch (error) {
       await ctx.runMutation(internal.signatures.reportCompletionFailed, {
         requestId,
-        reason: error instanceof Error ? error.message : 'The signed PDF could not be made',
+        reason: failureReason(error, 'The signed PDF could not be made'),
       });
       throw error;
     }
