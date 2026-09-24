@@ -226,6 +226,50 @@ describe('a client’s invoice', () => {
     expect(screen.getByText(/certificate for ₦5,000.00/)).toBeInTheDocument();
   });
 
+  it('words how they paid, and labels the reference so it is not read as an account', () => {
+    state.queries['portalBilling.invoice'] = invoice({
+      payments: [
+        {
+          id: 'p1',
+          amountMinor: 14_040_00,
+          receivedOn: '2026-09-23',
+          method: 'paystack',
+          instrument: 'Card · visa ending 4081',
+          reference: '6586506623',
+          receiptId: 'r1',
+          receiptNumber: 'UNB-RCT-0005',
+          receiptFileId: undefined,
+        },
+      ],
+    });
+    state.queries['portalBilling.payLink'] = { url: null };
+    render(<PortalInvoice invoiceId={'i1' as never} />);
+    expect(screen.getByText(/Card · visa ending 4081/)).toBeInTheDocument();
+    expect(screen.getByText('Reference 6586506623')).toBeInTheDocument();
+  });
+
+  it('says how a manual payment arrived in words, not as a database value', () => {
+    state.queries['portalBilling.invoice'] = invoice({
+      payments: [
+        {
+          id: 'p1',
+          amountMinor: 10_000_00,
+          receivedOn: '2026-09-22',
+          method: 'bank_transfer',
+          instrument: undefined,
+          reference: 'GTB/123',
+          receiptId: undefined,
+          receiptNumber: undefined,
+          receiptFileId: undefined,
+        },
+      ],
+    });
+    state.queries['portalBilling.payLink'] = { url: null };
+    render(<PortalInvoice invoiceId={'i1' as never} />);
+    expect(screen.getByText(/Bank transfer/)).toBeInTheDocument();
+    expect(screen.queryByText(/bank_transfer/)).not.toBeInTheDocument();
+  });
+
   it('lets a client open the receipt for what they paid', () => {
     state.queries['portalBilling.invoice'] = invoice({
       payments: [
@@ -234,6 +278,7 @@ describe('a client’s invoice', () => {
           amountMinor: 10_000_00,
           receivedOn: '2026-09-22',
           method: 'bank_transfer',
+          instrument: undefined,
           reference: 'GTB/123',
           receiptId: 'r1',
           receiptNumber: 'UNB-RCT-0001',
@@ -277,6 +322,7 @@ describe('a client’s invoice', () => {
           amountMinor: 100_000_00,
           receivedOn: '2026-09-22',
           method: 'bank_transfer',
+          instrument: undefined,
           reference: 'GTB/123',
           receiptId: 'r1',
           receiptNumber: 'UNB-RCT-0001',

@@ -8,6 +8,7 @@ import { api } from '@/convex/_generated/api';
 import { type Id } from '@/convex/_generated/dataModel';
 import { type Currency, formatMoney } from '@/convex/lib/money';
 import { formatDay } from '@/lib/crm-display';
+import { methodLabel } from '@/lib/invoices-display';
 import { portalInvoiceStatus } from '@/lib/portal-display';
 
 // A client's invoices (12-client-portal.md, Invoices): what is owed, what was paid, and how to pay the rest. Nothing
@@ -186,9 +187,12 @@ export function PortalInvoice({ invoiceId }: { invoiceId: Id<'invoices'> }) {
                 <div>
                   <p className="font-medium tabular-nums">{formatMoney(payment.amountMinor, currency)}</p>
                   <p className="text-muted-foreground">
-                    {formatDay(payment.receivedOn)} · {payment.method}
-                    {payment.reference ? ` · ${payment.reference}` : ''}
+                    {formatDay(payment.receivedOn)} · {methodLabel(payment.method, payment.instrument)}
                   </p>
+                  {payment.reference && (
+                    // Labelled: a bare number beside "Card" reads like the account it went to.
+                    <p className="text-muted-foreground">Reference: {payment.reference}</p>
+                  )}
                 </div>
                 {payment.receiptNumber &&
                   (payment.receiptFileId ? (

@@ -105,7 +105,8 @@ describe('a client’s invoices', () => {
     expect(read).toMatchObject({ balanceMinor: 60_000_00, status: 'partially_paid' });
     expect(read?.payments[0]).toMatchObject({
       amountMinor: 40_000_00,
-      method: 'Card · visa ending 4081',
+      method: 'paystack',
+      instrument: 'Card · visa ending 4081',
       // Paystack's own id, never the studio's internal inv_<id>_<attempt>.
       reference: '6585624736',
     });

@@ -103,8 +103,10 @@ export const invoice = portalQuery('portal.invoices.view')({
           id: payment._id,
           amountMinor: payment.amountMinor,
           receivedOn: payment.receivedOn,
-          // What the client would recognise: how they paid, and Paystack's own reference where there is one.
-          method: payment.paystackInstrument ?? payment.method,
+          // Raw, for the display layer to word: methodLabel already knows how to say each of these to a client.
+          method: payment.method,
+          instrument: payment.paystackInstrument,
+          // Paystack's own, where there is one; never the studio's inv_<invoiceId>_<attempt>.
           reference: payment.paystackTransactionId ?? payment.reference,
           receiptId: receipts.find((receipt) => receipt.paymentId === payment._id)?._id,
           receiptNumber: receipts.find((receipt) => receipt.paymentId === payment._id)?.number,
