@@ -245,7 +245,7 @@ describe('a client’s invoice', () => {
     state.queries['portalBilling.payLink'] = { url: null };
     render(<PortalInvoice invoiceId={'i1' as never} />);
     expect(screen.getByText(/Card · visa ending 4081/)).toBeInTheDocument();
-    expect(screen.getByText('Reference 6586506623')).toBeInTheDocument();
+    expect(screen.getByText('Reference: 6586506623')).toBeInTheDocument();
   });
 
   it('says how a manual payment arrived in words, not as a database value', () => {
