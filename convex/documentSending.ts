@@ -45,6 +45,7 @@ export const send = internalAction({
       if (!stored.ok) throw new Error(stored.message);
 
       const emailed: string[] = [];
+      const recipientContactIds: Id<'contacts'>[] = [];
       for (const recipient of prepared.recipients) {
         await sendDocumentEmail({
           to: recipient.email,
@@ -59,12 +60,14 @@ export const send = internalAction({
           validUntil: prepared.validUntilLabel,
         });
         emailed.push(recipient.email);
+        recipientContactIds.push(recipient.id);
       }
 
       await ctx.runMutation(internal.documents.markSent, {
         documentId: args.documentId,
         version: prepared.version,
         emailed,
+        recipientContactIds,
       });
       return null;
     } catch (error) {

@@ -246,6 +246,7 @@ viewed, accepted, declined, expired, awaiting_signature, partially_signed, signe
 `firstViewedAt?` `lastViewedAt?` `viewCount` `acceptedAt?` `declinedReason?` `signedAt?` `pdfFileId?` `pdfSha256?`
 `createdByMemberId`.
 Indexes: `by_client`, `by_project`, `by_status`, `by_chainRoot`. Search index on `title` and `number`.
+`recipientContactIds?` holds who the last send was emailed to, so a client member can act on what was addressed to them.
 
 **documentVersions** — `documentId` `version` `blocks` `lineItems` `totals` `pdfFileId` `pdfSha256` `createdAt`
 `createdBy` `changeNote`. Versions are immutable.

@@ -35,3 +35,28 @@ export function milestoneStatus(status: string): { label: string; tone: StatusTo
       return { label: 'To come', tone: 'draft' };
   }
 }
+
+/** A document's state in the words a client would use, given what they are being asked to do with it. */
+export function portalDocumentStatus(
+  status: string,
+  asks: 'decision' | 'signature',
+): { label: string; tone: StatusTone } {
+  switch (status) {
+    case 'sent':
+    case 'viewed':
+      return { label: asks === 'decision' ? 'Needs your decision' : 'Sent to you', tone: 'attention' };
+    case 'awaiting_signature':
+    case 'partially_signed':
+      return { label: 'Needs your signature', tone: 'attention' };
+    case 'accepted':
+      return { label: 'Accepted', tone: 'built' };
+    case 'signed':
+      return { label: 'Signed', tone: 'built' };
+    case 'declined':
+      return { label: 'Declined', tone: 'muted' };
+    case 'expired':
+      return { label: 'Expired', tone: 'muted' };
+    default:
+      return { label: 'Sent to you', tone: 'draft' };
+  }
+}

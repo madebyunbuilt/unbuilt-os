@@ -807,6 +807,9 @@ export default defineSchema({
     declinedAt: v.optional(v.number()),
     declinedReason: v.optional(v.string()),
     signedAt: v.optional(v.number()),
+    // Who it was emailed to on the last send. A client member may act on a document the studio addressed to them
+    // (03-auth-and-permissions.md, Client roles), which needs the contacts kept rather than only their addresses.
+    recipientContactIds: v.optional(v.array(v.id('contacts'))),
     // A sent document edited since its last version went out: the client still has that version until the next send.
     unsentChanges: v.optional(v.boolean()),
     voidReason: v.optional(v.string()),
