@@ -84,7 +84,7 @@ export const TEAM_NAVIGATION: readonly NavSection[] = [
         anyOf: ['expenses.log', 'expenses.approve'],
         built: true,
       },
-      { label: 'Bills', href: '/billing/bills', icon: 'truck', anyOf: ['bills.manage', 'bills.pay'], built: false },
+      { label: 'Bills', href: '/billing/bills', icon: 'truck', anyOf: ['bills.manage', 'bills.pay'], built: true },
     ],
   },
   {
