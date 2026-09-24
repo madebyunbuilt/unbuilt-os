@@ -655,7 +655,7 @@ export const reportSendFailed = internalMutation({
       event: 'invoice_send_failed',
       title: `${invoice?.number ?? 'An invoice'} did not go out`,
       body: reason.slice(0, 300),
-      link: `/invoices/${invoiceId}`,
+      link: `/billing/invoices/${invoiceId}`,
     });
   },
 });

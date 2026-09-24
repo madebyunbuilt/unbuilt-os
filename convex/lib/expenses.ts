@@ -66,7 +66,22 @@ export function assertBillable(expense: Doc<'expenses'>, invoice: Doc<'invoices'
       `This expense is in ${expense.currency} and that invoice is in ${invoice.currency}`,
     );
   }
-  if (expense.clientId && expense.clientId !== invoice.clientId) {
+  // No client at all is refused as firmly as the wrong one: an expense reaches a client through its project, and one
+  // with no project belongs to nobody. Letting it through here would put a cost on a client who never incurred it.
+  if (!expense.clientId) {
+    throw expenseError('expenses.noClient', 'This expense has no project, so there is no client to bill it to');
+  }
+  if (expense.clientId !== invoice.clientId) {
     throw expenseError('expenses.otherClient', 'This expense belongs to another client');
+  }
+}
+
+/** Billing a client for an expense means naming the project it was for; that is where its client comes from. */
+export function assertBillableHasProject(args: { billable?: boolean; projectId?: unknown }) {
+  if (args.billable && !args.projectId) {
+    throw expenseError(
+      'expenses.needsProject',
+      'Choose the project this was for, so there is a client to bill it to — or untick billing it on',
+    );
   }
 }

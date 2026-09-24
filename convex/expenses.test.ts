@@ -106,6 +106,23 @@ describe('logging an expense', () => {
     });
   });
 
+  it('refuses billing a client when there is no project to say which client', async () => {
+    // Billable with no project would sit approved for ever and reach no invoice, so it is refused outright.
+    await expectCode(logged({ projectId: undefined }), 'expenses.needsProject');
+    const own = await logged({ projectId: undefined, billable: false });
+    await expectCode(
+      dayo.as.mutation(api.expenses.update, {
+        expenseId: own,
+        category: 'travel',
+        description: 'Trip to the south',
+        amountMinor: 480_000_00,
+        date: '2026-09-22',
+        billable: true,
+      }),
+      'expenses.needsProject',
+    );
+  });
+
   it('refuses a future date, an amount of nothing, and a currency with no rate', async () => {
     await expectCode(logged({ date: '2026-09-24' }), 'expenses.future');
     await expectCode(logged({ amountMinor: 0 }), 'expenses.invalid');
@@ -129,6 +146,7 @@ describe('logging an expense', () => {
     );
     await dayo.as.mutation(api.expenses.update, {
       expenseId: id,
+      projectId,
       category: 'travel',
       description: 'Taxi to the shoot',
       amountMinor: 8_000_00,
@@ -269,6 +287,27 @@ describe('putting it on an invoice', () => {
       finance.as.mutation(api.expenses.addToInvoice, { invoiceId, expenseIds: [inDollars] }),
       'expenses.currency',
     );
+
+    // An expense with no project belongs to no client, so it reaches nobody's invoice even if asked for directly.
+    const clientless = await t.run(async (ctx) => {
+      const id = await ctx.db.insert('expenses', {
+        category: 'travel',
+        description: 'Trip to the south',
+        amountMinor: 480_000_00,
+        currency: 'NGN',
+        fxRateToNgnMicro: 1_000_000,
+        date: '2026-09-22',
+        billable: true,
+        reimbursable: true,
+        status: 'approved',
+        loggedByMemberId: dayo.memberId,
+      });
+      return id;
+    });
+    await expectCode(
+      finance.as.mutation(api.expenses.addToInvoice, { invoiceId, expenseIds: [clientless] }),
+      'expenses.noClient',
+    );
   });
 
   it('never touches an invoice that has been sent', async () => {
@@ -284,6 +323,42 @@ describe('putting it on an invoice', () => {
       finance.as.mutation(api.expenses.addToInvoice, { invoiceId, expenseIds: [expenseId] }),
       'expenses.invoiceSent',
     );
+  });
+});
+
+describe('the receipt', () => {
+  /** Attaches a receipt the way the screen does: store the bytes, then record the upload. */
+  async function attachReceipt(expenseId: Id<'expenses'>, as: Awaited<ReturnType<typeof createTeamMember>>) {
+    const storageId = await t.run((ctx) => ctx.storage.store(new Blob(['receipt'], { type: 'application/pdf' })));
+    const result = await as.as.mutation(api.expenses.attachReceipt, {
+      expenseId,
+      storageId,
+      name: 'receipt.pdf',
+      contentType: 'application/pdf',
+    });
+    expect(result).toEqual({ ok: true });
+    return (await expense(expenseId))!.receiptFileId!;
+  }
+
+  it('can be read back by the person who spent it and by an approver, and by nobody else', async () => {
+    const id = await logged();
+    const fileId = await attachReceipt(id, dayo);
+
+    // The person who spent it.
+    expect(await dayo.as.query(api.files.teamDownloadUrl, { fileId })).toMatchObject({ name: 'receipt.pdf' });
+    // Whoever decides on it.
+    expect(await finance.as.query(api.files.teamDownloadUrl, { fileId })).toMatchObject({ name: 'receipt.pdf' });
+    // A receipt can carry a home address or a card's last digits: not for the rest of the studio.
+    await expectCode(bisi.as.query(api.files.teamDownloadUrl, { fileId }), 'auth.notFound');
+  });
+
+  it('stays inside the studio: the file is never client-visible', async () => {
+    const id = await logged();
+    const fileId = await attachReceipt(id, dayo);
+    expect(await t.run((ctx) => ctx.db.get('files', fileId))).toMatchObject({
+      visibility: 'internal',
+      owner: { table: 'expenses', id },
+    });
   });
 });
 
