@@ -86,7 +86,8 @@ describe('the portal home', () => {
     const invoices = home.waiting.filter((item) => item.kind === 'invoice');
     expect(invoices).toHaveLength(1);
     expect(invoices[0].id).toBe(mine);
-    expect(invoices[0].href).toBe(`/portal/invoices/${mine}`);
+    // No /portal in the link: the client is on the portal host, where proxy.ts adds that prefix itself.
+    expect(invoices[0].href).toBe(`/invoices/${mine}`);
   });
 
   it('asks for a decision on a change request that is with them', async () => {
@@ -107,7 +108,7 @@ describe('the portal home', () => {
     expect(waiting.map((item) => item.kind)).toEqual(['changeRequest']);
     // Its document is not here yet: sending schedules the delivery, and the document stays a draft until that runs.
     // The client can still decide in the portal, which is the point of asking them here.
-    expect(waiting[0].href).toBe(`/portal/projects/${projectId}`);
+    expect(waiting[0].href).toBe(`/projects/${projectId}`);
   });
 
   it('says nothing is waiting when nothing is', async () => {

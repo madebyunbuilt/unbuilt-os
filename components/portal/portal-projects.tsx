@@ -21,7 +21,7 @@ export function PortalProjects() {
     <ul className="space-y-3">
       {projects.map((project) => (
         <li key={project.id} className="rounded-lg border p-4">
-          <Link href={`/portal/projects/${project.id}`} className="block">
+          <Link href={`/projects/${project.id}`} className="block">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
                 <p className="font-medium">{project.name}</p>
@@ -51,7 +51,7 @@ export function PortalProject({ projectId }: { projectId: Id<'projects'> }) {
   return (
     <div className="space-y-6">
       <div>
-        <Link href="/portal/projects" className="text-sm underline">
+        <Link href="/projects" className="text-sm underline">
           ← Projects
         </Link>
         <h1 className="mt-2 font-display text-3xl font-bold">{project.name}</h1>

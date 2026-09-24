@@ -342,7 +342,7 @@ async function sendUsageAlerts(ctx: MutationCtx, retainer: Doc<'retainers'>) {
     event: at100 ? 'retainer_hours_used' : 'retainer_hours_80',
     title,
     body,
-    link: `/portal/projects/${retainer.projectId}`,
+    link: `/projects/${retainer.projectId}`,
   });
   await ctx.db.patch('retainerPeriods', period._id, {
     usedMinutes,

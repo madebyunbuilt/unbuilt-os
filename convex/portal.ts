@@ -62,7 +62,7 @@ export const home = portalQuery(null)({
           id: invoice._id,
           title: `${INVOICE_TYPE_LABELS[invoice.type]} ${invoice.number ?? ''}`.trim(),
           detail: invoice.dueDate ? `Due ${invoice.dueDate}` : 'Due',
-          href: `/portal/invoices/${invoice._id}`,
+          href: `/invoices/${invoice._id}`,
         });
       }
     }
@@ -79,7 +79,7 @@ export const home = portalQuery(null)({
           id: document._id,
           title: `${DOCUMENT_TYPE_LABELS[document.type]} ${document.number ?? ''}`.trim(),
           detail: ACCEPTED_TYPES.has(document.type) ? 'Waiting for your decision' : 'Waiting for your signature',
-          href: `/portal/documents/${document._id}`,
+          href: `/documents/${document._id}`,
         });
       }
     }
@@ -97,7 +97,7 @@ export const home = portalQuery(null)({
             id: deliverable._id,
             title: deliverable.title,
             detail: `${project.name} · waiting for your review`,
-            href: `/portal/projects/${project._id}`,
+            href: `/projects/${project._id}`,
           });
         }
       }
@@ -115,7 +115,7 @@ export const home = portalQuery(null)({
             id: changeRequest._id,
             title: `${changeRequest.number ?? 'Change request'}: ${changeRequest.title}`,
             detail: `${project.name} · waiting for your decision`,
-            href: `/portal/projects/${project._id}`,
+            href: `/projects/${project._id}`,
           });
         }
       }

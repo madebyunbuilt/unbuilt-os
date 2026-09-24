@@ -24,10 +24,15 @@ function filesIn(dir: string, keep: (name: string) => boolean): string[] {
   });
 }
 
-/** Every route the App Router serves, as a path with :param in place of each dynamic segment. */
+/**
+ * Every route the App Router serves, as a path with :param in place of each dynamic segment. Portal pages live under
+ * app/portal, but a client never types that: proxy.ts rewrites every path on the portal host into those pages, so the
+ * link a client follows is the page's path with /portal taken off. Both spellings count, which does mean a path that
+ * exists on one surface passes for the other — the point here is catching a path that exists on neither.
+ */
 function routes(): Set<string> {
   const pages = filesIn(APP_DIR, (name) => name === 'page.tsx');
-  return new Set(
+  const paths = new Set(
     pages.map((path) => {
       const segments = relative(APP_DIR, path)
         .split(/[\\/]/)
@@ -38,6 +43,11 @@ function routes(): Set<string> {
       return `/${segments.join('/')}`;
     }),
   );
+  for (const route of [...paths]) {
+    if (route === '/portal') paths.add('/');
+    else if (route.startsWith('/portal/')) paths.add(route.slice('/portal'.length));
+  }
+  return paths;
 }
 
 /** The links Convex puts on notifications, with each ${...} standing for one segment. */

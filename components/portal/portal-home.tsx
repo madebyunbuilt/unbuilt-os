@@ -70,7 +70,7 @@ export function PortalHome() {
           <ul className="grid gap-3 sm:grid-cols-2">
             {home.projects.map((project) => (
               <li key={project.id} className="rounded-lg border p-4">
-                <Link href={`/portal/projects/${project.id}`} className="block">
+                <Link href={`/projects/${project.id}`} className="block">
                   <p className="font-medium">{project.name}</p>
                   <p className="text-sm text-muted-foreground">
                     {project.milestones.done} of {project.milestones.total} milestones done
