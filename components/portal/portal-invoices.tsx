@@ -118,8 +118,12 @@ export function PortalInvoice({ invoiceId }: { invoiceId: Id<'invoices'> }) {
 
       <div className="flex flex-wrap gap-2">
         {invoice.payable && invoice.byCard && pay?.url && (
+          // A new tab: paying redirects the whole window to Paystack and comes back to the public pay page, which has
+          // no way into the portal. Closing the tab puts them back on this invoice, already updated.
           <Button asChild>
-            <a href={pay.url}>Pay this invoice</a>
+            <a href={pay.url} target="_blank" rel="noopener noreferrer">
+              Pay this invoice <span className="sr-only">(opens in a new tab)</span>
+            </a>
           </Button>
         )}
         {pdf && (

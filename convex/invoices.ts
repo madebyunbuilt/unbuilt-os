@@ -7,6 +7,7 @@ import { recordUpload } from './lib/files';
 import { internalMutation, internalQuery, teamMutation, teamQuery } from './lib/functions';
 import { portalAppOrigin } from './lib/hosts';
 import { paystackTakes } from './lib/paystack';
+import { deriveToken } from './lib/payLinks';
 import { sha256Hex } from './lib/signatures';
 import {
   FX_RATE_MAX_AGE_DAYS,
@@ -564,6 +565,42 @@ export const setPayToken = internalMutation({
     // The link is the same one every time, so most sends have nothing to write.
     if (invoice.payToken === tokenHash) return;
     await ctx.db.patch('invoices', invoiceId, { payToken: tokenHash });
+  },
+});
+
+/**
+ * Gives every invoice still owing money the pay token it would get today (08-billing-and-finance.md). Two kinds were
+ * left without one: those sent before PAY_LINK_SECRET existed, which have no token at all, and those sent before
+ * tokens were derived, whose stored hash is of something drawn at random that nothing can work out again. Either way
+ * the portal could offer no pay link, and a client who would have paid by card saw only bank details.
+ *
+ * Run once; it is safe to run again, and it never touches an invoice that is settled or closed.
+ */
+export const refreshPayTokens = internalMutation({
+  args: {},
+  handler: async (ctx): Promise<{ refreshed: number; alreadyDerived: number }> => {
+    if (!process.env.PAY_LINK_SECRET) return { refreshed: 0, alreadyDerived: 0 };
+    let refreshed = 0;
+    let alreadyDerived = 0;
+    for (const status of OPEN_STATUSES) {
+      const invoices = await ctx.db
+        .query('invoices')
+        .withIndex('by_status_due', (q) => q.eq('status', status))
+        .collect();
+      for (const invoice of invoices) {
+        if (invoice.balanceMinor <= 0) continue;
+        const derived = await sha256Hex(await deriveToken(invoice._id));
+        if (invoice.payToken === derived) {
+          alreadyDerived++;
+          continue;
+        }
+        // Where a random token is being replaced, the link in an older email stops working — already true of every
+        // send under the current rule. Where there was none, this is the first link the invoice has ever had.
+        await ctx.db.patch('invoices', invoice._id, { payToken: derived });
+        refreshed++;
+      }
+    }
+    return { refreshed, alreadyDerived };
   },
 });
 

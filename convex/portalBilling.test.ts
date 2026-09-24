@@ -134,6 +134,33 @@ describe('paying from the portal', () => {
     expect(await t.query(internal.invoices.byPayToken, { token })).toMatchObject({ payable: true });
   });
 
+  it('gives an invoice that never had a token one, so it can be paid at last', async () => {
+    // Sent before PAY_LINK_SECRET existed, so minting returned nothing and no token was ever stored.
+    const invoiceId = await sentInvoice(glossup.clientId);
+    expect((await glossup.as.query(api.portalBilling.payLink, { invoiceId })).url).toBeNull();
+    expect(await t.mutation(internal.invoices.refreshPayTokens, {})).toMatchObject({ refreshed: 1 });
+    expect((await glossup.as.query(api.portalBilling.payLink, { invoiceId })).url).toContain('/pay/');
+  });
+
+  it('offers a link again once the old random tokens have been brought over', async () => {
+    const invoiceId = await sentInvoice(glossup.clientId);
+    // An invoice sent before tokens were derived: its stored hash is of something nothing can work out again.
+    await t.mutation(internal.invoices.setPayToken, { invoiceId, tokenHash: 'a'.repeat(64) });
+    expect((await glossup.as.query(api.portalBilling.payLink, { invoiceId })).url).toBeNull();
+
+    expect(await t.mutation(internal.invoices.refreshPayTokens, {})).toMatchObject({ refreshed: 1 });
+    const { url } = await glossup.as.query(api.portalBilling.payLink, { invoiceId });
+    expect(url).toContain('/pay/');
+
+    // Running it again changes nothing: the tokens are already the derived ones.
+    expect(await t.mutation(internal.invoices.refreshPayTokens, {})).toMatchObject({
+      refreshed: 0,
+      alreadyDerived: 1,
+    });
+    const token = url!.slice(url!.lastIndexOf('/') + 1);
+    expect(await t.query(internal.invoices.byPayToken, { token })).toMatchObject({ payable: true });
+  });
+
   it('is not open to a client member, who cannot pay', async () => {
     const invoiceId = await sentInvoice(glossup.clientId);
     const member = await createClientUser(t, roles.client_member, {

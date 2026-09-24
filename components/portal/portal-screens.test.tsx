@@ -207,14 +207,15 @@ describe('a client’s invoice', () => {
     expect(screen.getByText('0123456789')).toBeInTheDocument();
   });
 
-  it('pays through the same page an emailed link opens', () => {
+  it('pays through the same page an emailed link opens, in a tab of its own', () => {
     state.queries['portalBilling.invoice'] = invoice();
     state.queries['portalBilling.payLink'] = { url: 'https://portal.example.com/pay/abc' };
     render(<PortalInvoice invoiceId={'i1' as never} />);
-    expect(screen.getByRole('link', { name: 'Pay this invoice' })).toHaveAttribute(
-      'href',
-      'https://portal.example.com/pay/abc',
-    );
+    const pay = screen.getByRole('link', { name: /Pay this invoice/ });
+    expect(pay).toHaveAttribute('href', 'https://portal.example.com/pay/abc');
+    // Paying leaves for Paystack and comes back to a page with no way into the portal, so this tab stays open.
+    expect(pay).toHaveAttribute('target', '_blank');
+    expect(pay).toHaveAccessibleName('Pay this invoice (opens in a new tab)');
   });
 
   it('tells a client who withholds tax what to send, and what to remit', () => {
