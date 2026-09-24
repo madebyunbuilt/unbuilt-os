@@ -218,6 +218,10 @@ studio's behalf.
 
 - **At cost.** `orgSettings.expenseMarkupBps` starts unset, so an expense is recharged for exactly what the studio
   paid. A studio that sets a markup recharges cost plus that percentage.
+- **Billing a client for an expense means naming the project it was for**, since that is where its client comes from.
+  Billable with no project is refused when it is logged and when it is changed, and an expense with no client reaches
+  nobody's invoice even if asked for directly: it would otherwise sit approved for ever, flagged billable, and appear
+  on no invoice with nothing to say why.
 - An expense takes its project's client and currency, and **the FX rate of the day it was spent**, so a report in NGN
   does not move when today's rate does. A currency with no rate on or before that day is refused rather than guessed.
 - It cannot be dated in the future, and categories are a fixed list, so the reports mean something.

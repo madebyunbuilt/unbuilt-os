@@ -95,6 +95,24 @@ describe('the expenses screen', () => {
     );
   });
 
+  it('will not let a client be billed until a project says which client', async () => {
+    render(<ExpenseList permissions={MEMBER} />);
+    await userEvent.click(screen.getByRole('button', { name: 'Log an expense' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Log an expense' });
+
+    // No project chosen, so there is nobody to bill.
+    expect(within(dialog).getByLabelText(/Bill this to the client/)).toBeDisabled();
+    await userEvent.selectOptions(within(dialog).getByLabelText('Project (optional)'), 'p1');
+    const billable = within(dialog).getByLabelText(/Bill this to the client/);
+    expect(billable).toBeEnabled();
+    await userEvent.click(billable);
+    expect(billable).toBeChecked();
+
+    // Taking the project away again takes the billing with it, rather than leaving an expense nobody can bill.
+    await userEvent.selectOptions(within(dialog).getByLabelText('Project (optional)'), '');
+    expect(within(dialog).getByLabelText(/Bill this to the client/)).not.toBeChecked();
+  });
+
   it('lets the person who logged it change or delete it while it is still waiting', async () => {
     render(<ExpenseList permissions={MEMBER} />);
     expect(screen.getByRole('button', { name: 'Change it' })).toBeInTheDocument();

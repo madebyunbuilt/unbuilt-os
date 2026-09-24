@@ -126,7 +126,15 @@ export function ExpenseFormDialog({
 
       <div className="space-y-2">
         <Label htmlFor="expense-project">Project (optional)</Label>
-        <NativeSelect id="expense-project" value={project} onChange={(event) => setProject(event.target.value)}>
+        <NativeSelect
+          id="expense-project"
+          value={project}
+          onChange={(event) => {
+            setProject(event.target.value);
+            // Without a project there is no client, so billing it on is not a thing that can happen.
+            if (!event.target.value) setBillable(false);
+          }}
+        >
           <option value="">No project</option>
           {(projects ?? []).map((row) => (
             <option key={row.id} value={row.id}>
@@ -141,9 +149,17 @@ export function ExpenseFormDialog({
 
       <div className="space-y-2">
         <div className="flex items-center gap-2">
-          <Checkbox id="expense-billable" checked={billable} onCheckedChange={(value) => setBillable(value === true)} />
-          <Label htmlFor="expense-billable" className="font-normal">
+          <Checkbox
+            id="expense-billable"
+            checked={billable}
+            disabled={!project}
+            onCheckedChange={(value) => setBillable(value === true)}
+          />
+          <Label htmlFor="expense-billable" className={`font-normal ${project ? '' : 'text-muted-foreground'}`}>
             Bill this to the client
+            {!project && (
+              <span className="block text-sm">Choose a project first: that is where the client comes from.</span>
+            )}
           </Label>
         </div>
         <div className="flex items-center gap-2">

@@ -5,6 +5,7 @@ import { recordActivity, text } from './lib/crm';
 import { authError } from './lib/principals';
 import {
   assertBillable,
+  assertBillableHasProject,
   assertDecidable,
   CATEGORY_LABELS,
   EDITABLE,
@@ -161,6 +162,7 @@ async function checkedDate(ctx: QueryCtx | MutationCtx, date: string) {
 export const log = teamMutation('expenses.log')({
   args: details,
   handler: async (ctx, args) => {
+    assertBillableHasProject(args);
     const project = args.projectId ? await visibleProject(ctx, ctx.principal, args.projectId) : null;
     const settings = await getOrgSettings(ctx);
     const currency = args.currency ?? project?.currency ?? settings.defaultCurrency;
@@ -197,6 +199,7 @@ export const update = teamMutation('expenses.log')({
     if (!EDITABLE.has(expense.status)) {
       throw expenseError('expenses.decided', `This expense has been ${expense.status} and no longer changes`);
     }
+    assertBillableHasProject({ billable: args.billable ?? expense.billable, projectId: args.projectId });
     const project = args.projectId ? await visibleProject(ctx, ctx.principal, args.projectId) : null;
     await ctx.db.patch('expenses', expenseId, {
       projectId: project?._id,
