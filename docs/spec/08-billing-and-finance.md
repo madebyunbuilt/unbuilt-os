@@ -229,6 +229,9 @@ studio's behalf.
   is the record of a decision. Turning one down needs a note, and the member is told either way.
 - **Reading** is open to anyone who logs expenses or approves them — Finance approves without logging its own. A member
   sees only their own; an approver sees them all.
+- **The receipt is read by the person who spent it and by anyone who approves expenses**, and by nobody else: it can
+  carry a home address or a card's last digits. It is never client-visible, even when the expense is billed on. A
+  vendor's own invoice on a bill follows the same shape, for `bills.manage` and `bills.pay` holders.
 - **Joining an invoice**: only approved (or reimbursed), billable, not already invoiced, in the invoice's own currency,
   on a **draft** invoice — a sent invoice is immutable, so nothing is added to it. The line names the category, the
   description and the date it was spent; the receipt itself stays inside the studio and never reaches the client.

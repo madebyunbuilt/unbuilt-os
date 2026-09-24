@@ -206,6 +206,20 @@ export const FILE_ACCESS: Partial<Record<TableNames, FileAccessRule>> = {
   payments: { team: (_ctx, principal) => principal.permissions.has('invoices.view') },
   whtCredits: { team: (_ctx, principal) => principal.permissions.has('invoices.view') },
   statements: { team: (_ctx, principal) => principal.permissions.has('invoices.view'), portal: () => true },
+  // A receipt is the person's own and their approvers': it can carry a home address or a card's last digits, so it is
+  // not for every team member, and never for the client even when the expense is billed on to them.
+  expenses: {
+    team: async (ctx, principal, file) => {
+      if (principal.permissions.has('expenses.approve')) return true;
+      const expenseId = ctx.db.normalizeId('expenses', file.owner.id);
+      const expense = expenseId ? await ctx.db.get('expenses', expenseId) : null;
+      return expense?.loggedByMemberId === principal.member._id;
+    },
+  },
+  // A vendor's own invoice, for the people who keep bills and the people who pay them.
+  bills: {
+    team: (_ctx, principal) => principal.permissions.has('bills.manage') || principal.permissions.has('bills.pay'),
+  },
   // Deliverable versions follow project scope. The portal rule arrives with the client portal.
   deliverables: {
     team: async (ctx, principal, file) => {

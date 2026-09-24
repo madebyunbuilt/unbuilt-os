@@ -326,6 +326,42 @@ describe('putting it on an invoice', () => {
   });
 });
 
+describe('the receipt', () => {
+  /** Attaches a receipt the way the screen does: store the bytes, then record the upload. */
+  async function attachReceipt(expenseId: Id<'expenses'>, as: Awaited<ReturnType<typeof createTeamMember>>) {
+    const storageId = await t.run((ctx) => ctx.storage.store(new Blob(['receipt'], { type: 'application/pdf' })));
+    const result = await as.as.mutation(api.expenses.attachReceipt, {
+      expenseId,
+      storageId,
+      name: 'receipt.pdf',
+      contentType: 'application/pdf',
+    });
+    expect(result).toEqual({ ok: true });
+    return (await expense(expenseId))!.receiptFileId!;
+  }
+
+  it('can be read back by the person who spent it and by an approver, and by nobody else', async () => {
+    const id = await logged();
+    const fileId = await attachReceipt(id, dayo);
+
+    // The person who spent it.
+    expect(await dayo.as.query(api.files.teamDownloadUrl, { fileId })).toMatchObject({ name: 'receipt.pdf' });
+    // Whoever decides on it.
+    expect(await finance.as.query(api.files.teamDownloadUrl, { fileId })).toMatchObject({ name: 'receipt.pdf' });
+    // A receipt can carry a home address or a card's last digits: not for the rest of the studio.
+    await expectCode(bisi.as.query(api.files.teamDownloadUrl, { fileId }), 'auth.notFound');
+  });
+
+  it('stays inside the studio: the file is never client-visible', async () => {
+    const id = await logged();
+    const fileId = await attachReceipt(id, dayo);
+    expect(await t.run((ctx) => ctx.db.get('files', fileId))).toMatchObject({
+      visibility: 'internal',
+      owner: { table: 'expenses', id },
+    });
+  });
+});
+
 describe('who sees what', () => {
   it('shows a member only their own, and an approver everything', async () => {
     const mine = await logged();

@@ -31,6 +31,8 @@ const VAT = 75_000_00;
 beforeEach(async () => {
   vi.useFakeTimers({ toFake: ['Date'] });
   vi.setSystemTime(Date.parse('2026-09-23T09:00:00Z'));
+  vi.stubEnv('CONVEX_SITE_URL', 'https://example.convex.site');
+  vi.stubEnv('FILE_URL_SECRET', 'test-file-url-secret-that-is-long-enough');
   t = newTest();
   await t.mutation(internal.seed.run, {});
   roles = await t.run(async (ctx) =>
@@ -52,6 +54,7 @@ beforeEach(async () => {
 
 afterEach(() => {
   vi.useRealTimers();
+  vi.unstubAllEnvs();
 });
 
 const newBill = async (overrides: object = {}) =>
@@ -244,6 +247,25 @@ describe('telling the people who pay', () => {
     await newBill({ dueDate: '2026-12-31' });
     expect(await t.mutation(internal.bills.remindDue, {})).toEqual({ due: 0, overdue: 0 });
     expect(await t.run((ctx) => ctx.db.query('notifications').collect())).toEqual([]);
+  });
+});
+
+describe('the vendor’s invoice file', () => {
+  it('can be read back by the people who keep bills and pay them, and by nobody else', async () => {
+    const billId = await newBill();
+    const storageId = await t.run((ctx) => ctx.storage.store(new Blob(['bill'], { type: 'application/pdf' })));
+    expect(
+      await finance.as.mutation(api.bills.attachFile, {
+        billId,
+        storageId,
+        name: 'CA-2026-14.pdf',
+        contentType: 'application/pdf',
+      }),
+    ).toEqual({ ok: true });
+
+    const fileId = (await bill(billId))!.fileId!;
+    expect(await finance.as.query(api.files.teamDownloadUrl, { fileId })).toMatchObject({ name: 'CA-2026-14.pdf' });
+    await expectCode(dayo.as.query(api.files.teamDownloadUrl, { fileId }), 'auth.notFound');
   });
 });
 
