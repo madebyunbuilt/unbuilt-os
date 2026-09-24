@@ -2,7 +2,9 @@ import { type Id } from '../_generated/dataModel';
 import { type QueryCtx } from '../_generated/server';
 import { localDateString } from './businessTime';
 import { type Currency, runningBalances } from './money';
+import { invoiceError } from './invoices';
 import { getOrgSettings } from './settings';
+import { isIsoDate } from './validation';
 
 // A client's statement of account (08-billing-and-finance.md, Statements): for a date range, per currency, the
 // opening balance, each invoice, payment, WHT credit, credit note and refund, and the closing balance. Write-offs are
@@ -156,4 +158,10 @@ export async function buildStatement(
     }));
     return { currency, openingMinor, lines: inRange, closingMinor };
   });
+}
+
+/** A statement is asked for over a real range; both surfaces check it the same way. */
+export function checkedRange(fromDate: string, toDate: string) {
+  if (!isIsoDate(fromDate) || !isIsoDate(toDate)) throw invoiceError('invoices.invalid', 'Choose a start and end date');
+  if (fromDate > toDate) throw invoiceError('invoices.invalid', 'The start date is after the end date');
 }
