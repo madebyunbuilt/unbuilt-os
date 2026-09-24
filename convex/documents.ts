@@ -995,13 +995,19 @@ export const attachPdf = internalMutation({
 
 /** The document is sent once the client has been emailed, so a failed send never shows as one. */
 export const markSent = internalMutation({
-  args: { documentId: v.id('documents'), version: v.number(), emailed: v.array(v.string()) },
-  handler: async (ctx, { documentId, version, emailed }): Promise<null> => {
+  args: {
+    documentId: v.id('documents'),
+    version: v.number(),
+    emailed: v.array(v.string()),
+    recipientContactIds: v.optional(v.array(v.id('contacts'))),
+  },
+  handler: async (ctx, { documentId, version, emailed, recipientContactIds }): Promise<null> => {
     const document = await getDocument(ctx, documentId);
     const now = Date.now();
     await ctx.db.patch('documents', documentId, {
       status: SIGNED_TYPES.has(document.type) ? 'awaiting_signature' : 'sent',
       sentAt: document.sentAt ?? now,
+      recipientContactIds: recipientContactIds ?? document.recipientContactIds,
       unsentChanges: false,
     });
     await recordActivity(ctx, {

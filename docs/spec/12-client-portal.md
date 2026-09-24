@@ -41,6 +41,15 @@ client (see `03-auth-and-permissions.md`).
   descriptions and team rates never appear. Time is shown only as retainer totals.
 - **Client admin vs member**: see the client roles table in `03-auth-and-permissions.md`. Invoices and approving change
   requests are admin-only by default; this is configurable per client.
+- **A signed document says where it actually stands** (studio, 2026-09-24): `awaiting_signature` is set the moment the
+  document is sent, so it means only that it went out. What the client is told comes from the signing request instead —
+  needs your signature when they are the one invited, your turn is coming when somebody signs first, waiting for
+  signatures when it is with a colleague, and sent to you when nobody has been asked yet. A client is never promised an
+  email that is not coming.
+- **Accepting a quote or proposal follows the signing rule** (studio, 2026-09-24): a client admin always, and a client
+  member only where the studio addressed the document to them, since accepting commits the client to a price. Documents
+  therefore record `recipientContactIds` when they are sent, the way invoices do; without it there is no way to know
+  who the studio named.
 - **Notifications** to clients honour their preferences, except legally required notices (for example signed copies)
   which always go by email.
 - **Branding**: Unbuilt branding. The client's name appears in the header.
