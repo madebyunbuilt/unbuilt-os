@@ -297,9 +297,9 @@ describe('a client’s invoice', () => {
       payable: false,
     });
     render(<PortalInvoice invoiceId={'i1' as never} />);
-    // "Paid" is both the badge and the row saying how much: the settled line is the one that is unique.
+    // "Paid" is both the badge and the row saying how much; the bottom line says what is left, not "Settled ₦0.00".
     expect(screen.getAllByText('Paid').length).toBeGreaterThan(0);
-    expect(screen.getByText('Settled')).toBeInTheDocument();
+    expect(screen.getByText('Nothing left to pay')).toBeInTheDocument();
     expect(screen.queryByRole('link', { name: 'Pay this invoice' })).not.toBeInTheDocument();
   });
 });
