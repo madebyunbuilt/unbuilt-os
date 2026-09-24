@@ -297,9 +297,10 @@ describe('a client’s invoice', () => {
       payable: false,
     });
     render(<PortalInvoice invoiceId={'i1' as never} />);
-    // "Paid" is both the badge and the row saying how much; the bottom line says what is left, not "Settled ₦0.00".
+    // One label whatever the state: zero is the answer to "what do I owe", not a thing to relabel around.
     expect(screen.getAllByText('Paid').length).toBeGreaterThan(0);
-    expect(screen.getByText('Nothing left to pay')).toBeInTheDocument();
+    expect(screen.getByText('Still to pay')).toBeInTheDocument();
+    expect(screen.getByText('₦0.00')).toBeInTheDocument();
     expect(screen.queryByRole('link', { name: 'Pay this invoice' })).not.toBeInTheDocument();
   });
 });

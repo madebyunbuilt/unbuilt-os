@@ -120,8 +120,8 @@ export function PortalInvoice({ invoiceId }: { invoiceId: Id<'invoices'> }) {
           </div>
         )}
         <div className="flex justify-between border-t pt-1 font-medium">
-          {/* The figure is the balance either way, so the label has to be about what is left, not about the invoice. */}
-          <dt>{invoice.payable ? 'Still to pay' : 'Nothing left to pay'}</dt>
+          {/* One label, always. Zero is the answer to "what do I owe", so it belongs under the question that asks it. */}
+          <dt>Still to pay</dt>
           <dd className="tabular-nums">{formatMoney(invoice.balanceMinor, currency)}</dd>
         </div>
         {invoice.whtOnBalanceMinor > 0 && (
