@@ -6,6 +6,7 @@ import { PortalDocument, PortalDocuments } from './portal-documents';
 import { PortalInvoice } from './portal-invoices';
 import { PortalProject } from './portal-projects';
 import { PortalColleagues } from './portal-colleagues';
+import { PortalTicket, PortalTickets } from './portal-tickets';
 import { PortalHome } from './portal-home';
 
 // The portal's screens (12-client-portal.md): a client is offered the one thing they are being asked to do, and is
@@ -14,6 +15,7 @@ import { PortalHome } from './portal-home';
 const state = vi.hoisted(() => ({
   queries: {} as Record<string, unknown>,
   mutations: {} as Record<string, ReturnType<typeof vi.fn>>,
+  push: vi.fn(),
 }));
 
 vi.mock('convex/react', () => ({
@@ -23,14 +25,23 @@ vi.mock('convex/react', () => ({
     return state.mutations[ref._name];
   },
 }));
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({ push: state.push, replace: vi.fn(), refresh: vi.fn() }),
+  usePathname: () => '/tickets',
+}));
 vi.mock('@/convex/_generated/api', () => {
   const functions = (name: string) => new Proxy({}, { get: (_, fn: string) => ({ _name: `${name}.${fn}` }) });
   return {
     api: Object.fromEntries(
-      ['portal', 'portalDocuments', 'portalBilling', 'portalProjects', 'portalColleagues', 'files'].map((n) => [
-        n,
-        functions(n),
-      ]),
+      [
+        'portal',
+        'portalDocuments',
+        'portalBilling',
+        'portalProjects',
+        'portalColleagues',
+        'portalTickets',
+        'files',
+      ].map((n) => [n, functions(n)]),
     ),
   };
 });
@@ -567,5 +578,99 @@ describe('a client admin’s colleagues', () => {
     render(<PortalColleagues />);
     await userEvent.selectOptions(screen.getByLabelText('What Ada Obi can do'), 'client_member');
     expect(await screen.findByRole('alert')).toHaveTextContent('Somebody has to be able to approve and pay.');
+  });
+});
+
+describe('support in the portal', () => {
+  const ticket = (overrides: object = {}) => ({
+    id: 'tk1',
+    number: 'UNB-TKT-0001',
+    subject: 'Checkout is down',
+    priority: 'p2',
+    status: 'with_unbuilt',
+    projectId: undefined,
+    createdAt: Date.parse('2026-10-12T09:00:00Z'),
+    resolvedAt: undefined,
+    canReopen: false,
+    ...overrides,
+  });
+
+  const thread = (overrides: object = {}) => ({
+    ...ticket(),
+    projectName: undefined,
+    messages: [
+      {
+        id: 'm1',
+        body: 'Nobody can pay.',
+        fromUnbuilt: false,
+        authorContactId: 'ct1',
+        createdAt: Date.parse('2026-10-12T09:00:00Z'),
+      },
+    ],
+    ...overrides,
+  });
+
+  beforeEach(() => {
+    state.queries['portalTickets.list'] = [ticket()];
+    state.queries['portalTickets.get'] = thread();
+    state.queries['portal.projects'] = [];
+    state.push.mockClear();
+  });
+
+  it('asks how bad it is in the client’s words, never in P-codes', async () => {
+    render(<PortalTickets />);
+    await userEvent.click(screen.getByRole('button', { name: 'Ask for help' }));
+    const dialog = within(await screen.findByRole('dialog'));
+    expect(dialog.getByRole('option', { name: 'Everything is down, or data is at risk' })).toBeInTheDocument();
+    expect(dialog.queryByText(/P1/)).not.toBeInTheDocument();
+  });
+
+  it('sends what they typed', async () => {
+    render(<PortalTickets />);
+    await userEvent.click(screen.getByRole('button', { name: 'Ask for help' }));
+    const dialog = within(await screen.findByRole('dialog'));
+    await userEvent.type(dialog.getByLabelText('What is it about'), 'Cards declined');
+    await userEvent.selectOptions(dialog.getByLabelText('How bad is it'), 'p1');
+    await userEvent.type(dialog.getByLabelText('What is happening'), 'Every card fails.');
+    await userEvent.click(dialog.getByRole('button', { name: 'Send it' }));
+    await waitFor(() =>
+      expect(state.mutations['portalTickets.create']).toHaveBeenCalledWith({
+        subject: 'Cards declined',
+        description: 'Every card fails.',
+        priority: 'p1',
+        projectId: undefined,
+      }),
+    );
+  });
+
+  it('says whose turn it is, without ever showing an SLA', () => {
+    state.queries['portalTickets.get'] = thread({ status: 'with_you' });
+    render(<PortalTicket ticketId={'tk1' as never} />);
+    expect(screen.getByText(/waiting on your answer/)).toBeInTheDocument();
+    expect(screen.queryByText(/due in/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/SLA/)).not.toBeInTheDocument();
+  });
+
+  it('offers to reopen something resolved this week', () => {
+    state.queries['portalTickets.get'] = thread({ status: 'resolved', canReopen: true });
+    render(<PortalTicket ticketId={'tk1' as never} />);
+    expect(screen.getByText(/reply below and it opens again/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Send' })).toBeInTheDocument();
+  });
+
+  it('warns that a late reply starts a new ticket, before they type it', () => {
+    state.queries['portalTickets.get'] = thread({ status: 'resolved', canReopen: false });
+    render(<PortalTicket ticketId={'tk1' as never} />);
+    expect(screen.getByText(/starts a new ticket/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Start a new ticket' })).toBeInTheDocument();
+  });
+
+  it('follows the client to the new ticket when one is started', async () => {
+    state.queries['portalTickets.get'] = thread({ status: 'closed' });
+    state.mutations['portalTickets.reply'] = vi.fn().mockResolvedValue({ ticketId: 'tk2', isNew: true });
+    render(<PortalTicket ticketId={'tk1' as never} />);
+    await userEvent.type(screen.getByLabelText('Reply'), 'It is back.');
+    await userEvent.click(screen.getByRole('button', { name: 'Start a new ticket' }));
+    await waitFor(() => expect(state.push).toHaveBeenCalledWith('/tickets/tk2'));
   });
 });

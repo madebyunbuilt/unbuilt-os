@@ -135,7 +135,7 @@ export async function dueTimesAfterPriorityChange(ctx: Ctx, ticket: Doc<'tickets
   const policy = ticket.slaPolicyId ? await ctx.db.get('slaPolicies', ticket.slaPolicyId) : null;
   if (!policy) return {};
   const { calendar, holidays } = await calendarFor(ctx, policy);
-  const fresh = dueTimes(ticket.createdAt, priority, policy, calendar, holidays);
+  const fresh = dueTimes(ticket.promisedFrom ?? ticket.createdAt, priority, policy, calendar, holidays);
   const paused = ticket.pausedMinutes;
   const waited = (at: number | undefined) =>
     at === undefined || paused === 0 ? at : addBusinessMinutes(at, paused, calendar, holidays);
@@ -149,6 +149,13 @@ export async function dueTimesAfterPriorityChange(ctx: Ctx, ticket: Doc<'tickets
     resolutionDueAt: waited(fresh.resolutionDueAt),
     resolutionWarnAt: waited(fresh.resolutionWarnAt),
   };
+}
+
+/** How long a client has to come back to a resolved ticket before it becomes a new one (09-support-and-sla.md). */
+export const REOPEN_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
+
+export function withinReopenWindow(ticket: Doc<'tickets'>, now: number): boolean {
+  return ticket.resolvedAt !== undefined && now - ticket.resolvedAt <= REOPEN_WINDOW_MS;
 }
 
 export const OPEN_STATUSES: readonly TicketStatus[] = ['new', 'open', 'pending_client'];

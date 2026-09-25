@@ -132,6 +132,7 @@ export async function openTicket(
     raisedByMemberId: args.raisedByMemberId,
     assigneeMemberId: args.assigneeMemberId,
     createdAt: now,
+    promisedFrom: now,
     ...due,
     pausedMinutes: 0,
   });
