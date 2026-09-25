@@ -141,7 +141,7 @@ export const PORTAL_NAVIGATION: readonly NavSection[] = [
       { label: 'Projects', href: '/projects', icon: 'folder', anyOf: ['portal.projects.view'], built: true },
       { label: 'Documents', href: '/documents', icon: 'file', anyOf: ['portal.documents.view'], built: true },
       { label: 'Invoices', href: '/invoices', icon: 'receipt', anyOf: ['portal.invoices.view'], built: true },
-      { label: 'Support', href: '/tickets', icon: 'lifebuoy', anyOf: ['portal.tickets.view'], built: false },
+      { label: 'Support', href: '/tickets', icon: 'lifebuoy', anyOf: ['portal.tickets.view'], built: true },
       { label: 'Reports', href: '/reports', icon: 'chart', anyOf: ['portal.reports.view'], built: false },
       { label: 'Colleagues', href: '/colleagues', icon: 'users', anyOf: ['portal.colleagues.manage'], built: true },
     ],

@@ -2,12 +2,13 @@ import { v } from 'convex/values';
 import { type Doc, type Id } from './_generated/dataModel';
 import { type MutationCtx, type QueryCtx } from './_generated/server';
 import { getClient, recordActivity, requirePermission, text } from './lib/crm';
+import { recordUpload } from './lib/files';
 import { teamMutation, teamQuery } from './lib/functions';
 import { nextNumber } from './lib/numbering';
-import { activeMembersWith, notifyClientContacts, notifyTeamMembers } from './lib/notify';
+import { activeMembersWith, clientPortalContacts, notifyClientContacts, notifyTeamMembers } from './lib/notify';
 import { authError, type TeamPrincipal } from './lib/principals';
-import { visibleProjectIds } from './lib/projects';
 import {
+  canSeeTicket,
   dueTimesAfterPriorityChange,
   dueTimesFor,
   OPEN_STATUSES,
@@ -37,26 +38,12 @@ export async function getTicket(ctx: QueryCtx | MutationCtx, ticketId: Id<'ticke
   return ticket;
 }
 
-/**
- * Who may see a ticket. `tickets.view.all` reaches every one; `tickets.view.assigned` reaches the tickets on a project
- * the caller belongs to, and the ones assigned to them, which covers a ticket raised against a client with no project.
- * Anything out of scope is "not found", as everywhere else.
- */
-async function canSee(ctx: QueryCtx | MutationCtx, principal: TeamPrincipal, ticket: Doc<'tickets'>): Promise<boolean> {
-  if (principal.permissions.has('tickets.view.all')) return true;
-  if (!principal.permissions.has('tickets.view.assigned')) return false;
-  if (ticket.assigneeMemberId === principal.member._id) return true;
-  if (!ticket.projectId) return false;
-  const visible = await visibleProjectIds(ctx, principal);
-  return visible === 'all' || visible.has(ticket.projectId);
-}
-
 async function visibleTicket(
   ctx: (QueryCtx | MutationCtx) & { principal: TeamPrincipal },
   ticketId: Id<'tickets'>,
 ): Promise<Doc<'tickets'>> {
   const ticket = await getTicket(ctx, ticketId);
-  if (!(await canSee(ctx, ctx.principal, ticket))) throw slaError('tickets.notFound', 'Ticket not found');
+  if (!(await canSeeTicket(ctx, ctx.principal, ticket))) throw slaError('tickets.notFound', 'Ticket not found');
   return ticket;
 }
 
@@ -82,6 +69,71 @@ function view(ticket: Doc<'tickets'>) {
     // A ticket with no policy is not late, it was never promised a time.
     hasSla: ticket.slaPolicyId !== undefined,
   };
+}
+
+/** At most this many files on one message: enough for a few screenshots and a log, and no more. */
+export const MAX_ATTACHMENTS = 5;
+
+export const uploadArg = v.object({ storageId: v.id('_storage'), name: v.string(), contentType: v.string() });
+export type Upload = { storageId: Id<'_storage'>; name: string; contentType: string };
+
+/**
+ * Saves the files that came with a message. A file attached to an internal note is marked internal, so the shared
+ * portal rule in lib/files.ts keeps it inside the studio whatever else happens.
+ *
+ * A file that fails validation throws, which rolls the whole message back: a reply that quietly lost its screenshot
+ * is worse than one that did not send, because only the second tells anybody.
+ */
+export async function attachUploads(
+  ctx: MutationCtx,
+  args: {
+    messageId: Id<'ticketMessages'>;
+    ticket: Pick<Doc<'tickets'>, 'clientId' | 'projectId'>;
+    uploads: Upload[];
+    visibility: Doc<'ticketMessages'>['visibility'];
+    uploadedBy: { kind: 'team' | 'client'; id: string };
+  },
+): Promise<void> {
+  if (args.uploads.length === 0) return;
+  if (args.uploads.length > MAX_ATTACHMENTS) {
+    throw slaError('tickets.tooManyFiles', `You can attach up to ${MAX_ATTACHMENTS} files to one message`);
+  }
+  const fileIds: Id<'files'>[] = [];
+  for (const upload of args.uploads) {
+    const saved = await recordUpload(ctx, {
+      storageId: upload.storageId,
+      name: upload.name,
+      contentType: upload.contentType,
+      context: 'document',
+      owner: { table: 'ticketMessages', id: args.messageId },
+      visibility: args.visibility === 'internal' ? 'internal' : 'client',
+      clientId: args.ticket.clientId,
+      projectId: args.ticket.projectId,
+      uploadedBy: args.uploadedBy,
+    });
+    if (!saved.ok) throw slaError('tickets.badFile', `${upload.name}: ${saved.message}`);
+    fileIds.push(saved.fileId);
+  }
+  await ctx.db.patch('ticketMessages', args.messageId, { fileIds });
+}
+
+/** Whether the last thing the client was told came from the studio, so a status change need not repeat it. */
+async function lastPublicMessageIsFromUnbuilt(ctx: QueryCtx | MutationCtx, ticketId: Id<'tickets'>) {
+  const messages = await ctx.db
+    .query('ticketMessages')
+    .withIndex('by_ticket', (q) => q.eq('ticketId', ticketId))
+    .collect();
+  const last = messages
+    .filter((message) => message.visibility === 'public')
+    .sort((a, b) => a.createdAt - b.createdAt)
+    .at(-1);
+  return last?.authorKind === 'team';
+}
+
+/** A message's attachments, by name: a thread should show what is attached without anybody having to open it. */
+export async function filesOn(ctx: QueryCtx | MutationCtx, message: Doc<'ticketMessages'>) {
+  const files = await Promise.all(message.fileIds.map((fileId) => ctx.db.get('files', fileId)));
+  return files.filter((file) => file !== null).map((file) => ({ id: file._id, name: file.name }));
 }
 
 /** Everyone who should hear about a ticket moving: whoever holds it, and the project's manager. */
@@ -111,7 +163,7 @@ export async function openTicket(
     requesterContactId?: Id<'contacts'>;
     raisedByMemberId?: Id<'teamMembers'>;
     assigneeMemberId?: Id<'teamMembers'>;
-    fileIds?: Id<'files'>[];
+    uploads?: Upload[];
     now?: number;
   },
 ): Promise<Id<'tickets'>> {
@@ -132,20 +184,30 @@ export async function openTicket(
     raisedByMemberId: args.raisedByMemberId,
     assigneeMemberId: args.assigneeMemberId,
     createdAt: now,
+    promisedFrom: now,
     ...due,
     pausedMinutes: 0,
   });
 
   // What they asked for is the first message, not a field of its own: the thread then reads in order from the start.
-  await ctx.db.insert('ticketMessages', {
+  const messageId = await ctx.db.insert('ticketMessages', {
     ticketId,
     visibility: 'public',
     body: args.description,
     authorKind: args.requesterContactId ? 'client' : args.raisedByMemberId ? 'team' : 'system',
     authorMemberId: args.raisedByMemberId,
     authorContactId: args.requesterContactId,
-    fileIds: args.fileIds ?? [],
+    fileIds: [],
     createdAt: now,
+  });
+  await attachUploads(ctx, {
+    messageId,
+    ticket: { clientId: args.clientId, projectId: args.projectId },
+    uploads: args.uploads ?? [],
+    visibility: 'public',
+    uploadedBy: args.requesterContactId
+      ? { kind: 'client', id: args.requesterContactId }
+      : { kind: 'team', id: args.raisedByMemberId ?? 'system' },
   });
 
   const ticket = await getTicket(ctx, ticketId);
@@ -185,7 +247,7 @@ export const create = teamMutation('tickets.manage')({
     priority,
     requesterContactId: v.optional(v.id('contacts')),
     assigneeMemberId: v.optional(v.id('teamMembers')),
-    fileIds: v.optional(v.array(v.id('files'))),
+    uploads: v.optional(v.array(uploadArg)),
   },
   handler: async (ctx, args) => {
     await getClient(ctx, args.clientId);
@@ -209,6 +271,11 @@ export const create = teamMutation('tickets.manage')({
       raisedByMemberId: ctx.principal.member._id,
     });
   },
+});
+
+export const generateUploadUrl = teamMutation('tickets.manage')({
+  args: {},
+  handler: async (ctx) => await ctx.storage.generateUploadUrl(),
 });
 
 export const list = teamQuery(null)({
@@ -236,7 +303,7 @@ export const list = teamQuery(null)({
     for (const ticket of rows) {
       if (status === 'open' && !open.has(ticket.status)) continue;
       if (status === 'mine' && ticket.assigneeMemberId !== ctx.principal.member._id) continue;
-      if (await canSee(ctx, ctx.principal, ticket)) visible.push(ticket);
+      if (await canSeeTicket(ctx, ctx.principal, ticket)) visible.push(ticket);
     }
     return visible.map(view).sort((a, b) => b.number.localeCompare(a.number));
   },
@@ -257,18 +324,20 @@ export const get = teamQuery(null)({
       ...view(ticket),
       clientName: client?.displayName ?? 'Unknown client',
       slaPolicyName: policy?.name,
-      messages: messages
-        .sort((a, b) => a.createdAt - b.createdAt)
-        .map((message) => ({
-          id: message._id,
-          visibility: message.visibility,
-          body: message.body,
-          authorKind: message.authorKind,
-          authorMemberId: message.authorMemberId,
-          authorContactId: message.authorContactId,
-          fileIds: message.fileIds,
-          createdAt: message.createdAt,
-        })),
+      messages: await Promise.all(
+        messages
+          .sort((a, b) => a.createdAt - b.createdAt)
+          .map(async (message) => ({
+            id: message._id,
+            visibility: message.visibility,
+            body: message.body,
+            authorKind: message.authorKind,
+            authorMemberId: message.authorMemberId,
+            authorContactId: message.authorContactId,
+            files: await filesOn(ctx, message),
+            createdAt: message.createdAt,
+          })),
+      ),
     };
   },
 });
@@ -282,21 +351,29 @@ export const reply = teamMutation('tickets.manage')({
     ticketId: v.id('tickets'),
     body: v.string(),
     visibility: v.union(v.literal('public'), v.literal('internal')),
-    fileIds: v.optional(v.array(v.id('files'))),
+    uploads: v.optional(v.array(uploadArg)),
   },
-  handler: async (ctx, { ticketId, body, visibility, fileIds }) => {
+  handler: async (ctx, { ticketId, body, visibility, uploads }) => {
     const ticket = await visibleTicket(ctx, ticketId);
     if (ticket.status === 'closed') throw slaError('tickets.closed', 'This ticket is closed; raise a new one');
     const now = Date.now();
+    const said = text(body, 'Message', { required: true, max: 10_000 })!;
 
-    await ctx.db.insert('ticketMessages', {
+    const messageId = await ctx.db.insert('ticketMessages', {
       ticketId,
       visibility,
-      body: text(body, 'Message', { required: true, max: 10_000 })!,
+      body: said,
       authorKind: 'team',
       authorMemberId: ctx.principal.member._id,
-      fileIds: fileIds ?? [],
+      fileIds: [],
       createdAt: now,
+    });
+    await attachUploads(ctx, {
+      messageId,
+      ticket,
+      uploads: uploads ?? [],
+      visibility,
+      uploadedBy: { kind: 'team', id: ctx.principal.member._id },
     });
 
     if (visibility === 'public') {
@@ -309,14 +386,15 @@ export const reply = teamMutation('tickets.manage')({
         patch.status = 'open';
       }
       if (Object.keys(patch).length > 0) await ctx.db.patch('tickets', ticketId, patch);
-      if (ticket.requesterContactId) {
-        await notifyClientContacts(ctx, [ticket.requesterContactId], {
-          event: 'ticket.reply',
-          title: `Unbuilt replied to ${ticket.number}`,
-          body: ticket.subject,
-          link: `/tickets/${ticketId}`,
-        });
-      }
+      // The number leads, as on every other ticket notification either side gets, then the subject so they know which
+      // one it is, and the body carries what was actually said: otherwise every reply on a ticket reads identically
+      // and tells them nothing.
+      await notifyClientContacts(ctx, await clientPortalContacts(ctx, ticket.clientId), {
+        event: 'ticket.reply',
+        title: `${ticket.number}: Unbuilt replied about ${ticket.subject}`,
+        body: said.slice(0, 140),
+        link: `/tickets/${ticketId}`,
+      });
     }
     return { firstResponse: visibility === 'public' && ticket.firstRespondedAt === undefined };
   },
@@ -352,11 +430,22 @@ export const setStatus = teamMutation('tickets.manage')({
       occurredAt: now,
       meta: { ticketId },
     });
-    if (next === 'resolved' && ticket.requesterContactId) {
-      await notifyClientContacts(ctx, [ticket.requesterContactId], {
+    if (next === 'resolved') {
+      await notifyClientContacts(ctx, await clientPortalContacts(ctx, ticket.clientId), {
         event: 'ticket.resolved',
         title: `${ticket.number} is resolved`,
         body: `${ticket.subject}. Reply within 7 days if it is not right.`,
+        link: `/tickets/${ticketId}`,
+      });
+    }
+    // Being waited on is something a client has to be told, or the ticket goes quiet on both sides: their screen says
+    // it is with them, and the studio's clock has stopped. Skipped when the studio has just replied, since that reply
+    // is itself the telling, and two notifications for one action is noise.
+    if (next === 'pending_client' && !(await lastPublicMessageIsFromUnbuilt(ctx, ticketId))) {
+      await notifyClientContacts(ctx, await clientPortalContacts(ctx, ticket.clientId), {
+        event: 'ticket.pending_client',
+        title: `${ticket.number}: Unbuilt is waiting on you`,
+        body: `${ticket.subject}. Open it to see what they need.`,
         link: `/tickets/${ticketId}`,
       });
     }
@@ -413,7 +502,7 @@ export const forClient = teamQuery(null)({
       .withIndex('by_client', (q) => q.eq('clientId', clientId))
       .collect();
     const visible: Doc<'tickets'>[] = [];
-    for (const ticket of rows) if (await canSee(ctx, ctx.principal, ticket)) visible.push(ticket);
+    for (const ticket of rows) if (await canSeeTicket(ctx, ctx.principal, ticket)) visible.push(ticket);
     return visible.map(view).sort((a, b) => b.number.localeCompare(a.number));
   },
 });

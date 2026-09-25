@@ -52,12 +52,28 @@
   message. An email from an unknown sender creates an unassigned ticket flagged for triage.
 - **Fields**: number (`UNB-TKT-0001`), client, project, priority, status, requester, assignee, subject, description,
   attachments.
+- **Attachments belong to a message, not to the ticket** (studio, 2026-09-25): a screenshot means little without the
+  words it came with. Either side can attach up to five files per message, images and documents up to 10 MB each — the
+  `document` upload context, not the deliverable one, since support is not where large files belong.
+  - **A file on an internal note is marked internal** and never reaches the portal, which the shared file rule in
+    `convex/lib/files.ts` enforces whatever a screen does. A file on a public message is marked client-visible.
+  - **A file the studio cannot accept fails the whole message.** A reply that quietly lost its screenshot is worse
+    than one that did not send, because only the second tells anybody.
+  - For the studio, a ticket's files follow the same rule as seeing the ticket; for a client, the whole company can
+    read them, as the whole company can read the ticket.
+  - A message with only a file and no words is worth sending, so both screens allow it.
 - **Timers** start at creation:
   - `firstResponseDueAt` and `resolutionDueAt` from the policy.
   - The first public reply from the team sets `firstRespondedAt`.
   - Status `pending_client` pauses the resolution timer; the paused business minutes are added to the due time on resume.
   - `resolved` stops it.
   - A client reply within 7 days reopens a resolved ticket; after that, a new ticket is created referencing the old one.
+  - **A reopened ticket is promised afresh** (studio, 2026-09-25), from the moment the client came back, under the same
+    policy and priority: a new reply time as well as a new fix time, and the warning and breach stamps cleared. The
+    thread and the number are kept, which is the difference between reopening and starting again. Keeping the original
+    due times instead would make a ticket resolved on time breach the instant somebody said it was not fixed, which
+    tells the studio nothing it can act on. `promisedFrom` on the ticket is the instant the current promise runs from,
+    and it is what a later change of priority counts from.
 - **Breach warnings** fire at 75% of each target and on breach, to the assignee, the project manager and admins. A P1
   breach also sends WhatsApp to admins.
   - The warning instants are stored beside the due times when the ticket is raised, and move with them, so a warning is
@@ -99,6 +115,25 @@
 - **An internal note is visibly internal** wherever it appears, and the reply box says which kind is being written. A
   note carries the reminder that it does not count as the first reply, since the client has still heard nothing.
 - The studio's pages are under `/support/tickets`; `/tickets` belongs to the portal.
+
+## What a client sees
+
+- **Being waited on is a notification** (studio, 2026-09-25), not only a badge: moving a ticket to `pending_client`
+  tells the client, unless the studio has just replied — that reply is itself the telling, and two notifications for
+  one action is noise. Without this the ticket goes quiet on both sides, since the studio's clock has stopped too.
+- **Ticket notifications go to every colleague with portal access**, not only whoever raised it, because the portal
+  shows a client their whole company's tickets.
+- **The studio's statuses are not the client's**: `new` and `open` both mean Unbuilt has it, so the portal says "With
+  Unbuilt". `pending_client` reads as "Waiting on you", with a line saying Unbuilt is waiting on an answer.
+- **No SLA anywhere in the portal** (studio, 2026-09-25): no due times, no countdown, no policy name. What the studio
+  promised is what the studio is scored on, and a client watching a clock tick down learns nothing they can act on.
+  The monthly SLA report is where compliance is reported, deliberately after the fact.
+- **Priorities are offered in the client's words**, not as P-codes: "Everything is down, or data is at risk" rather
+  than P1.
+- **Internal notes are absent from every portal response**, not hidden by the screen.
+- A client sees **their whole company's tickets**, not only the ones they raised themselves, as with projects,
+  documents and invoices. A colleague picking up somebody's report is the normal case.
+- The portal says **before they type** whether a reply will reopen the ticket or start a new one.
 
 ## Retainer hours
 

@@ -3,6 +3,7 @@ import { type Doc, type Id, type TableNames } from '../_generated/dataModel';
 import { type MutationCtx, type QueryCtx } from '../_generated/server';
 import { type ClientPrincipal, type TeamPrincipal } from './principals';
 import { inProjectScope } from './projects';
+import { canSeeTicket } from './sla';
 
 // Files (14-platform.md, Files; 15-security-and-compliance.md). Uploads go to Convex storage through an upload URL that
 // a module hands out after its own permission check; recordUpload then validates what was actually stored. Downloads
@@ -228,6 +229,22 @@ export const FILE_ACCESS: Partial<Record<TableNames, FileAccessRule>> = {
       return projectId ? await inProjectScope(ctx, principal, projectId) : false;
     },
     portal: () => true,
+  },
+  // A ticket's attachments follow the ticket. For the studio that is the same rule as seeing the ticket at all; for the
+  // client, the shared rule above has already limited this to their own client's client-visible files, and the message
+  // is checked again here because this is exactly where a mistake would hand a client the studio's private notes.
+  ticketMessages: {
+    team: async (ctx, principal, file) => {
+      const messageId = ctx.db.normalizeId('ticketMessages', file.owner.id);
+      const message = messageId ? await ctx.db.get('ticketMessages', messageId) : null;
+      const ticket = message ? await ctx.db.get('tickets', message.ticketId) : null;
+      return ticket ? await canSeeTicket(ctx, principal, ticket) : false;
+    },
+    portal: async (ctx, _principal, file) => {
+      const messageId = ctx.db.normalizeId('ticketMessages', file.owner.id);
+      const message = messageId ? await ctx.db.get('ticketMessages', messageId) : null;
+      return message?.visibility === 'public';
+    },
   },
 };
 

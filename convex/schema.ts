@@ -1443,6 +1443,9 @@ export default defineSchema({
     raisedByMemberId: v.optional(v.id('teamMembers')),
     assigneeMemberId: v.optional(v.id('teamMembers')),
     createdAt: v.number(),
+    // The instant the promise on this ticket runs from: when it was raised, or when a client reopened it. Absent on
+    // tickets from before reopening existed; read it as createdAt.
+    promisedFrom: v.optional(v.number()),
     firstResponseDueAt: v.optional(v.number()),
     // Absent when the policy calls this priority best effort.
     resolutionDueAt: v.optional(v.number()),
@@ -1463,6 +1466,9 @@ export default defineSchema({
     // on resume, so time the client takes is not counted against the studio.
     pausedAt: v.optional(v.number()),
     pausedMinutes: v.number(),
+    // Set when a client came back to a resolved ticket after the reopening window had closed, so the new ticket carries
+    // the history of the old one.
+    reopenedFromTicketId: v.optional(v.id('tickets')),
   })
     .index('by_number', ['number'])
     .index('by_client', ['clientId'])

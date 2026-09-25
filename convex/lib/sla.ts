@@ -2,6 +2,8 @@ import { ConvexError } from 'convex/values';
 import { type Doc, type Id } from '../_generated/dataModel';
 import { type MutationCtx, type QueryCtx } from '../_generated/server';
 import { addBusinessMinutes, type BusinessCalendar, businessMinutesBetween, type Holiday } from './businessTime';
+import { type TeamPrincipal } from './principals';
+import { visibleProjectIds } from './projects';
 
 // SLA timers for tickets (09-support-and-sla.md). Every due time here goes through businessTime, so a promise of
 // "4 hours" means four hours the studio is actually open, and never a weekend, a holiday or an evening.
@@ -135,7 +137,7 @@ export async function dueTimesAfterPriorityChange(ctx: Ctx, ticket: Doc<'tickets
   const policy = ticket.slaPolicyId ? await ctx.db.get('slaPolicies', ticket.slaPolicyId) : null;
   if (!policy) return {};
   const { calendar, holidays } = await calendarFor(ctx, policy);
-  const fresh = dueTimes(ticket.createdAt, priority, policy, calendar, holidays);
+  const fresh = dueTimes(ticket.promisedFrom ?? ticket.createdAt, priority, policy, calendar, holidays);
   const paused = ticket.pausedMinutes;
   const waited = (at: number | undefined) =>
     at === undefined || paused === 0 ? at : addBusinessMinutes(at, paused, calendar, holidays);
@@ -149,6 +151,27 @@ export async function dueTimesAfterPriorityChange(ctx: Ctx, ticket: Doc<'tickets
     resolutionDueAt: waited(fresh.resolutionDueAt),
     resolutionWarnAt: waited(fresh.resolutionWarnAt),
   };
+}
+
+/** How long a client has to come back to a resolved ticket before it becomes a new one (09-support-and-sla.md). */
+export const REOPEN_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
+
+export function withinReopenWindow(ticket: Doc<'tickets'>, now: number): boolean {
+  return ticket.resolvedAt !== undefined && now - ticket.resolvedAt <= REOPEN_WINDOW_MS;
+}
+
+/**
+ * Who may see a ticket. `tickets.view.all` reaches every one; `tickets.view.assigned` reaches the tickets on a project
+ * the caller belongs to, and the ones assigned to them, which covers a ticket raised against a client with no project.
+ * Lives here rather than beside the queries because a ticket's files follow exactly the same rule.
+ */
+export async function canSeeTicket(ctx: Ctx, principal: TeamPrincipal, ticket: Doc<'tickets'>): Promise<boolean> {
+  if (principal.permissions.has('tickets.view.all')) return true;
+  if (!principal.permissions.has('tickets.view.assigned')) return false;
+  if (ticket.assigneeMemberId === principal.member._id) return true;
+  if (!ticket.projectId) return false;
+  const visible = await visibleProjectIds(ctx, principal);
+  return visible === 'all' || visible.has(ticket.projectId);
 }
 
 export const OPEN_STATUSES: readonly TicketStatus[] = ['new', 'open', 'pending_client'];

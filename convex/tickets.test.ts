@@ -289,7 +289,50 @@ describe('the thread', () => {
     expect(notifications.find((n) => n.recipientKind === 'client')).toMatchObject({
       event: 'ticket.reply',
       recipientId: client.contactId,
+      // The number, then which ticket it is, then what was said: a client who gets three replies should be able to
+      // tell them apart without opening any of them.
+      title: 'UNB-TKT-0001: Unbuilt replied about Checkout is down',
+      body: 'We are on it.',
     });
+  });
+
+  it('tells every colleague who can sign in, not only whoever raised it', async () => {
+    const ticketId = await raise();
+    await t.run(async (ctx) =>
+      ctx.db.insert('contacts', {
+        clientId,
+        name: 'Kunle Bakare',
+        email: 'kunle@glossup.com',
+        isPrimary: false,
+        isBilling: false,
+        portalAccess: true,
+        status: 'active',
+      }),
+    );
+    await pm.as.mutation(api.tickets.reply, { ticketId, body: 'We are on it.', visibility: 'public' });
+    const told = (await t.run((ctx) => ctx.db.query('notifications').collect())).filter(
+      (n) => n.recipientKind === 'client',
+    );
+    expect(told).toHaveLength(2);
+  });
+
+  it('tells the client when it is put on them, and not twice when a reply just went out', async () => {
+    const ticketId = await raise();
+    // Flipped without a word: nobody would otherwise know they are being waited on, and the studio's clock has stopped.
+    await pm.as.mutation(api.tickets.setStatus, { ticketId, status: 'pending_client' });
+    const waiting = (await t.run((ctx) => ctx.db.query('notifications').collect())).filter(
+      (n) => n.event === 'ticket.pending_client',
+    );
+    expect(waiting).toHaveLength(1);
+    expect(waiting[0].title).toBe('UNB-TKT-0001: Unbuilt is waiting on you');
+
+    // Asked properly this time: the reply is the telling, so the status change says nothing more.
+    await pm.as.mutation(api.tickets.reply, { ticketId, body: 'Which card were you using?', visibility: 'public' });
+    await pm.as.mutation(api.tickets.setStatus, { ticketId, status: 'pending_client' });
+    const after = (await t.run((ctx) => ctx.db.query('notifications').collect())).filter(
+      (n) => n.event === 'ticket.pending_client',
+    );
+    expect(after).toHaveLength(1);
   });
 
   it('tells whoever can work tickets that one has arrived, and the assignee when it is theirs', async () => {
