@@ -550,7 +550,7 @@ export default defineSchema({
     memberId: v.id('teamMembers'),
     projectId: v.id('projects'),
     taskId: v.optional(v.id('tasks')),
-    ticketId: v.optional(v.string()),
+    ticketId: v.optional(v.id('tickets')),
     // YYYY-MM-DD in the studio's timezone, and the Monday of its week
     date: v.string(),
     weekStart: v.string(),
@@ -608,7 +608,7 @@ export default defineSchema({
     dueDate: v.optional(v.string()),
     estimateMinutes: v.optional(v.number()),
     order: v.number(),
-    ticketId: v.optional(v.string()),
+    ticketId: v.optional(v.id('tickets')),
     changeRequestId: v.optional(v.string()),
     completedAt: v.optional(v.number()),
   })
@@ -1419,4 +1419,56 @@ export default defineSchema({
     source: v.literal('manual'),
     enteredByMemberId: v.id('teamMembers'),
   }).index('by_currency_date', ['currency', 'date']),
+
+  // Support (09-support-and-sla.md). The SLA timers live on the ticket rather than being worked out on read: the
+  // policy, its calendar and its holidays can all change afterwards, and a ticket is judged against what it was
+  // promised when it was raised.
+  tickets: defineTable({
+    number: v.string(),
+    clientId: v.id('clients'),
+    projectId: v.optional(v.id('projects')),
+    // The policy that applied when the ticket was raised: the project's, else the client's, else none.
+    slaPolicyId: v.optional(v.id('slaPolicies')),
+    priority: v.union(v.literal('p1'), v.literal('p2'), v.literal('p3'), v.literal('p4')),
+    status: v.union(
+      v.literal('new'),
+      v.literal('open'),
+      v.literal('pending_client'),
+      v.literal('resolved'),
+      v.literal('closed'),
+    ),
+    subject: v.string(),
+    channel: v.union(v.literal('portal'), v.literal('team'), v.literal('email'), v.literal('monitor')),
+    requesterContactId: v.optional(v.id('contacts')),
+    raisedByMemberId: v.optional(v.id('teamMembers')),
+    assigneeMemberId: v.optional(v.id('teamMembers')),
+    createdAt: v.number(),
+    firstResponseDueAt: v.optional(v.number()),
+    // Absent when the policy calls this priority best effort.
+    resolutionDueAt: v.optional(v.number()),
+    firstRespondedAt: v.optional(v.number()),
+    resolvedAt: v.optional(v.number()),
+    closedAt: v.optional(v.number()),
+    // Set while the status is pending_client; the business minutes spent waiting are added to the resolution due time
+    // on resume, so time the client takes is not counted against the studio.
+    pausedAt: v.optional(v.number()),
+    pausedMinutes: v.number(),
+  })
+    .index('by_number', ['number'])
+    .index('by_client', ['clientId'])
+    .index('by_project', ['projectId'])
+    .index('by_assignee', ['assigneeMemberId'])
+    .index('by_status', ['status']),
+
+  ticketMessages: defineTable({
+    ticketId: v.id('tickets'),
+    // Internal notes are the studio's own and never leave it; see the portal rules in 12-client-portal.md.
+    visibility: v.union(v.literal('public'), v.literal('internal')),
+    body: v.string(),
+    authorKind: v.union(v.literal('team'), v.literal('client'), v.literal('system')),
+    authorMemberId: v.optional(v.id('teamMembers')),
+    authorContactId: v.optional(v.id('contacts')),
+    fileIds: v.array(v.id('files')),
+    createdAt: v.number(),
+  }).index('by_ticket', ['ticketId']),
 });
