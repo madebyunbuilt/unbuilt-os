@@ -7,13 +7,22 @@ import { portalAppOrigin } from './lib/hosts';
 // Sends client portal invitations after the granting mutation commits, so a failed send never undoes the access.
 
 export const inviteDetails = internalQuery({
-  args: { contactId: v.id('contacts'), inviterMemberId: v.id('teamMembers') },
-  handler: async (ctx, { contactId, inviterMemberId }) => {
+  args: {
+    contactId: v.id('contacts'),
+    // Whoever did the inviting: a team member, or a client admin inviting their own colleague.
+    inviterMemberId: v.optional(v.id('teamMembers')),
+    inviterContactId: v.optional(v.id('contacts')),
+  },
+  handler: async (ctx, { contactId, inviterMemberId, inviterContactId }) => {
     const contact = await ctx.db.get('contacts', contactId);
     if (!contact || !contact.portalAccess || contact.status !== 'active') return null;
     const client = await ctx.db.get('clients', contact.clientId);
     if (!client) return null;
-    const inviter = await ctx.db.get('teamMembers', inviterMemberId);
+    const inviter = inviterMemberId
+      ? await ctx.db.get('teamMembers', inviterMemberId)
+      : inviterContactId
+        ? await ctx.db.get('contacts', inviterContactId)
+        : null;
     return { email: contact.email, clientName: client.displayName, inviterName: inviter?.name ?? 'Unbuilt Studio' };
   },
 });
@@ -28,7 +37,11 @@ export const markSent = internalMutation({
 });
 
 export const send = internalAction({
-  args: { contactId: v.id('contacts'), inviterMemberId: v.id('teamMembers') },
+  args: {
+    contactId: v.id('contacts'),
+    inviterMemberId: v.optional(v.id('teamMembers')),
+    inviterContactId: v.optional(v.id('contacts')),
+  },
   handler: async (ctx, args) => {
     const invite = await ctx.runQuery(internal.portalInvites.inviteDetails, args);
     if (!invite) return;

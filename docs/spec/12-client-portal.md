@@ -76,8 +76,20 @@ client (see `03-auth-and-permissions.md`).
   member only where the studio addressed the document to them, since accepting commits the client to a price. Documents
   therefore record `recipientContactIds` when they are sent, the way invoices do; without it there is no way to know
   who the studio named.
+- **A client is never left with nobody who can act** (studio, 2026-09-25): approving work and paying invoices are the
+  admin's, so a client with no admin can read and do nothing, and cannot even put itself right without asking the
+  studio. Any change that would remove the last active admin — stepping down, being demoted, or having access
+  removed — is refused. An admin can hand the job over: once a second admin exists they may step down, and the page
+  stops being theirs, which is the point of handing it over. Nobody removes their own access.
+- **Inviting a colleague reuses the contact the studio already holds** (studio, 2026-09-25): an address the studio has
+  on file at that client is given access rather than added a second time, so the portal never splits one person into
+  two records. A client admin can also invite somebody the studio has never met, and the contact is created here. One
+  portal sign-in per address still holds, and a team member's address is refused.
+- **Access is taken away, not the person**: revoking clears `portalAccess` and the portal role and leaves the contact,
+  because the studio still needs to know who it was dealing with and what they approved.
 - **Notifications** to clients honour their preferences, except legally required notices (for example signed copies)
-  which always go by email.
+  which always go by email. Client-side notification preferences (`Team`, above) are part of the notifications work,
+  not of the colleagues screen.
 - **Branding**: Unbuilt branding. The client's name appears in the header.
 - **First sign-in** shows a short walkthrough and asks for WhatsApp opt-in with a clear explanation of what will be sent.
 - **Portal privacy notice** and terms, served from the CMS legal pages, linked in the footer and accepted on first sign-in
