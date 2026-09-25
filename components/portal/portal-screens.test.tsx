@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { PortalDocument, PortalDocuments } from './portal-documents';
 import { PortalInvoice } from './portal-invoices';
+import { PortalProject } from './portal-projects';
 import { PortalHome } from './portal-home';
 
 // The portal's screens (12-client-portal.md): a client is offered the one thing they are being asked to do, and is
@@ -23,7 +24,9 @@ vi.mock('convex/react', () => ({
 vi.mock('@/convex/_generated/api', () => {
   const functions = (name: string) => new Proxy({}, { get: (_, fn: string) => ({ _name: `${name}.${fn}` }) });
   return {
-    api: Object.fromEntries(['portal', 'portalDocuments', 'portalBilling', 'files'].map((n) => [n, functions(n)])),
+    api: Object.fromEntries(
+      ['portal', 'portalDocuments', 'portalBilling', 'portalProjects', 'files'].map((n) => [n, functions(n)]),
+    ),
   };
 });
 
@@ -348,5 +351,110 @@ describe('a client’s invoice', () => {
     expect(screen.getByText('Still to pay')).toBeInTheDocument();
     expect(screen.getByText('₦0.00')).toBeInTheDocument();
     expect(screen.queryByRole('link', { name: 'Pay this invoice' })).not.toBeInTheDocument();
+  });
+});
+
+describe('a client’s project', () => {
+  const project = (overrides: object = {}) => ({
+    id: 'p1',
+    code: 'UNB-P-0001',
+    name: 'Glossup app',
+    status: 'active',
+    startDate: '2026-09-01',
+    dueDate: '2026-12-01',
+    milestones: [],
+    deliverables: [],
+    changeRequests: [],
+    retainer: null,
+    ...overrides,
+  });
+
+  const deliverable = (overrides: object = {}) => ({
+    id: 'd1',
+    title: 'Onboarding flow',
+    description: undefined,
+    status: 'in_review',
+    version: 1,
+    approvedAt: undefined,
+    files: [],
+    links: [{ url: 'https://figma.com/flows', label: 'Figma' }],
+    notes: 'First pass',
+    needsYou: true,
+    ...overrides,
+  });
+
+  const changeRequest = (overrides: object = {}) => ({
+    id: 'cr1',
+    number: 'UNB-CR-0001',
+    title: 'A second onboarding screen',
+    description: 'One more screen.',
+    reason: 'User testing.',
+    impact: { amountMinor: 200_000_00, currency: 'NGN', days: 5 },
+    status: 'sent',
+    needsSignature: false,
+    documentId: undefined,
+    declineReason: undefined,
+    ...overrides,
+  });
+
+  it('offers a review only on what is waiting for them', () => {
+    state.queries['portalProjects.project'] = project({
+      deliverables: [deliverable(), deliverable({ id: 'd2', status: 'approved', needsYou: false })],
+    });
+    render(<PortalProject projectId={'p1' as never} />);
+    expect(screen.getAllByRole('button', { name: 'Approve' })).toHaveLength(1);
+    expect(screen.getByText('Needs your review')).toBeInTheDocument();
+    expect(screen.getByText('Approved')).toBeInTheDocument();
+  });
+
+  it('approves the version it is showing, not whatever is newest', async () => {
+    state.queries['portalProjects.project'] = project({ deliverables: [deliverable({ version: 3 })] });
+    render(<PortalProject projectId={'p1' as never} />);
+    await userEvent.click(screen.getByRole('button', { name: 'Approve' }));
+    const dialog = await screen.findByRole('alertdialog', { name: 'Approve Onboarding flow' });
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Approve' }));
+    await waitFor(() =>
+      expect(state.mutations['portalProjects.decideDeliverable']).toHaveBeenCalledWith({
+        deliverableId: 'd1',
+        version: 3,
+        decision: 'approved',
+      }),
+    );
+  });
+
+  it('says what agreeing a change commits them to', async () => {
+    state.queries['portalProjects.project'] = project({ changeRequests: [changeRequest()] });
+    render(<PortalProject projectId={'p1' as never} />);
+    await userEvent.click(screen.getByRole('button', { name: 'Approve this change' }));
+    const dialog = await screen.findByRole('alertdialog', { name: 'Approve this change' });
+    expect(dialog).toHaveTextContent('₦200,000.00');
+    expect(dialog).toHaveTextContent('5 more days');
+  });
+
+  it('sends them to their email when the change must be signed', () => {
+    state.queries['portalProjects.project'] = project({
+      changeRequests: [changeRequest({ needsSignature: true })],
+    });
+    render(<PortalProject projectId={'p1' as never} />);
+    expect(screen.queryByRole('button', { name: 'Approve this change' })).not.toBeInTheDocument();
+    expect(screen.getByText(/signing link is in your email/)).toBeInTheDocument();
+    // Declining never needs a signature.
+    expect(screen.getByRole('button', { name: 'Decline' })).toBeInTheDocument();
+  });
+
+  it('shows retainer hours without a price anywhere near them', () => {
+    state.queries['portalProjects.project'] = project({
+      retainer: {
+        periodStart: '2026-09-01',
+        periodEnd: '2026-09-30',
+        includedMinutes: 600,
+        usedMinutes: 300,
+        remainingMinutes: 300,
+        overageMinutes: 0,
+      },
+    });
+    render(<PortalProject projectId={'p1' as never} />);
+    expect(screen.getByText('5 of 10 hours used')).toBeInTheDocument();
+    expect(screen.getByText(/5 left/)).toBeInTheDocument();
   });
 });

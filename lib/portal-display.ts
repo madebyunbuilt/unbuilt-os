@@ -97,3 +97,33 @@ export function portalInvoiceStatus(status: string): { label: string; tone: Stat
       return { label: 'To pay', tone: 'attention' };
   }
 }
+
+/** A deliverable as the client sees it: whose move it is, rather than the studio's workflow name. */
+export function deliverableStatus(status: string): { label: string; tone: StatusTone } {
+  switch (status) {
+    case 'in_review':
+      return { label: 'Needs your review', tone: 'attention' };
+    case 'changes_requested':
+      return { label: 'Changes asked for', tone: 'draft' };
+    case 'approved':
+      return { label: 'Approved', tone: 'built' };
+    default:
+      return { label: 'In progress', tone: 'draft' };
+  }
+}
+
+/** A change to the work, in the client's words. */
+export function changeRequestStatus(status: string): { label: string; tone: StatusTone } {
+  switch (status) {
+    case 'sent':
+      return { label: 'Needs your decision', tone: 'attention' };
+    case 'approved':
+      return { label: 'Agreed', tone: 'built' };
+    case 'declined':
+      return { label: 'Declined', tone: 'muted' };
+    case 'withdrawn':
+      return { label: 'Withdrawn by Unbuilt', tone: 'muted' };
+    default:
+      return { label: 'With Unbuilt', tone: 'draft' };
+  }
+}
