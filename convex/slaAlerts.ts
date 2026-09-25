@@ -44,7 +44,7 @@ async function alert(
         ? `${ticket.number} has missed its ${what} time`
         : `${ticket.number} is close to its ${what} time`,
     body: ticket.subject,
-    link: `/tickets/${ticket._id}`,
+    link: `/support/tickets/${ticket._id}`,
   };
   // A missed P1 is the one thing that goes beyond the app: the admins are told on WhatsApp too.
   const urgent = kind === 'breach' && ticket.priority === 'p1';

@@ -88,6 +88,18 @@
   member belongs to, and tickets assigned to them, which is what makes a ticket raised against a client with no project
   reachable by the person holding it. Anything out of scope is "not found", as everywhere else.
 
+## Screens
+
+- **The studio's list is ordered by what is promised**, not by what is newest: whatever is closest to running out sits
+  at the top, and a ticket waiting on the client sits below the ones with a clock running, because its clock is stopped.
+- **Timers are shown in words** ("Reply due in 55 minutes", "Reply 3 hours late") rather than as timestamps, with the
+  exact due moment beside them on the ticket itself. The gap is wall-clock, not business time: it answers "how long
+  have I got", and the person reading it knows their own evening better than a label could.
+- **A ticket with no policy says so**, rather than showing an empty clock that could be read as comfortably fine.
+- **An internal note is visibly internal** wherever it appears, and the reply box says which kind is being written. A
+  note carries the reminder that it does not count as the first reply, since the client has still heard nothing.
+- The studio's pages are under `/support/tickets`; `/tickets` belongs to the portal.
+
 ## Retainer hours
 
 - Used minutes for the current period come from approved time entries on the retainer's project.

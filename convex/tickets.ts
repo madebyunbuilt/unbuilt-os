@@ -171,7 +171,7 @@ export async function openTicket(
     event: 'ticket.created',
     title: `${PRIORITY_LABEL[args.priority]} ticket ${ticket.number}`,
     body: args.subject,
-    link: `/tickets/${ticketId}`,
+    link: `/support/tickets/${ticketId}`,
   });
   return ticketId;
 }
@@ -377,7 +377,7 @@ export const assign = teamMutation('tickets.manage')({
         event: 'ticket.assigned',
         title: `${ticket.number} is yours`,
         body: ticket.subject,
-        link: `/tickets/${ticketId}`,
+        link: `/support/tickets/${ticketId}`,
       });
     }
   },
