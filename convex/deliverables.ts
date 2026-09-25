@@ -66,6 +66,15 @@ export const get = teamQuery(null)({
       approvedVersion: deliverable.approvedVersion,
       approvedAt: deliverable.approvedAt,
       approvedByName: approver?.name,
+      // What the client last asked for, named, so the studio reads it on the page it will work from.
+      changesAsked: deliverable.changesAsked
+        ? {
+            note: deliverable.changesAsked.note,
+            at: deliverable.changesAsked.at,
+            version: deliverable.changesAsked.version,
+            byName: (await ctx.db.get('contacts', deliverable.changesAsked.byContactId))?.name ?? 'The client',
+          }
+        : null,
       versions: await Promise.all(
         versions.map(async (version) => ({
           version: version.version,
@@ -192,7 +201,12 @@ export const submitVersion = teamMutation('deliverables.manage.assigned')({
       submittedByMemberId: ctx.principal.member._id,
       submittedAt: Date.now(),
     });
-    await ctx.db.patch('deliverables', deliverableId, { status: 'in_review', currentVersion: version });
+    await ctx.db.patch('deliverables', deliverableId, {
+      status: 'in_review',
+      currentVersion: version,
+      // This version is the answer to what was asked, so the ask stops standing.
+      changesAsked: undefined,
+    });
     if (deliverable.milestoneId) {
       const milestone = await ctx.db.get('milestones', deliverable.milestoneId);
       if (milestone && ['upcoming', 'in_progress'].includes(milestone.status)) {
@@ -272,7 +286,10 @@ export async function applyClientDecision(
   const contact = await ctx.db.get('contacts', args.contactId);
   const said = text(args.note, 'Note', { max: 2000 });
   if (args.decision === 'changes_requested') {
-    await ctx.db.patch('deliverables', deliverable._id, { status: 'changes_requested' });
+    await ctx.db.patch('deliverables', deliverable._id, {
+      status: 'changes_requested',
+      changesAsked: said ? { note: said, byContactId: args.contactId, at: args.now, version: args.version } : undefined,
+    });
     await tellTheStudio(ctx, deliverable, {
       title: `${contact?.name ?? 'The client'} asked for changes to ${deliverable.title}`,
       body: said ?? 'No note was left.',

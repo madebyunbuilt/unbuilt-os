@@ -174,6 +174,29 @@ describe('deciding on a deliverable', () => {
     expect(activity.some((entry) => entry.body === 'The logo is the old one on screen two')).toBe(true);
   });
 
+  it('leaves the ask on the deliverable, and clears it when the next version answers it', async () => {
+    const deliverableId = await inReview();
+    await glossup.as.mutation(api.portalProjects.decideDeliverable, {
+      deliverableId,
+      version: 1,
+      decision: 'changes_requested',
+      note: 'The logo is the old one on screen two',
+    });
+
+    // On the record the studio works from, not only in a notification they may have cleared.
+    expect(await pm.as.query(api.deliverables.get, { deliverableId })).toMatchObject({
+      status: 'changes_requested',
+      changesAsked: { note: 'The logo is the old one on screen two', version: 1, byName: 'ada@glossup.com' },
+    });
+
+    await pm.as.mutation(api.deliverables.submitVersion, { deliverableId, uploads: [], links: [{ url: 'x.com' }] });
+    // The new version is the answer, so the ask stops standing.
+    expect(await pm.as.query(api.deliverables.get, { deliverableId })).toMatchObject({
+      status: 'in_review',
+      changesAsked: null,
+    });
+  });
+
   it('tells the studio about an approval too', async () => {
     const deliverableId = await inReview();
     await glossup.as.mutation(api.portalProjects.decideDeliverable, {

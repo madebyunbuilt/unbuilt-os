@@ -526,6 +526,11 @@ export default defineSchema({
     approvedAt: v.optional(v.number()),
     approvedByContactId: v.optional(v.id('contacts')),
     approvedVersion: v.optional(v.number()),
+    // What the client last asked to be changed, on the record rather than only in a notification, so the studio reads
+    // it on the deliverable they are about to work on. Cleared when the next version goes out.
+    changesAsked: v.optional(
+      v.object({ note: v.string(), byContactId: v.id('contacts'), at: v.number(), version: v.number() }),
+    ),
   })
     .index('by_project', ['projectId'])
     .index('by_milestone', ['milestoneId']),
