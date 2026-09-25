@@ -62,6 +62,19 @@
   breach also sends WhatsApp to admins.
 - Time logged against a ticket counts toward the project and, for retainers, the retainer period.
 - Messages are public (visible to the client) or internal notes.
+- **What was asked for is the first message** (studio, 2026-09-25), not a separate description field: the thread then
+  reads in order from the start, and a reply and an opening request are the same kind of thing.
+- **The promise is written onto the ticket when it is raised** (studio, 2026-09-25): the policy, the due times and the
+  calendar it was counted in are stored, not worked out on read. Retiring a policy or editing business hours afterwards
+  changes what the studio promises next, never a date a client was already given. A ticket raised when no policy
+  applies has no due times at all rather than invented ones, and is never late.
+- **Changing the priority re-runs the promise** (studio, 2026-09-25) from when the ticket was raised, under the new
+  priority's targets, plus whatever it has already spent waiting on the client. Escalating a P3 to a P1 therefore makes
+  it due sooner — often already late — which is the point of escalating it. A first response that has already happened
+  is not taken back: that target only matters until somebody replies.
+- **Who sees a ticket**: `tickets.view.all` reaches every one. `tickets.view.assigned` reaches tickets on a project the
+  member belongs to, and tickets assigned to them, which is what makes a ticket raised against a client with no project
+  reachable by the person holding it. Anything out of scope is "not found", as everywhere else.
 
 ## Retainer hours
 
