@@ -55,7 +55,17 @@ export function targetFor(policy: Doc<'slaPolicies'>, priority: Priority) {
   return policy.targets.find((target) => target.priority === priority) ?? null;
 }
 
-export type Due = { firstResponseDueAt?: number; resolutionDueAt?: number };
+export type Due = {
+  firstResponseDueAt?: number;
+  resolutionDueAt?: number;
+  firstResponseWarnAt?: number;
+  resolutionWarnAt?: number;
+};
+
+/** How far into a target the studio is warned that it is running out (09-support-and-sla.md, Breach warnings). */
+export const WARNING_AT_BPS = 7500;
+
+const warningMinutes = (minutes: number) => Math.floor((minutes * WARNING_AT_BPS) / 10_000);
 
 /**
  * When a ticket raised at `from` is due, counted in business time. A priority the policy says nothing about, and a
@@ -70,12 +80,12 @@ export function dueTimes(
 ): Due {
   const target = policy ? targetFor(policy, priority) : null;
   if (!target) return {};
+  const at = (minutes: number) => addBusinessMinutes(from, minutes, calendar, holidays);
   return {
-    firstResponseDueAt: addBusinessMinutes(from, target.firstResponseMinutes, calendar, holidays),
-    resolutionDueAt:
-      target.resolutionMinutes === undefined
-        ? undefined
-        : addBusinessMinutes(from, target.resolutionMinutes, calendar, holidays),
+    firstResponseDueAt: at(target.firstResponseMinutes),
+    firstResponseWarnAt: at(warningMinutes(target.firstResponseMinutes)),
+    resolutionDueAt: target.resolutionMinutes === undefined ? undefined : at(target.resolutionMinutes),
+    resolutionWarnAt: target.resolutionMinutes === undefined ? undefined : at(warningMinutes(target.resolutionMinutes)),
   };
 }
 
@@ -98,7 +108,7 @@ export async function resumeAfterPause(
   ctx: Ctx,
   ticket: Doc<'tickets'>,
   now: number,
-): Promise<{ pausedMinutes: number; resolutionDueAt?: number }> {
+): Promise<{ pausedMinutes: number; resolutionDueAt?: number; resolutionWarnAt?: number }> {
   if (ticket.pausedAt === undefined) return { pausedMinutes: ticket.pausedMinutes };
   const policy = ticket.slaPolicyId ? await ctx.db.get('slaPolicies', ticket.slaPolicyId) : null;
   if (!policy || ticket.resolutionDueAt === undefined) {
@@ -106,9 +116,12 @@ export async function resumeAfterPause(
   }
   const { calendar, holidays } = await calendarFor(ctx, policy);
   const waited = businessMinutesBetween(ticket.pausedAt, now, calendar, holidays);
+  const later = (at: number | undefined) =>
+    at === undefined ? undefined : addBusinessMinutes(at, waited, calendar, holidays);
   return {
     pausedMinutes: ticket.pausedMinutes + waited,
-    resolutionDueAt: addBusinessMinutes(ticket.resolutionDueAt, waited, calendar, holidays),
+    resolutionDueAt: later(ticket.resolutionDueAt),
+    resolutionWarnAt: later(ticket.resolutionWarnAt),
   };
 }
 
@@ -124,16 +137,17 @@ export async function dueTimesAfterPriorityChange(ctx: Ctx, ticket: Doc<'tickets
   const { calendar, holidays } = await calendarFor(ctx, policy);
   const fresh = dueTimes(ticket.createdAt, priority, policy, calendar, holidays);
   const paused = ticket.pausedMinutes;
+  const waited = (at: number | undefined) =>
+    at === undefined || paused === 0 ? at : addBusinessMinutes(at, paused, calendar, holidays);
+  const answered = ticket.firstRespondedAt !== undefined;
   return {
     // A ticket already answered keeps the first response it got; the target only matters until then.
-    firstResponseDueAt:
-      ticket.firstRespondedAt === undefined
-        ? fresh.firstResponseDueAt
-        : (ticket.firstResponseDueAt ?? fresh.firstResponseDueAt),
-    resolutionDueAt:
-      fresh.resolutionDueAt === undefined || paused === 0
-        ? fresh.resolutionDueAt
-        : addBusinessMinutes(fresh.resolutionDueAt, paused, calendar, holidays),
+    firstResponseDueAt: answered ? (ticket.firstResponseDueAt ?? fresh.firstResponseDueAt) : fresh.firstResponseDueAt,
+    firstResponseWarnAt: answered
+      ? (ticket.firstResponseWarnAt ?? fresh.firstResponseWarnAt)
+      : fresh.firstResponseWarnAt,
+    resolutionDueAt: waited(fresh.resolutionDueAt),
+    resolutionWarnAt: waited(fresh.resolutionWarnAt),
   };
 }
 

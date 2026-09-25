@@ -42,4 +42,8 @@ crons.daily('late fees', { hourUTC: 8, minuteUTC: 30 }, internal.lateFees.runDue
 // 08:00 Lagos: tell whoever pays about the bills due this week, and any already late.
 crons.daily('bills due', { hourUTC: 7, minuteUTC: 0 }, internal.bills.remindDue, {});
 
+// Every quarter hour: warn on tickets three-quarters of the way through an SLA target, and on the ones that have gone
+// past it. A P1 has one business hour to be answered, so anything slower than this would warn too late to help.
+crons.interval('sla warnings', { minutes: 15 }, internal.slaAlerts.runDue, {});
+
 export default crons;

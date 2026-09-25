@@ -1446,6 +1446,16 @@ export default defineSchema({
     firstResponseDueAt: v.optional(v.number()),
     // Absent when the policy calls this priority best effort.
     resolutionDueAt: v.optional(v.number()),
+    // 75% of each target, stored beside the due time so the warning moves with it rather than being worked out from a
+    // policy that may since have changed.
+    firstResponseWarnAt: v.optional(v.number()),
+    resolutionWarnAt: v.optional(v.number()),
+    // When each alert went out. Set once, so a warning and a breach are each sent one time per ticket per target
+    // however often the cron runs (09-support-and-sla.md, Breach warnings).
+    warnedFirstResponseAt: v.optional(v.number()),
+    breachedFirstResponseAt: v.optional(v.number()),
+    warnedResolutionAt: v.optional(v.number()),
+    breachedResolutionAt: v.optional(v.number()),
     firstRespondedAt: v.optional(v.number()),
     resolvedAt: v.optional(v.number()),
     closedAt: v.optional(v.number()),
