@@ -95,6 +95,7 @@ import type * as portal from "../portal.js";
 import type * as portalBilling from "../portalBilling.js";
 import type * as portalDocuments from "../portalDocuments.js";
 import type * as portalInvites from "../portalInvites.js";
+import type * as portalProjects from "../portalProjects.js";
 import type * as principals from "../principals.js";
 import type * as projectTemplates from "../projectTemplates.js";
 import type * as projects from "../projects.js";
@@ -212,6 +213,7 @@ declare const fullApi: ApiFromModules<{
   portalBilling: typeof portalBilling;
   portalDocuments: typeof portalDocuments;
   portalInvites: typeof portalInvites;
+  portalProjects: typeof portalProjects;
   principals: typeof principals;
   projectTemplates: typeof projectTemplates;
   projects: typeof projects;

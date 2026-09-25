@@ -89,6 +89,21 @@ export function DeliverableDetail({
         {deliverable.description && <p className="whitespace-pre-wrap">{deliverable.description}</p>}
       </div>
 
+      {deliverable.changesAsked && (
+        <section aria-labelledby="changes-asked" className="space-y-1 rounded-lg border p-4">
+          <h2 id="changes-asked" className="font-display text-lg font-bold">
+            What {deliverable.changesAsked.byName} asked for
+          </h2>
+          <p className="text-sm text-muted-foreground">
+            On version {deliverable.changesAsked.version},{' '}
+            <time dateTime={new Date(deliverable.changesAsked.at).toISOString()}>
+              {dateTime.format(deliverable.changesAsked.at)}
+            </time>
+          </p>
+          <p className="whitespace-pre-wrap">{deliverable.changesAsked.note}</p>
+        </section>
+      )}
+
       {canManage && deliverable.status !== 'approved' && <SubmitVersionForm deliverableId={deliverableId} />}
 
       <section className="space-y-4">

@@ -2,7 +2,8 @@ import { v } from 'convex/values';
 import { internal } from './_generated/api';
 import { type Doc, type Id } from './_generated/dataModel';
 import { type MutationCtx, type QueryCtx } from './_generated/server';
-import { requirePermission, text, website } from './lib/crm';
+import { recordActivity, requirePermission, text, website } from './lib/crm';
+import { notifyTeamMembers } from './lib/notify';
 import { deleteFile, recordUpload } from './lib/files';
 import { internalMutation, teamMutation, teamQuery } from './lib/functions';
 import { type TeamPrincipal } from './lib/principals';
@@ -65,6 +66,15 @@ export const get = teamQuery(null)({
       approvedVersion: deliverable.approvedVersion,
       approvedAt: deliverable.approvedAt,
       approvedByName: approver?.name,
+      // What the client last asked for, named, so the studio reads it on the page it will work from.
+      changesAsked: deliverable.changesAsked
+        ? {
+            note: deliverable.changesAsked.note,
+            at: deliverable.changesAsked.at,
+            version: deliverable.changesAsked.version,
+            byName: (await ctx.db.get('contacts', deliverable.changesAsked.byContactId))?.name ?? 'The client',
+          }
+        : null,
       versions: await Promise.all(
         versions.map(async (version) => ({
           version: version.version,
@@ -191,7 +201,12 @@ export const submitVersion = teamMutation('deliverables.manage.assigned')({
       submittedByMemberId: ctx.principal.member._id,
       submittedAt: Date.now(),
     });
-    await ctx.db.patch('deliverables', deliverableId, { status: 'in_review', currentVersion: version });
+    await ctx.db.patch('deliverables', deliverableId, {
+      status: 'in_review',
+      currentVersion: version,
+      // This version is the answer to what was asked, so the ask stops standing.
+      changesAsked: undefined,
+    });
     if (deliverable.milestoneId) {
       const milestone = await ctx.db.get('milestones', deliverable.milestoneId);
       if (milestone && ['upcoming', 'in_progress'].includes(milestone.status)) {
@@ -201,6 +216,45 @@ export const submitVersion = teamMutation('deliverables.manage.assigned')({
     return { ok: true as const, version };
   },
 });
+
+/**
+ * Tells the people whose work it is (14-platform.md): the project's manager and whoever submitted the version. A
+ * decision nobody hears about leaves the client waiting on a studio that does not know it has been asked.
+ */
+async function tellTheStudio(
+  ctx: { db: MutationCtx['db'] },
+  deliverable: Doc<'deliverables'>,
+  notice: { title: string; body: string },
+) {
+  const [project, version] = await Promise.all([
+    ctx.db.get('projects', deliverable.projectId),
+    ctx.db
+      .query('deliverableVersions')
+      .withIndex('by_deliverable_version', (q) =>
+        q.eq('deliverableId', deliverable._id).eq('version', deliverable.currentVersion),
+      )
+      .unique(),
+  ]);
+  const tell = [project?.managerMemberId, version?.submittedByMemberId].filter((id): id is Id<'teamMembers'> =>
+    Boolean(id),
+  );
+  await notifyTeamMembers(ctx, tell, {
+    event: 'deliverable_decided',
+    ...notice,
+    link: `/projects/${deliverable.projectId}/deliverables/${deliverable._id}`,
+  });
+  if (project) {
+    await recordActivity(ctx, {
+      subject: { table: 'clients', id: project.clientId },
+      clientId: project.clientId,
+      type: 'status_change',
+      title: notice.title,
+      body: notice.body,
+      actor: { kind: 'client', id: deliverable.approvedByContactId },
+      meta: { deliverableId: deliverable._id, projectId: deliverable.projectId },
+    });
+  }
+}
 
 /**
  * Applies a client's decision on the version in review (called by the portal in the client portal step). Approval
@@ -213,6 +267,8 @@ export async function applyClientDecision(
     contactId: Id<'contacts'>;
     version: number;
     decision: 'approved' | 'changes_requested';
+    /** What the client wants changed, in their words. Kept on the timeline, not only in a notification. */
+    note?: string;
     now: number;
   },
 ): Promise<{ milestoneApproved: Id<'milestones'> | null }> {
@@ -227,8 +283,17 @@ export async function applyClientDecision(
       `Version ${args.version} has been replaced by version ${deliverable.currentVersion}`,
     );
   }
+  const contact = await ctx.db.get('contacts', args.contactId);
+  const said = text(args.note, 'Note', { max: 2000 });
   if (args.decision === 'changes_requested') {
-    await ctx.db.patch('deliverables', deliverable._id, { status: 'changes_requested' });
+    await ctx.db.patch('deliverables', deliverable._id, {
+      status: 'changes_requested',
+      changesAsked: said ? { note: said, byContactId: args.contactId, at: args.now, version: args.version } : undefined,
+    });
+    await tellTheStudio(ctx, deliverable, {
+      title: `${contact?.name ?? 'The client'} asked for changes to ${deliverable.title}`,
+      body: said ?? 'No note was left.',
+    });
     return { milestoneApproved: null };
   }
   await ctx.db.patch('deliverables', deliverable._id, {
@@ -236,6 +301,10 @@ export async function applyClientDecision(
     approvedAt: args.now,
     approvedByContactId: args.contactId,
     approvedVersion: args.version,
+  });
+  await tellTheStudio(ctx, deliverable, {
+    title: `${contact?.name ?? 'The client'} approved ${deliverable.title}`,
+    body: said ?? `Version ${args.version}.`,
   });
   if (!deliverable.milestoneId) return { milestoneApproved: null };
   const siblings = await ctx.db
@@ -262,6 +331,7 @@ export const recordClientDecision = internalMutation({
     contactId: v.id('contacts'),
     version: v.number(),
     decision: v.union(v.literal('approved'), v.literal('changes_requested')),
+    note: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const result = await applyClientDecision(ctx, { ...args, now: Date.now() });
