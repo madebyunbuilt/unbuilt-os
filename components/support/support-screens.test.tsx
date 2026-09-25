@@ -22,7 +22,9 @@ vi.mock('convex/react', () => ({
 vi.mock('@/convex/_generated/api', () => {
   const functions = (name: string) => new Proxy({}, { get: (_, fn: string) => ({ _name: `${name}.${fn}` }) });
   return {
-    api: Object.fromEntries(['tickets', 'clients', 'projects', 'contacts', 'team'].map((n) => [n, functions(n)])),
+    api: Object.fromEntries(
+      ['tickets', 'clients', 'projects', 'contacts', 'team', 'files'].map((n) => [n, functions(n)]),
+    ),
   };
 });
 
@@ -62,7 +64,7 @@ const detail = (overrides: object = {}) => ({
       authorKind: 'client',
       authorMemberId: undefined,
       authorContactId: 'ct1',
-      fileIds: [],
+      files: [],
       createdAt: Date.parse('2026-10-08T16:55:00+01:00'),
     },
   ],
@@ -177,7 +179,7 @@ describe('one ticket', () => {
           authorKind: 'team',
           authorMemberId: 'm-tobi',
           authorContactId: undefined,
-          fileIds: [],
+          files: [],
           createdAt: NOW,
         },
       ],
@@ -202,8 +204,33 @@ describe('one ticket', () => {
         ticketId: 't1',
         body: 'We are on it.',
         visibility: 'public',
+        uploads: [],
       }),
     );
+  });
+
+  it('opens a file the client sent, from inside the thread', () => {
+    state.queries['tickets.get'] = detail({
+      messages: [{ ...detail().messages[0], files: [{ id: 'f1', name: 'broken.png' }] }],
+    });
+    state.queries['files.teamDownloadUrl'] = { url: 'https://example.test/broken.png', name: 'broken.png' };
+    render(<TicketDetail ticketId={'t1' as never} permissions={permissions} />);
+    expect(screen.getByRole('link', { name: 'broken.png' })).toHaveAttribute('href', 'https://example.test/broken.png');
+  });
+
+  it('says who a file is being attached for, so a note’s file is not sent to the client by accident', async () => {
+    render(<TicketDetail ticketId={'t1' as never} permissions={permissions} />);
+    expect(screen.getByLabelText('Attach a file for the client')).toBeInTheDocument();
+    await userEvent.selectOptions(screen.getByLabelText('Who sees this'), 'internal');
+    expect(screen.getByLabelText('Attach a file to the note')).toBeInTheDocument();
+  });
+
+  it('sends a file on its own, with nothing typed', async () => {
+    render(<TicketDetail ticketId={'t1' as never} permissions={permissions} />);
+    expect(screen.getByRole('button', { name: 'Send to the client' })).toBeDisabled();
+    const shot = new File(['pretend'], 'fix.png', { type: 'image/png' });
+    await userEvent.upload(screen.getByLabelText('Attach a file for the client'), shot);
+    expect(screen.getByRole('button', { name: 'Send to the client' })).toBeEnabled();
   });
 
   it('says what changing the priority does to the promise', () => {

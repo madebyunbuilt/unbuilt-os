@@ -52,6 +52,16 @@
   message. An email from an unknown sender creates an unassigned ticket flagged for triage.
 - **Fields**: number (`UNB-TKT-0001`), client, project, priority, status, requester, assignee, subject, description,
   attachments.
+- **Attachments belong to a message, not to the ticket** (studio, 2026-09-25): a screenshot means little without the
+  words it came with. Either side can attach up to five files per message, images and documents up to 10 MB each — the
+  `document` upload context, not the deliverable one, since support is not where large files belong.
+  - **A file on an internal note is marked internal** and never reaches the portal, which the shared file rule in
+    `convex/lib/files.ts` enforces whatever a screen does. A file on a public message is marked client-visible.
+  - **A file the studio cannot accept fails the whole message.** A reply that quietly lost its screenshot is worse
+    than one that did not send, because only the second tells anybody.
+  - For the studio, a ticket's files follow the same rule as seeing the ticket; for a client, the whole company can
+    read them, as the whole company can read the ticket.
+  - A message with only a file and no words is worth sending, so both screens allow it.
 - **Timers** start at creation:
   - `firstResponseDueAt` and `resolutionDueAt` from the policy.
   - The first public reply from the team sets `firstRespondedAt`.

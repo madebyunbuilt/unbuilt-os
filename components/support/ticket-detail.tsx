@@ -3,6 +3,7 @@
 import { useMutation, useQuery } from 'convex/react';
 import Link from 'next/link';
 import { useState } from 'react';
+import { AttachmentsField, useAttachments } from '@/components/app/attachments-field';
 import { ToneBadge } from '@/components/team/status-badge';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
@@ -83,6 +84,18 @@ function SlaPanel({ ticket, now }: { ticket: Ticket; now: number }) {
   );
 }
 
+function Attachment({ file }: { file: Message['files'][number] }) {
+  const stored = useQuery(api.files.teamDownloadUrl, { fileId: file.id });
+  if (!stored) return <li className="text-muted-foreground">{file.name}</li>;
+  return (
+    <li>
+      <a href={stored.url} target="_blank" rel="noreferrer" className="underline">
+        {file.name}
+      </a>
+    </li>
+  );
+}
+
 function ThreadMessage({ message }: { message: Message }) {
   const internal = message.visibility === 'internal';
   return (
@@ -97,6 +110,13 @@ function ThreadMessage({ message }: { message: Message }) {
         </div>
       </div>
       <p className="mt-2 text-sm whitespace-pre-wrap">{message.body}</p>
+      {message.files.length > 0 && (
+        <ul className="mt-2 space-y-1 text-sm">
+          {message.files.map((file) => (
+            <Attachment key={file.id} file={file} />
+          ))}
+        </ul>
+      )}
       {internal && <p className="mt-2 text-xs text-muted-foreground">The client never sees this.</p>}
     </li>
   );
@@ -104,6 +124,8 @@ function ThreadMessage({ message }: { message: Message }) {
 
 function Reply({ ticket }: { ticket: Ticket }) {
   const reply = useMutation(api.tickets.reply);
+  const generateUploadUrl = useMutation(api.tickets.generateUploadUrl);
+  const attachments = useAttachments(() => generateUploadUrl({}));
   const [body, setBody] = useState('');
   const [visibility, setVisibility] = useState<'public' | 'internal'>('public');
   const [error, setError] = useState<string | null>(null);
@@ -117,8 +139,9 @@ function Reply({ ticket }: { ticket: Ticket }) {
         setSending(true);
         setError(null);
         try {
-          await reply({ ticketId: ticket.id, body, visibility });
+          await reply({ ticketId: ticket.id, body, visibility, uploads: await attachments.upload() });
           setBody('');
+          attachments.clear();
         } catch (caught) {
           setError(errorMessage(caught));
         } finally {
@@ -132,6 +155,12 @@ function Reply({ ticket }: { ticket: Ticket }) {
         </Label>
         <Textarea id="ticket-reply" rows={4} value={body} onChange={(event) => setBody(event.target.value)} />
       </div>
+      <AttachmentsField
+        id="ticket-reply-files"
+        label={visibility === 'public' ? 'Attach a file for the client' : 'Attach a file to the note'}
+        attachments={attachments}
+        disabled={sending}
+      />
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div className="space-y-1">
           <Label htmlFor="ticket-visibility" className="text-xs text-muted-foreground">
@@ -146,7 +175,7 @@ function Reply({ ticket }: { ticket: Ticket }) {
             <option value="internal">Only the studio</option>
           </NativeSelect>
         </div>
-        <Button type="submit" disabled={sending || body.trim().length === 0}>
+        <Button type="submit" disabled={sending || (body.trim().length === 0 && attachments.files.length === 0)}>
           {sending ? 'Sending…' : visibility === 'public' ? 'Send to the client' : 'Save the note'}
         </Button>
       </div>

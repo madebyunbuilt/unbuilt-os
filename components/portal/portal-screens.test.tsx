@@ -604,6 +604,7 @@ describe('support in the portal', () => {
         body: 'Nobody can pay.',
         fromUnbuilt: false,
         authorContactId: 'ct1',
+        files: [],
         createdAt: Date.parse('2026-10-12T09:00:00Z'),
       },
     ],
@@ -647,8 +648,37 @@ describe('support in the portal', () => {
         description: 'Every card fails.',
         priority: 'p1',
         projectId: undefined,
+        uploads: [],
       }),
     );
+  });
+
+  it('lets a client send a screenshot with what they report', async () => {
+    render(<PortalTickets />);
+    await userEvent.click(screen.getByRole('button', { name: 'Ask for help' }));
+    const dialog = within(await screen.findByRole('dialog'));
+    const shot = new File(['pretend'], 'broken.png', { type: 'image/png' });
+    await userEvent.upload(dialog.getByLabelText('Add a screenshot or a file'), shot);
+    // Listed by name before it goes anywhere, with a way to take it back off.
+    expect(dialog.getByRole('button', { name: 'Remove broken.png' })).toBeInTheDocument();
+  });
+
+  it('shows a file Unbuilt sent back', () => {
+    state.queries['portalTickets.get'] = thread({
+      messages: [
+        {
+          id: 'm2',
+          body: 'This is what we changed.',
+          fromUnbuilt: true,
+          authorContactId: undefined,
+          files: [{ id: 'f1', name: 'fix.png' }],
+          createdAt: Date.parse('2026-10-12T10:00:00Z'),
+        },
+      ],
+    });
+    state.queries['files.portalDownloadUrl'] = { url: 'https://example.test/fix.png', name: 'fix.png' };
+    render(<PortalTicket ticketId={'tk1' as never} />);
+    expect(screen.getByRole('link', { name: 'fix.png' })).toHaveAttribute('href', 'https://example.test/fix.png');
   });
 
   it('says whose turn it is, without ever showing an SLA', () => {

@@ -6,7 +6,7 @@ import { portalMutation, portalQuery } from './lib/functions';
 import { activeMembersWith, notifyTeamMembers } from './lib/notify';
 import { type ClientPrincipal } from './lib/principals';
 import { dueTimesFor, resumeAfterPause, slaError, withinReopenWindow } from './lib/sla';
-import { openTicket } from './tickets';
+import { attachUploads, filesOn, openTicket, uploadArg } from './tickets';
 
 // Support in the client portal (12-client-portal.md, Support). A client raises a ticket, reads the thread and replies.
 // Internal notes are absent from every response here, and so is anything the studio wrote to itself about the SLA:
@@ -84,17 +84,20 @@ export const get = portalQuery('portal.tickets.view')({
     return {
       ...view(ticket, Date.now()),
       projectName: project?.name,
-      messages: messages
-        // Internal notes never leave the studio (12-client-portal.md, Rules).
-        .filter((message) => message.visibility === 'public')
-        .sort((a, b) => a.createdAt - b.createdAt)
-        .map((message) => ({
-          id: message._id,
-          body: message.body,
-          fromUnbuilt: message.authorKind !== 'client',
-          authorContactId: message.authorContactId,
-          createdAt: message.createdAt,
-        })),
+      messages: await Promise.all(
+        messages
+          // Internal notes never leave the studio (12-client-portal.md, Rules).
+          .filter((message) => message.visibility === 'public')
+          .sort((a, b) => a.createdAt - b.createdAt)
+          .map(async (message) => ({
+            id: message._id,
+            body: message.body,
+            fromUnbuilt: message.authorKind !== 'client',
+            authorContactId: message.authorContactId,
+            files: await filesOn(ctx, message),
+            createdAt: message.createdAt,
+          })),
+      ),
     };
   },
 });
@@ -105,6 +108,7 @@ export const create = portalMutation('portal.tickets.create')({
     description: v.string(),
     priority,
     projectId: v.optional(v.id('projects')),
+    uploads: v.optional(v.array(uploadArg)),
   },
   handler: async (ctx, args) => {
     const principal = ctx.principal as ClientPrincipal;
@@ -122,8 +126,15 @@ export const create = portalMutation('portal.tickets.create')({
       priority: args.priority,
       channel: 'portal',
       requesterContactId: principal.contact._id,
+      uploads: args.uploads,
     });
   },
+});
+
+/** Somewhere to put the bytes before the message that carries them exists. */
+export const generateUploadUrl = portalMutation('portal.files.upload')({
+  args: {},
+  handler: async (ctx) => await ctx.storage.generateUploadUrl(),
 });
 
 /**
@@ -150,8 +161,8 @@ async function reopen(ctx: MutationCtx, ticket: Doc<'tickets'>, now: number) {
 }
 
 export const reply = portalMutation('portal.tickets.view')({
-  args: { ticketId: v.id('tickets'), body: v.string() },
-  handler: async (ctx, { ticketId, body }) => {
+  args: { ticketId: v.id('tickets'), body: v.string(), uploads: v.optional(v.array(uploadArg)) },
+  handler: async (ctx, { ticketId, body, uploads }) => {
     const principal = ctx.principal as ClientPrincipal;
     const ticket = await theirTicket(ctx, ticketId, principal.clientId);
     if (!ticket) throw slaError('tickets.notFound', 'That ticket is not here');
@@ -168,6 +179,7 @@ export const reply = portalMutation('portal.tickets.view')({
         priority: ticket.priority,
         channel: 'portal',
         requesterContactId: principal.contact._id,
+        uploads,
         now,
       });
       // openTicket works the policy and the promise out for itself; all this adds is where it came from.
@@ -175,7 +187,7 @@ export const reply = portalMutation('portal.tickets.view')({
       return { ticketId: newId, reopened: false, isNew: true };
     }
 
-    await ctx.db.insert('ticketMessages', {
+    const messageId = await ctx.db.insert('ticketMessages', {
       ticketId,
       visibility: 'public',
       body: said,
@@ -183,6 +195,13 @@ export const reply = portalMutation('portal.tickets.view')({
       authorContactId: principal.contact._id,
       fileIds: [],
       createdAt: now,
+    });
+    await attachUploads(ctx, {
+      messageId,
+      ticket,
+      uploads: uploads ?? [],
+      visibility: 'public',
+      uploadedBy: { kind: 'client', id: principal.contact._id },
     });
 
     const reopened = ticket.status === 'resolved';

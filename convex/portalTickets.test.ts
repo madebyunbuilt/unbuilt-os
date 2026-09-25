@@ -42,6 +42,8 @@ async function travelTo(iso: string) {
 beforeEach(async () => {
   vi.useFakeTimers({ toFake: ['Date'] });
   vi.setSystemTime(lagos('2026-10-12T10:00:00'));
+  vi.stubEnv('CONVEX_SITE_URL', 'https://example.convex.site');
+  vi.stubEnv('FILE_URL_SECRET', 'test-file-url-secret-that-is-long-enough');
   t = newTest();
   await t.mutation(internal.seed.run, {});
   roles = await t.run(async (ctx) =>
@@ -233,5 +235,95 @@ describe('a client replying', () => {
     );
     expect(reopened.map((n) => n.recipientId)).toEqual([pm.memberId]);
     expect(reopened[0].link).toBe(`/support/tickets/${ticketId}`);
+  });
+});
+
+describe('files on a ticket', () => {
+  /** Attaches the way the screen does: store the bytes, then send the message that carries them. */
+  const png = async (name = 'screenshot.png') => ({
+    storageId: await t.run((ctx) => ctx.storage.store(new Blob(['pretend'], { type: 'image/png' }))),
+    name,
+    contentType: 'image/png',
+  });
+
+  const fileOn = async (ticketId: Id<'tickets'>, index = 0) =>
+    await t.run(async (ctx) => {
+      const messages = await ctx.db
+        .query('ticketMessages')
+        .withIndex('by_ticket', (q) => q.eq('ticketId', ticketId))
+        .collect();
+      return messages.sort((a, b) => a.createdAt - b.createdAt)[index].fileIds[0];
+    });
+
+  it('lets a client attach a screenshot to what they report, and read it back', async () => {
+    const ticketId = await raise({ uploads: [await png()] });
+    const fileId = await fileOn(ticketId);
+    expect(fileId).toBeDefined();
+    expect(await ada.as.query(api.files.portalDownloadUrl, { fileId })).toMatchObject({ name: 'screenshot.png' });
+    // The studio reads it too: it is the evidence they were sent.
+    expect(await pm.as.query(api.files.teamDownloadUrl, { fileId })).toMatchObject({ name: 'screenshot.png' });
+    // The thread carries the name, so it shows before anybody opens it.
+    const ticket = await ada.as.query(api.portalTickets.get, { ticketId });
+    expect(ticket!.messages[0].files).toEqual([{ id: fileId, name: 'screenshot.png' }]);
+  });
+
+  it('shows a colleague the file too, and another client nothing', async () => {
+    const ticketId = await raise({ uploads: [await png()] });
+    const fileId = await fileOn(ticketId);
+    // A colleague who did not raise it: the portal shows them the whole company's tickets, so the evidence on one
+    // has to come with it.
+    const kunle = await createClientUser(t, roles.client_member, {
+      clientName: 'unused',
+      email: 'kunle@glossup.com',
+    });
+    await t.run((ctx) => ctx.db.patch('contacts', kunle.contactId, { clientId: ada.clientId }));
+    expect(await kunle.as.query(api.files.portalDownloadUrl, { fileId })).toMatchObject({ name: 'screenshot.png' });
+    // Out of reach for another client entirely: not forbidden, simply not there.
+    await expectCode(other.as.query(api.files.portalDownloadUrl, { fileId }), 'auth.notFound');
+  });
+
+  it('keeps a file on an internal note inside the studio', async () => {
+    const ticketId = await raise();
+    await pm.as.mutation(api.tickets.reply, {
+      ticketId,
+      body: 'The gateway log.',
+      visibility: 'internal',
+      uploads: [await png('gateway-log.png')],
+    });
+    const fileId = await fileOn(ticketId, 1);
+    expect(await pm.as.query(api.files.teamDownloadUrl, { fileId })).toMatchObject({ name: 'gateway-log.png' });
+    // The client is never offered it, and the thread they read does not mention it.
+    await expectCode(ada.as.query(api.files.portalDownloadUrl, { fileId }), 'auth.notFound');
+    const ticket = await ada.as.query(api.portalTickets.get, { ticketId });
+    expect(ticket!.messages).toHaveLength(1);
+  });
+
+  it('sends the studio’s attachment through to the client', async () => {
+    const ticketId = await raise();
+    await pm.as.mutation(api.tickets.reply, {
+      ticketId,
+      body: 'This is what we changed.',
+      visibility: 'public',
+      uploads: [await png('fix.png')],
+    });
+    const fileId = await fileOn(ticketId, 1);
+    expect(await ada.as.query(api.files.portalDownloadUrl, { fileId })).toMatchObject({ name: 'fix.png' });
+  });
+
+  it('refuses more than five files on one message', async () => {
+    const uploads = [];
+    for (let index = 0; index < 6; index++) uploads.push(await png(`shot-${index}.png`));
+    await expectCode(raise({ uploads }), 'tickets.tooManyFiles');
+  });
+
+  it('does not post the message when a file will not do, rather than losing it quietly', async () => {
+    const bad = {
+      storageId: await t.run((ctx) => ctx.storage.store(new Blob(['nope'], { type: 'application/x-msdownload' }))),
+      name: 'tool.exe',
+      contentType: 'application/x-msdownload',
+    };
+    await expectCode(raise({ uploads: [bad] }), 'tickets.badFile');
+    // Nothing was written: no half-sent ticket to puzzle over.
+    expect(await t.run((ctx) => ctx.db.query('tickets').collect())).toHaveLength(0);
   });
 });

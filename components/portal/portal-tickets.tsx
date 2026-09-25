@@ -4,6 +4,7 @@ import { useMutation, useQuery } from 'convex/react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
+import { AttachmentsField, useAttachments } from '@/components/app/attachments-field';
 import { FormDialog } from '@/components/app/form-dialog';
 import { ToneBadge } from '@/components/team/status-badge';
 import { Button } from '@/components/ui/button';
@@ -39,6 +40,8 @@ const HOW_BAD: { value: TicketPriority; label: string }[] = [
 
 export function RaiseTicket({ onRaised }: { onRaised?: (ticketId: Id<'tickets'>) => void }) {
   const create = useMutation(api.portalTickets.create);
+  const generateUploadUrl = useMutation(api.portalTickets.generateUploadUrl);
+  const attachments = useAttachments(() => generateUploadUrl({}));
   const projects = useQuery(api.portal.projects, {});
   const [subject, setSubject] = useState('');
   const [description, setDescription] = useState('');
@@ -59,7 +62,9 @@ export function RaiseTicket({ onRaised }: { onRaised?: (ticketId: Id<'tickets'>)
           description,
           priority,
           projectId: projectId ? (projectId as Id<'projects'>) : undefined,
+          uploads: await attachments.upload(),
         });
+        attachments.clear();
         onRaised?.(ticketId);
       }}
     >
@@ -113,7 +118,20 @@ export function RaiseTicket({ onRaised }: { onRaised?: (ticketId: Id<'tickets'>)
           required
         />
       </div>
+      <AttachmentsField id="portal-ticket-files" label="Add a screenshot or a file" attachments={attachments} />
     </FormDialog>
+  );
+}
+
+function Attachment({ file }: { file: { id: Id<'files'>; name: string } }) {
+  const stored = useQuery(api.files.portalDownloadUrl, { fileId: file.id });
+  if (!stored) return <li className="text-muted-foreground">{file.name}</li>;
+  return (
+    <li>
+      <a href={stored.url} target="_blank" rel="noreferrer" className="underline">
+        {file.name}
+      </a>
+    </li>
   );
 }
 
@@ -156,6 +174,8 @@ export function PortalTickets() {
 export function PortalTicket({ ticketId }: { ticketId: Id<'tickets'> }) {
   const ticket = useQuery(api.portalTickets.get, { ticketId });
   const reply = useMutation(api.portalTickets.reply);
+  const generateUploadUrl = useMutation(api.portalTickets.generateUploadUrl);
+  const attachments = useAttachments(() => generateUploadUrl({}));
   const router = useRouter();
   const [body, setBody] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -206,6 +226,13 @@ export function PortalTicket({ ticketId }: { ticketId: Id<'tickets'> }) {
               <span className="text-xs text-muted-foreground tabular-nums">{formatMoment(message.createdAt)}</span>
             </div>
             <p className="mt-2 text-sm whitespace-pre-wrap">{message.body}</p>
+            {message.files.length > 0 && (
+              <ul className="mt-2 space-y-1 text-sm">
+                {message.files.map((file) => (
+                  <Attachment key={file.id} file={file} />
+                ))}
+              </ul>
+            )}
           </li>
         ))}
       </ul>
@@ -217,8 +244,9 @@ export function PortalTicket({ ticketId }: { ticketId: Id<'tickets'> }) {
           setSending(true);
           setError(null);
           try {
-            const result = await reply({ ticketId, body });
+            const result = await reply({ ticketId, body, uploads: await attachments.upload() });
             setBody('');
+            attachments.clear();
             // A reply that started a new ticket has a new thread to go to.
             if (result.isNew) router.push(`/tickets/${result.ticketId}`);
           } catch (caught) {
@@ -239,7 +267,7 @@ export function PortalTicket({ ticketId }: { ticketId: Id<'tickets'> }) {
               : 'This was resolved more than a week ago, so your reply starts a new ticket. It will point back to this one.'}
           </p>
         )}
-        <Button type="submit" disabled={sending || body.trim().length === 0}>
+        <Button type="submit" disabled={sending || (body.trim().length === 0 && attachments.files.length === 0)}>
           {sending ? 'Sending…' : startsNew ? 'Start a new ticket' : 'Send'}
         </Button>
         {error && (
