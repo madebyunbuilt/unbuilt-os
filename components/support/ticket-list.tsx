@@ -151,6 +151,8 @@ function RaiseTicket() {
 
 /** Whatever is closest to running out first. Tickets with nothing promised sit below the ones that have a clock. */
 function urgency(ticket: Ticket): number {
+  // Nothing is promised on an unplaced email, which is exactly why it should not sink: nobody is counting for it.
+  if (ticket.needsTriage) return -1;
   // A ticket waiting on the client has no clock running, so it does not belong among the ones counting down.
   if (ticket.status === 'pending_client') return Number.MAX_SAFE_INTEGER - 1;
   const due = ticket.firstRespondedAt === undefined ? ticket.firstResponseDueAt : ticket.resolutionDueAt;
@@ -205,12 +207,15 @@ export function TicketList({ permissions }: { permissions: readonly string[] }) 
                     <div className="min-w-0">
                       <p className="font-medium">{ticket.subject}</p>
                       <p className="text-sm text-muted-foreground">
-                        {ticket.number} · <ToneBadge {...ticketStatus(ticket.status)} />
+                        {ticket.number}
+                        {ticket.needsTriage && ticket.fromEmail ? ` · ${ticket.fromEmail}` : ''} ·{' '}
+                        <ToneBadge {...ticketStatus(ticket.status)} />
                       </p>
                     </div>
                     <div className="flex flex-wrap items-center gap-2">
                       <ToneBadge label={priorityLabel(ticket.priority)} tone={priorityTone(ticket.priority)} />
-                      <ToneBadge {...sla} />
+                      {/* An email nobody has placed yet: nothing was promised, so there is no clock to show. */}
+                      <ToneBadge {...(ticket.needsTriage ? { label: 'Needs placing', tone: 'attention' } : sla)} />
                     </div>
                   </div>
                 </Link>

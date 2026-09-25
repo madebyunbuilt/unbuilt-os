@@ -50,6 +50,21 @@
   - uptime monitors (automatic P1 or P2)
 - **Email tickets**: a new email from a known contact creates a ticket; a reply to a ticket notification appends a
   message. An email from an unknown sender creates an unassigned ticket flagged for triage.
+  - **A reply is threaded by the ticket number in its subject** (studio, 2026-09-25), not by `In-Reply-To`: the number
+    survives forwarding, quoting and mail software that drops headers. It is a claim, not a credential — a reply joins
+    a ticket only when the sender's contact belongs to that ticket's client, or, for somebody still unplaced, when the
+    address matches the one that opened it. Quoting somebody else's number gets you your own ticket, not theirs.
+  - **An emailed reply takes the same path a portal reply takes**, so the seven-day reopen rule, the pause resuming
+    and the notifications behave identically whichever door the client came through. One rule rather than two that
+    could drift.
+  - **Email says nothing about urgency**, so an emailed ticket starts at P3 and is raised by hand from there.
+  - The quoted thread beneath a reply is trimmed, so a ticket shows what was written this time.
+  - **A ticket awaiting triage has no client**, and therefore no policy and no promise: it is never late, and it
+    reaches no client in the portal, because every portal query is scoped by client. Placing it works the promise out
+    **from when the email arrived**, not from when somebody got round to it — an email that sat unread for three days
+    really is three days late, and hiding that would hide the only thing worth knowing about it.
+  - Placing it is a screen, not a database chore: an unplaced email sits at the top of the studio's list, since
+    nothing is counting down for it.
 - **Fields**: number (`UNB-TKT-0001`), client, project, priority, status, requester, assignee, subject, description,
   attachments.
 - **Attachments belong to a message, not to the ticket** (studio, 2026-09-25): a screenshot means little without the

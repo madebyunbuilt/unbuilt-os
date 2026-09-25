@@ -49,6 +49,8 @@ const ticket = (overrides: object = {}) => ({
   closedAt: undefined,
   pausedAt: undefined,
   hasSla: true,
+  needsTriage: false,
+  fromEmail: undefined,
   ...overrides,
 });
 
@@ -106,6 +108,17 @@ describe('the ticket list', () => {
     render(<TicketList permissions={['tickets.view.all']} />);
     const subjects = screen.getAllByRole('link').map((link) => within(link).getByText(/one$/).textContent);
     expect(subjects).toEqual(['Urgent one', 'Slow one']);
+  });
+
+  it('puts an unplaced email at the top, where nothing is counting for it', () => {
+    state.queries['tickets.list'] = [
+      ticket({ id: 'urgent', subject: 'Running out', firstResponseDueAt: NOW + 60_000 }),
+      ticket({ id: 'email', subject: 'From a stranger', needsTriage: true, fromEmail: 'nobody@example.com' }),
+    ];
+    render(<TicketList permissions={['tickets.view.all']} />);
+    expect(screen.getAllByRole('link')[0]).toHaveTextContent('From a stranger');
+    expect(screen.getByText('Needs placing')).toBeInTheDocument();
+    expect(screen.getByText(/nobody@example\.com/)).toBeInTheDocument();
   });
 
   it('does not count down a ticket that is waiting on the client', () => {
@@ -231,6 +244,34 @@ describe('one ticket', () => {
     const shot = new File(['pretend'], 'fix.png', { type: 'image/png' });
     await userEvent.upload(screen.getByLabelText('Attach a file for the client'), shot);
     expect(screen.getByRole('button', { name: 'Send to the client' })).toBeEnabled();
+  });
+
+  it('asks who an unplaced email is from, instead of showing a clock nobody set', async () => {
+    state.queries['tickets.get'] = detail({
+      needsTriage: true,
+      fromEmail: 'nobody@example.com',
+      clientName: undefined,
+      hasSla: false,
+      firstResponseDueAt: undefined,
+      resolutionDueAt: undefined,
+      slaPolicyName: undefined,
+    });
+    render(<TicketDetail ticketId={'t1' as never} permissions={permissions} />);
+    expect(screen.getByText('Who is this from?')).toBeInTheDocument();
+    expect(screen.getByText(/nobody@example\.com wrote to support/)).toBeInTheDocument();
+    // The consequence of answering, said before they answer.
+    expect(screen.getByText(/clock then runs from when the email arrived/)).toBeInTheDocument();
+    expect(screen.queryByText(/no SLA policy/)).not.toBeInTheDocument();
+
+    await userEvent.selectOptions(screen.getByLabelText('Client'), 'c1');
+    await userEvent.click(screen.getByRole('button', { name: 'This is their ticket' }));
+    await waitFor(() =>
+      expect(state.mutations['tickets.triage']).toHaveBeenCalledWith({
+        ticketId: 't1',
+        clientId: 'c1',
+        requesterContactId: undefined,
+      }),
+    );
   });
 
   it('says what changing the priority does to the promise', () => {

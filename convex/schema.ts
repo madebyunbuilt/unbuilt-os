@@ -1214,7 +1214,7 @@ export default defineSchema({
 
   // Every webhook a provider sends, kept so the same event is never processed twice (14-platform.md, Webhooks).
   webhookEvents: defineTable({
-    provider: v.union(v.literal('paystack'), v.literal('resend'), v.literal('whatsapp')),
+    provider: v.union(v.literal('paystack'), v.literal('resend'), v.literal('whatsapp'), v.literal('inbound_email')),
     eventId: v.string(),
     type: v.string(),
     receivedAt: v.number(),
@@ -1425,7 +1425,9 @@ export default defineSchema({
   // promised when it was raised.
   tickets: defineTable({
     number: v.string(),
-    clientId: v.id('clients'),
+    // Absent only on a ticket from an email the studio does not recognise: there is nobody to attach it to until
+    // somebody says who it is from. Every portal query is scoped by this, so such a ticket reaches no client at all.
+    clientId: v.optional(v.id('clients')),
     projectId: v.optional(v.id('projects')),
     // The policy that applied when the ticket was raised: the project's, else the client's, else none.
     slaPolicyId: v.optional(v.id('slaPolicies')),
@@ -1440,6 +1442,11 @@ export default defineSchema({
     subject: v.string(),
     channel: v.union(v.literal('portal'), v.literal('team'), v.literal('email'), v.literal('monitor')),
     requesterContactId: v.optional(v.id('contacts')),
+    // Who wrote in, when the studio has no contact for them. Kept so triage has something to go on and so a reply in
+    // the same thread finds its way back.
+    fromEmail: v.optional(v.string()),
+    // Waiting for somebody to say which client this is. Only email from an unrecognised sender starts this way.
+    needsTriage: v.optional(v.boolean()),
     raisedByMemberId: v.optional(v.id('teamMembers')),
     assigneeMemberId: v.optional(v.id('teamMembers')),
     createdAt: v.number(),

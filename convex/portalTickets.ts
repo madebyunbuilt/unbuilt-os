@@ -1,12 +1,11 @@
 import { v } from 'convex/values';
 import { type Doc, type Id } from './_generated/dataModel';
 import { type MutationCtx, type QueryCtx } from './_generated/server';
-import { recordActivity, text } from './lib/crm';
+import { text } from './lib/crm';
 import { portalMutation, portalQuery } from './lib/functions';
-import { activeMembersWith, notifyTeamMembers } from './lib/notify';
 import { type ClientPrincipal } from './lib/principals';
-import { dueTimesFor, resumeAfterPause, slaError, withinReopenWindow } from './lib/sla';
-import { attachUploads, filesOn, openTicket, uploadArg } from './tickets';
+import { slaError, withinReopenWindow } from './lib/sla';
+import { filesOn, openTicket, recordClientReply, uploadArg } from './tickets';
 
 // Support in the client portal (12-client-portal.md, Support). A client raises a ticket, reads the thread and replies.
 // Internal notes are absent from every response here, and so is anything the studio wrote to itself about the SLA:
@@ -137,103 +136,21 @@ export const generateUploadUrl = portalMutation('portal.files.upload')({
   handler: async (ctx) => await ctx.storage.generateUploadUrl(),
 });
 
-/**
- * A client coming back to a resolved ticket. Within seven days the thread continues and the ticket is promised again
- * from this moment; after that it becomes a new ticket that points at the old one (09-support-and-sla.md, Timers).
- */
-async function reopen(ctx: MutationCtx, ticket: Doc<'tickets'>, now: number) {
-  const policy = ticket.slaPolicyId ? await ctx.db.get('slaPolicies', ticket.slaPolicyId) : null;
-  const due = await dueTimesFor(ctx, { from: now, priority: ticket.priority, policy });
-  await ctx.db.patch('tickets', ticket._id, {
-    status: 'open',
-    resolvedAt: undefined,
-    promisedFrom: now,
-    pausedMinutes: 0,
-    pausedAt: undefined,
-    // Promised afresh, so the studio owes a reply as well as a fix, and the alerts start clean.
-    firstRespondedAt: undefined,
-    warnedFirstResponseAt: undefined,
-    breachedFirstResponseAt: undefined,
-    warnedResolutionAt: undefined,
-    breachedResolutionAt: undefined,
-    ...due,
-  });
-}
-
 export const reply = portalMutation('portal.tickets.view')({
   args: { ticketId: v.id('tickets'), body: v.string(), uploads: v.optional(v.array(uploadArg)) },
   handler: async (ctx, { ticketId, body, uploads }) => {
     const principal = ctx.principal as ClientPrincipal;
     const ticket = await theirTicket(ctx, ticketId, principal.clientId);
     if (!ticket) throw slaError('tickets.notFound', 'That ticket is not here');
-    const said = text(body, 'Message', { required: true, max: 10_000 })!;
-    const now = Date.now();
-
-    // A closed ticket, or one resolved too long ago, starts a new one carrying the old thread's number as its history.
-    if (ticket.status === 'closed' || (ticket.status === 'resolved' && !withinReopenWindow(ticket, now))) {
-      const newId = await openTicket(ctx, {
-        clientId: ticket.clientId,
-        projectId: ticket.projectId,
-        subject: ticket.subject,
-        description: said,
-        priority: ticket.priority,
-        channel: 'portal',
-        requesterContactId: principal.contact._id,
-        uploads,
-        now,
-      });
-      // openTicket works the policy and the promise out for itself; all this adds is where it came from.
-      await ctx.db.patch('tickets', newId, { reopenedFromTicketId: ticket._id });
-      return { ticketId: newId, reopened: false, isNew: true };
-    }
-
-    const messageId = await ctx.db.insert('ticketMessages', {
-      ticketId,
-      visibility: 'public',
-      body: said,
-      authorKind: 'client',
-      authorContactId: principal.contact._id,
-      fileIds: [],
-      createdAt: now,
-    });
-    await attachUploads(ctx, {
-      messageId,
+    // The same path an emailed reply takes, so answering in the portal and answering by email cannot drift apart.
+    return await recordClientReply(ctx, {
       ticket,
-      uploads: uploads ?? [],
-      visibility: 'public',
-      uploadedBy: { kind: 'client', id: principal.contact._id },
+      body: text(body, 'Message', { required: true, max: 10_000 })!,
+      contactId: principal.contact._id,
+      authorName: principal.contact.name,
+      channel: 'portal',
+      uploads,
+      now: Date.now(),
     });
-
-    const reopened = ticket.status === 'resolved';
-    if (reopened) await reopen(ctx, ticket, now);
-    // Their answer is what the studio was waiting for, so the clock starts again.
-    else if (ticket.status === 'pending_client') {
-      await ctx.db.patch('tickets', ticketId, {
-        ...(await resumeAfterPause(ctx, ticket, now)),
-        pausedAt: undefined,
-        status: 'open',
-      });
-    }
-
-    await recordActivity(ctx, {
-      subject: { table: 'tickets', id: ticketId },
-      clientId: ticket.clientId,
-      type: 'system',
-      title: reopened
-        ? `${ticket.number} reopened by ${principal.contact.name}`
-        : `${principal.contact.name} replied to ${ticket.number}`,
-      actor: { kind: 'client', id: principal.contact._id },
-      occurredAt: now,
-      meta: { ticketId },
-    });
-
-    const tell = ticket.assigneeMemberId ? [ticket.assigneeMemberId] : await activeMembersWith(ctx, 'tickets.manage');
-    await notifyTeamMembers(ctx, tell, {
-      event: reopened ? 'ticket.reopened' : 'ticket.reply',
-      title: reopened ? `${ticket.number} is open again` : `${ticket.number}: the client replied`,
-      body: said.slice(0, 140),
-      link: `/support/tickets/${ticketId}`,
-    });
-    return { ticketId, reopened, isNew: false };
   },
 });

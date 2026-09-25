@@ -16,6 +16,7 @@ import {
   type Priority,
   resumeAfterPause,
   slaError,
+  withinReopenWindow,
   type TicketStatus,
 } from './lib/sla';
 
@@ -57,6 +58,9 @@ function view(ticket: Doc<'tickets'>) {
     priority: ticket.priority,
     status: ticket.status,
     channel: ticket.channel,
+    // An email the studio could not place: it belongs to nobody until somebody says whose it is.
+    needsTriage: ticket.needsTriage === true,
+    fromEmail: ticket.fromEmail,
     assigneeMemberId: ticket.assigneeMemberId,
     requesterContactId: ticket.requesterContactId,
     createdAt: ticket.createdAt,
@@ -130,6 +134,11 @@ async function lastPublicMessageIsFromUnbuilt(ctx: QueryCtx | MutationCtx, ticke
   return last?.authorKind === 'team';
 }
 
+/** The client's people to tell about a ticket, or nobody at all when it is still waiting on triage. */
+async function clientsToTell(ctx: MutationCtx, ticket: Doc<'tickets'>): Promise<Id<'contacts'>[]> {
+  return ticket.clientId ? await clientPortalContacts(ctx, ticket.clientId) : [];
+}
+
 /** A message's attachments, by name: a thread should show what is attached without anybody having to open it. */
 export async function filesOn(ctx: QueryCtx | MutationCtx, message: Doc<'ticketMessages'>) {
   const files = await Promise.all(message.fileIds.map((fileId) => ctx.db.get('files', fileId)));
@@ -154,13 +163,15 @@ async function watchers(ctx: QueryCtx | MutationCtx, ticket: Doc<'tickets'>): Pr
 export async function openTicket(
   ctx: MutationCtx,
   args: {
-    clientId: Id<'clients'>;
+    clientId?: Id<'clients'>;
     projectId?: Id<'projects'>;
     subject: string;
     description: string;
     priority: Priority;
     channel: Doc<'tickets'>['channel'];
     requesterContactId?: Id<'contacts'>;
+    fromEmail?: string;
+    needsTriage?: boolean;
     raisedByMemberId?: Id<'teamMembers'>;
     assigneeMemberId?: Id<'teamMembers'>;
     uploads?: Upload[];
@@ -181,6 +192,8 @@ export async function openTicket(
     subject: args.subject,
     channel: args.channel,
     requesterContactId: args.requesterContactId,
+    fromEmail: args.fromEmail,
+    needsTriage: args.needsTriage,
     raisedByMemberId: args.raisedByMemberId,
     assigneeMemberId: args.assigneeMemberId,
     createdAt: now,
@@ -236,6 +249,115 @@ export async function openTicket(
     link: `/support/tickets/${ticketId}`,
   });
   return ticketId;
+}
+
+/**
+ * A reply from the client's side, wherever it came from: the portal or an email to support@. One rule rather than two
+ * that could drift, so a client who answers by email is treated exactly as one who answers in the portal.
+ *
+ * Within seven days of being resolved the thread continues and the ticket is promised afresh; later than that, or on
+ * a closed ticket, it becomes a new ticket pointing at the old one (09-support-and-sla.md, Timers).
+ */
+export async function recordClientReply(
+  ctx: MutationCtx,
+  args: {
+    ticket: Doc<'tickets'>;
+    body: string;
+    contactId?: Id<'contacts'>;
+    authorName: string;
+    channel: Doc<'tickets'>['channel'];
+    uploads?: Upload[];
+    now: number;
+  },
+): Promise<{ ticketId: Id<'tickets'>; reopened: boolean; isNew: boolean }> {
+  const { ticket, body: said, contactId, now } = args;
+
+  if (ticket.status === 'closed' || (ticket.status === 'resolved' && !withinReopenWindow(ticket, now))) {
+    const newId = await openTicket(ctx, {
+      clientId: ticket.clientId,
+      projectId: ticket.projectId,
+      subject: ticket.subject,
+      description: said,
+      priority: ticket.priority,
+      channel: args.channel,
+      requesterContactId: contactId,
+      fromEmail: contactId ? undefined : ticket.fromEmail,
+      needsTriage: ticket.clientId ? undefined : true,
+      uploads: args.uploads,
+      now,
+    });
+    // openTicket works the policy and the promise out for itself; all this adds is where it came from.
+    await ctx.db.patch('tickets', newId, { reopenedFromTicketId: ticket._id });
+    return { ticketId: newId, reopened: false, isNew: true };
+  }
+
+  const messageId = await ctx.db.insert('ticketMessages', {
+    ticketId: ticket._id,
+    visibility: 'public',
+    body: said,
+    authorKind: 'client',
+    authorContactId: contactId,
+    fileIds: [],
+    createdAt: now,
+  });
+  await attachUploads(ctx, {
+    messageId,
+    ticket,
+    uploads: args.uploads ?? [],
+    visibility: 'public',
+    uploadedBy: { kind: 'client', id: contactId ?? ticket.fromEmail ?? 'unknown' },
+  });
+
+  const reopened = ticket.status === 'resolved';
+  if (reopened) {
+    const policy = ticket.slaPolicyId ? await ctx.db.get('slaPolicies', ticket.slaPolicyId) : null;
+    const due = await dueTimesFor(ctx, { from: now, priority: ticket.priority, policy });
+    await ctx.db.patch('tickets', ticket._id, {
+      status: 'open',
+      resolvedAt: undefined,
+      promisedFrom: now,
+      pausedMinutes: 0,
+      pausedAt: undefined,
+      // Promised afresh, so the studio owes a reply as well as a fix, and the alerts start clean.
+      firstRespondedAt: undefined,
+      warnedFirstResponseAt: undefined,
+      breachedFirstResponseAt: undefined,
+      warnedResolutionAt: undefined,
+      breachedResolutionAt: undefined,
+      ...due,
+    });
+  } else if (ticket.status === 'pending_client') {
+    // Their answer is what the studio was waiting for, so the clock starts again.
+    await ctx.db.patch('tickets', ticket._id, {
+      ...(await resumeAfterPause(ctx, ticket, now)),
+      pausedAt: undefined,
+      status: 'open',
+    });
+  }
+
+  await recordActivity(ctx, {
+    subject: { table: 'tickets', id: ticket._id },
+    clientId: ticket.clientId,
+    type: 'system',
+    title: reopened
+      ? `${ticket.number} reopened by ${args.authorName}`
+      : `${args.authorName} replied to ${ticket.number}`,
+    actor: contactId ? { kind: 'client', id: contactId } : { kind: 'system' },
+    occurredAt: now,
+    meta: { ticketId: ticket._id },
+  });
+
+  await notifyTeamMembers(
+    ctx,
+    ticket.assigneeMemberId ? [ticket.assigneeMemberId] : await activeMembersWith(ctx, 'tickets.manage'),
+    {
+      event: reopened ? 'ticket.reopened' : 'ticket.reply',
+      title: reopened ? `${ticket.number} is open again` : `${ticket.number}: the client replied`,
+      body: said.slice(0, 140),
+      link: `/support/tickets/${ticket._id}`,
+    },
+  );
+  return { ticketId: ticket._id, reopened, isNew: false };
 }
 
 export const create = teamMutation('tickets.manage')({
@@ -318,11 +440,12 @@ export const get = teamQuery(null)({
       .query('ticketMessages')
       .withIndex('by_ticket', (q) => q.eq('ticketId', ticketId))
       .collect();
-    const client = await ctx.db.get('clients', ticket.clientId);
+    const client = ticket.clientId ? await ctx.db.get('clients', ticket.clientId) : null;
     const policy = ticket.slaPolicyId ? await ctx.db.get('slaPolicies', ticket.slaPolicyId) : null;
     return {
       ...view(ticket),
-      clientName: client?.displayName ?? 'Unknown client',
+      // A ticket waiting on triage genuinely has no client yet; the screen says so rather than guessing.
+      clientName: client?.displayName,
       slaPolicyName: policy?.name,
       messages: await Promise.all(
         messages
@@ -389,7 +512,7 @@ export const reply = teamMutation('tickets.manage')({
       // The number leads, as on every other ticket notification either side gets, then the subject so they know which
       // one it is, and the body carries what was actually said: otherwise every reply on a ticket reads identically
       // and tells them nothing.
-      await notifyClientContacts(ctx, await clientPortalContacts(ctx, ticket.clientId), {
+      await notifyClientContacts(ctx, await clientsToTell(ctx, ticket), {
         event: 'ticket.reply',
         title: `${ticket.number}: Unbuilt replied about ${ticket.subject}`,
         body: said.slice(0, 140),
@@ -431,7 +554,7 @@ export const setStatus = teamMutation('tickets.manage')({
       meta: { ticketId },
     });
     if (next === 'resolved') {
-      await notifyClientContacts(ctx, await clientPortalContacts(ctx, ticket.clientId), {
+      await notifyClientContacts(ctx, await clientsToTell(ctx, ticket), {
         event: 'ticket.resolved',
         title: `${ticket.number} is resolved`,
         body: `${ticket.subject}. Reply within 7 days if it is not right.`,
@@ -442,7 +565,7 @@ export const setStatus = teamMutation('tickets.manage')({
     // it is with them, and the studio's clock has stopped. Skipped when the studio has just replied, since that reply
     // is itself the telling, and two notifications for one action is noise.
     if (next === 'pending_client' && !(await lastPublicMessageIsFromUnbuilt(ctx, ticketId))) {
-      await notifyClientContacts(ctx, await clientPortalContacts(ctx, ticket.clientId), {
+      await notifyClientContacts(ctx, await clientsToTell(ctx, ticket), {
         event: 'ticket.pending_client',
         title: `${ticket.number}: Unbuilt is waiting on you`,
         body: `${ticket.subject}. Open it to see what they need.`,
@@ -485,6 +608,50 @@ export const setPriority = teamMutation('tickets.manage')({
       clientId: ticket.clientId,
       type: 'system',
       title: `${ticket.number} moved from ${PRIORITY_LABEL[ticket.priority]} to ${PRIORITY_LABEL[next]}`,
+      actor: { kind: 'team', id: ctx.principal.member._id },
+      meta: { ticketId },
+    });
+  },
+});
+
+/**
+ * Saying who an unrecognised email was from. The promise is worked out only now, because until this moment there was
+ * no client and so no policy — and it runs from when the email arrived, not from when somebody got round to it: a
+ * ticket that sat unread for three days really is three days late, and hiding that would hide the only thing worth
+ * knowing about it.
+ */
+export const triage = teamMutation('tickets.manage')({
+  args: {
+    ticketId: v.id('tickets'),
+    clientId: v.id('clients'),
+    requesterContactId: v.optional(v.id('contacts')),
+  },
+  handler: async (ctx, { ticketId, clientId, requesterContactId }) => {
+    const ticket = await visibleTicket(ctx, ticketId);
+    if (!ticket.needsTriage) throw slaError('tickets.invalid', 'This ticket already belongs to a client');
+    await getClient(ctx, clientId);
+    if (requesterContactId) {
+      const contact = await ctx.db.get('contacts', requesterContactId);
+      if (!contact || contact.clientId !== clientId) {
+        throw slaError('tickets.invalid', 'That contact does not belong to this client');
+      }
+    }
+
+    const policy = await policyForTicket(ctx, { clientId, projectId: ticket.projectId });
+    const due = await dueTimesFor(ctx, { from: ticket.createdAt, priority: ticket.priority, policy });
+    await ctx.db.patch('tickets', ticketId, {
+      clientId,
+      requesterContactId,
+      needsTriage: undefined,
+      slaPolicyId: policy?._id,
+      promisedFrom: ticket.createdAt,
+      ...due,
+    });
+    await recordActivity(ctx, {
+      subject: { table: 'tickets', id: ticketId },
+      clientId,
+      type: 'system',
+      title: `${ticket.number} identified as ${(await getClient(ctx, clientId)).displayName}, from ${ticket.fromEmail ?? 'email'}`,
       actor: { kind: 'team', id: ctx.principal.member._id },
       meta: { ticketId },
     });
