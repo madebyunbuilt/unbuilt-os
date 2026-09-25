@@ -112,6 +112,7 @@ import type * as signatureCompletion from "../signatureCompletion.js";
 import type * as signatureSending from "../signatureSending.js";
 import type * as signatures from "../signatures.js";
 import type * as signing from "../signing.js";
+import type * as slaAlerts from "../slaAlerts.js";
 import type * as statementRendering from "../statementRendering.js";
 import type * as statements from "../statements.js";
 import type * as tasks from "../tasks.js";
@@ -233,6 +234,7 @@ declare const fullApi: ApiFromModules<{
   signatureSending: typeof signatureSending;
   signatures: typeof signatures;
   signing: typeof signing;
+  slaAlerts: typeof slaAlerts;
   statementRendering: typeof statementRendering;
   statements: typeof statements;
   tasks: typeof tasks;

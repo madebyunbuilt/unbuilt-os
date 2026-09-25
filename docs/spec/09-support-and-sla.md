@@ -60,6 +60,18 @@
   - A client reply within 7 days reopens a resolved ticket; after that, a new ticket is created referencing the old one.
 - **Breach warnings** fire at 75% of each target and on breach, to the assignee, the project manager and admins. A P1
   breach also sends WhatsApp to admins.
+  - The warning instants are stored beside the due times when the ticket is raised, and move with them, so a warning is
+    always three-quarters of the promise the ticket actually carries.
+  - Checked every fifteen minutes. A P1 has one business hour to be answered, so anything slower would warn too late to
+    be worth sending.
+  - **A target already missed is not warned about** (studio, 2026-09-25): being told a deadline is three-quarters gone,
+    when it went hours ago, is worse than being told nothing. The warning is recorded as spent so it can never arrive
+    after the breach it was meant to prevent.
+  - **A ticket waiting on the client is not running late**: its resolution clock is stopped, and its due time moves out
+    by whatever the wait costs when it resumes, so neither warning nor breach fires while it is `pending_client`.
+  - The stamps on the ticket record what was **sent**, not what is currently true. Downgrading a breached ticket does
+    not un-send the breach, and does not make it eligible to be sent again.
+  - **Admins** here means the holders of `settings.manage`, as in the January holiday reminder.
 - Time logged against a ticket counts toward the project and, for retainers, the retainer period.
 - Messages are public (visible to the client) or internal notes.
 - **What was asked for is the first message** (studio, 2026-09-25), not a separate description field: the thread then

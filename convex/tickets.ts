@@ -390,11 +390,7 @@ export const setPriority = teamMutation('tickets.manage')({
     const ticket = await visibleTicket(ctx, ticketId);
     if (ticket.priority === next) return;
     const due = await dueTimesAfterPriorityChange(ctx, ticket, next);
-    await ctx.db.patch('tickets', ticketId, {
-      priority: next,
-      firstResponseDueAt: due.firstResponseDueAt,
-      resolutionDueAt: due.resolutionDueAt,
-    });
+    await ctx.db.patch('tickets', ticketId, { priority: next, ...due });
     await recordActivity(ctx, {
       subject: { table: 'tickets', id: ticketId },
       clientId: ticket.clientId,

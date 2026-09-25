@@ -374,3 +374,101 @@ describe('who may see and touch a ticket', () => {
     );
   });
 });
+
+describe('warnings before a promise is missed', () => {
+  let admin: Awaited<ReturnType<typeof createTeamMember>>;
+
+  beforeEach(async () => {
+    admin = await createTeamMember(t, roles.admin, { email: 'chidi@unbuilt.studio', name: 'Chidi Eze' });
+  });
+
+  const run = async () => await t.mutation(internal.slaAlerts.runDue, {});
+  const alerts = async () =>
+    (await t.run((ctx) => ctx.db.query('notifications').collect())).filter((n) => n.event.startsWith('sla.'));
+
+  // A P1 raised at 16:55 on the Thursday: five minutes of that day, then the Monday. The first reply is promised by
+  // 09:55 and the fix by 16:55, so three-quarters of each falls at 09:40 and 14:55.
+  it('warns once when a target is three quarters gone, however often it looks', async () => {
+    await raise({ assigneeMemberId: member.memberId });
+    await travelTo('2026-10-12T09:30:00');
+    expect(await run()).toEqual({ warned: 0, breached: 0 });
+
+    await travelTo('2026-10-12T09:45:00');
+    expect(await run()).toEqual({ warned: 1, breached: 0 });
+    expect(await run()).toEqual({ warned: 0, breached: 0 });
+    const warnings = await alerts();
+    expect(warnings.every((n) => n.event === 'sla.warning')).toBe(true);
+    expect(warnings[0].title).toContain('close to its first reply time');
+    // The assignee, and the admin. Nobody is told twice.
+    expect(new Set(warnings.map((n) => n.recipientId))).toEqual(new Set([member.memberId, admin.memberId]));
+  });
+
+  it('says it has been missed, once, and never warns afterwards', async () => {
+    await raise({ assigneeMemberId: member.memberId });
+    await travelTo('2026-10-12T10:30:00');
+    expect(await run()).toEqual({ warned: 0, breached: 1 });
+    expect(await run()).toEqual({ warned: 0, breached: 0 });
+    const sent = await alerts();
+    expect(sent.every((n) => n.event === 'sla.breached')).toBe(true);
+    expect(sent[0].title).toContain('missed its first reply time');
+  });
+
+  it('tells the admins on WhatsApp when a P1 is missed, and not when a P3 is', async () => {
+    await raise();
+    await travelTo('2026-10-12T10:30:00');
+    await run();
+    const whatsapp = (await alerts()).filter((n) => n.channels.whatsapp);
+    expect(whatsapp.map((n) => n.recipientId)).toEqual([admin.memberId]);
+
+    await travelTo('2026-10-13T09:00:00');
+    await raise({ priority: 'p3', subject: 'A small thing' });
+    await travelTo('2026-10-27T09:00:00');
+    await run();
+    const p3 = (await alerts()).filter((n) => n.body === 'A small thing');
+    expect(p3.length).toBeGreaterThan(0);
+    expect(p3.some((n) => n.channels.whatsapp)).toBe(false);
+  });
+
+  it('stops warning about a reply once one has been sent', async () => {
+    const ticketId = await raise();
+    await travelTo('2026-10-12T09:30:00');
+    await pm.as.mutation(api.tickets.reply, { ticketId, body: 'We are on it.', visibility: 'public' });
+    await travelTo('2026-10-12T10:30:00');
+    await run();
+    expect(await alerts()).toEqual([]);
+
+    // The fix is still promised, though, and that one is missed at 16:55.
+    await travelTo('2026-10-12T17:30:00');
+    expect(await run()).toEqual({ warned: 0, breached: 1 });
+    expect((await alerts())[0].title).toContain('missed its resolution time');
+  });
+
+  it('does not count a ticket as running late while it waits on the client', async () => {
+    const ticketId = await raise();
+    await travelTo('2026-10-12T09:30:00');
+    await pm.as.mutation(api.tickets.reply, { ticketId, body: 'What card were you using?', visibility: 'public' });
+    await pm.as.mutation(api.tickets.setStatus, { ticketId, status: 'pending_client' });
+
+    // Long past the original 16:55: the clock is stopped, so nothing is late.
+    await travelTo('2026-10-13T15:00:00');
+    expect(await run()).toEqual({ warned: 0, breached: 0 });
+    expect(await alerts()).toEqual([]);
+  });
+
+  it('leaves alone a ticket that was never promised a time', async () => {
+    await t.run(async (ctx) => ctx.db.patch('clients', clientId, { slaPolicyId: undefined }));
+    await raise();
+    await travelTo('2026-10-30T09:00:00');
+    expect(await run()).toEqual({ warned: 0, breached: 0 });
+  });
+
+  it('tells the project’s manager as well when the ticket belongs to a project', async () => {
+    const projectId = await newProject();
+    await raise({ projectId, assigneeMemberId: member.memberId });
+    await travelTo('2026-10-12T09:45:00');
+    await run();
+    expect(new Set((await alerts()).map((n) => n.recipientId))).toEqual(
+      new Set([member.memberId, pm.memberId, admin.memberId]),
+    );
+  });
+});

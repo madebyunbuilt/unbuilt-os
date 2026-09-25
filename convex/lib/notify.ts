@@ -11,6 +11,8 @@ export async function notifyTeamMembers(
   ctx: { db: MutationCtx['db'] },
   memberIds: Iterable<Id<'teamMembers'>>,
   notification: TeamNotification,
+  /** Where else this should go. Recorded now and delivered with the communications step; in-app is always on. */
+  channels: { email?: boolean; whatsapp?: boolean } = {},
 ): Promise<void> {
   const createdAt = Date.now();
   for (const memberId of new Set(memberIds)) {
@@ -18,7 +20,7 @@ export async function notifyTeamMembers(
       recipientKind: 'team',
       recipientId: memberId,
       ...notification,
-      channels: { inApp: true },
+      channels: { inApp: true, ...channels },
       createdAt,
     });
   }
