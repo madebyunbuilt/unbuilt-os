@@ -4,7 +4,7 @@ import { type MutationCtx, type QueryCtx } from './_generated/server';
 import { getClient, recordActivity, requirePermission, text } from './lib/crm';
 import { teamMutation, teamQuery } from './lib/functions';
 import { nextNumber } from './lib/numbering';
-import { activeMembersWith, notifyClientContacts, notifyTeamMembers } from './lib/notify';
+import { activeMembersWith, clientPortalContacts, notifyClientContacts, notifyTeamMembers } from './lib/notify';
 import { authError, type TeamPrincipal } from './lib/principals';
 import { visibleProjectIds } from './lib/projects';
 import {
@@ -82,6 +82,19 @@ function view(ticket: Doc<'tickets'>) {
     // A ticket with no policy is not late, it was never promised a time.
     hasSla: ticket.slaPolicyId !== undefined,
   };
+}
+
+/** Whether the last thing the client was told came from the studio, so a status change need not repeat it. */
+async function lastPublicMessageIsFromUnbuilt(ctx: QueryCtx | MutationCtx, ticketId: Id<'tickets'>) {
+  const messages = await ctx.db
+    .query('ticketMessages')
+    .withIndex('by_ticket', (q) => q.eq('ticketId', ticketId))
+    .collect();
+  const last = messages
+    .filter((message) => message.visibility === 'public')
+    .sort((a, b) => a.createdAt - b.createdAt)
+    .at(-1);
+  return last?.authorKind === 'team';
 }
 
 /** Everyone who should hear about a ticket moving: whoever holds it, and the project's manager. */
@@ -311,17 +324,15 @@ export const reply = teamMutation('tickets.manage')({
         patch.status = 'open';
       }
       if (Object.keys(patch).length > 0) await ctx.db.patch('tickets', ticketId, patch);
-      if (ticket.requesterContactId) {
-        await notifyClientContacts(ctx, [ticket.requesterContactId], {
-          event: 'ticket.reply',
-          // The number leads, as on every other ticket notification either side gets, then the subject so they know
-          // which one it is, and the body carries what was actually said: otherwise every reply on a ticket reads
-          // identically and tells them nothing.
-          title: `${ticket.number}: Unbuilt replied about ${ticket.subject}`,
-          body: said.slice(0, 140),
-          link: `/tickets/${ticketId}`,
-        });
-      }
+      // The number leads, as on every other ticket notification either side gets, then the subject so they know which
+      // one it is, and the body carries what was actually said: otherwise every reply on a ticket reads identically
+      // and tells them nothing.
+      await notifyClientContacts(ctx, await clientPortalContacts(ctx, ticket.clientId), {
+        event: 'ticket.reply',
+        title: `${ticket.number}: Unbuilt replied about ${ticket.subject}`,
+        body: said.slice(0, 140),
+        link: `/tickets/${ticketId}`,
+      });
     }
     return { firstResponse: visibility === 'public' && ticket.firstRespondedAt === undefined };
   },
@@ -357,11 +368,22 @@ export const setStatus = teamMutation('tickets.manage')({
       occurredAt: now,
       meta: { ticketId },
     });
-    if (next === 'resolved' && ticket.requesterContactId) {
-      await notifyClientContacts(ctx, [ticket.requesterContactId], {
+    if (next === 'resolved') {
+      await notifyClientContacts(ctx, await clientPortalContacts(ctx, ticket.clientId), {
         event: 'ticket.resolved',
         title: `${ticket.number} is resolved`,
         body: `${ticket.subject}. Reply within 7 days if it is not right.`,
+        link: `/tickets/${ticketId}`,
+      });
+    }
+    // Being waited on is something a client has to be told, or the ticket goes quiet on both sides: their screen says
+    // it is with them, and the studio's clock has stopped. Skipped when the studio has just replied, since that reply
+    // is itself the telling, and two notifications for one action is noise.
+    if (next === 'pending_client' && !(await lastPublicMessageIsFromUnbuilt(ctx, ticketId))) {
+      await notifyClientContacts(ctx, await clientPortalContacts(ctx, ticket.clientId), {
+        event: 'ticket.pending_client',
+        title: `${ticket.number}: Unbuilt is waiting on you`,
+        body: `${ticket.subject}. Open it to see what they need.`,
         link: `/tickets/${ticketId}`,
       });
     }

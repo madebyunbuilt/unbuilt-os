@@ -108,6 +108,11 @@
 
 ## What a client sees
 
+- **Being waited on is a notification** (studio, 2026-09-25), not only a badge: moving a ticket to `pending_client`
+  tells the client, unless the studio has just replied — that reply is itself the telling, and two notifications for
+  one action is noise. Without this the ticket goes quiet on both sides, since the studio's clock has stopped too.
+- **Ticket notifications go to every colleague with portal access**, not only whoever raised it, because the portal
+  shows a client their whole company's tickets.
 - **The studio's statuses are not the client's**: `new` and `open` both mean Unbuilt has it, so the portal says "With
   Unbuilt". `pending_client` reads as "Waiting on you", with a line saying Unbuilt is waiting on an answer.
 - **No SLA anywhere in the portal** (studio, 2026-09-25): no due times, no countdown, no policy name. What the studio
