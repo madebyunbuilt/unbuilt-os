@@ -93,6 +93,7 @@ import type * as paystackWebhook from "../paystackWebhook.js";
 import type * as pipeline from "../pipeline.js";
 import type * as portal from "../portal.js";
 import type * as portalBilling from "../portalBilling.js";
+import type * as portalColleagues from "../portalColleagues.js";
 import type * as portalDocuments from "../portalDocuments.js";
 import type * as portalInvites from "../portalInvites.js";
 import type * as portalProjects from "../portalProjects.js";
@@ -211,6 +212,7 @@ declare const fullApi: ApiFromModules<{
   pipeline: typeof pipeline;
   portal: typeof portal;
   portalBilling: typeof portalBilling;
+  portalColleagues: typeof portalColleagues;
   portalDocuments: typeof portalDocuments;
   portalInvites: typeof portalInvites;
   portalProjects: typeof portalProjects;

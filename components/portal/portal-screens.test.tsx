@@ -1,9 +1,11 @@
 import { render, screen, waitFor, within } from '@testing-library/react';
+import { ConvexError } from 'convex/values';
 import userEvent from '@testing-library/user-event';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { PortalDocument, PortalDocuments } from './portal-documents';
 import { PortalInvoice } from './portal-invoices';
 import { PortalProject } from './portal-projects';
+import { PortalColleagues } from './portal-colleagues';
 import { PortalHome } from './portal-home';
 
 // The portal's screens (12-client-portal.md): a client is offered the one thing they are being asked to do, and is
@@ -25,7 +27,10 @@ vi.mock('@/convex/_generated/api', () => {
   const functions = (name: string) => new Proxy({}, { get: (_, fn: string) => ({ _name: `${name}.${fn}` }) });
   return {
     api: Object.fromEntries(
-      ['portal', 'portalDocuments', 'portalBilling', 'portalProjects', 'files'].map((n) => [n, functions(n)]),
+      ['portal', 'portalDocuments', 'portalBilling', 'portalProjects', 'portalColleagues', 'files'].map((n) => [
+        n,
+        functions(n),
+      ]),
     ),
   };
 });
@@ -487,5 +492,80 @@ describe('a client’s project', () => {
     render(<PortalProject projectId={'p1' as never} />);
     expect(screen.getByText('5 of 10 hours used')).toBeInTheDocument();
     expect(screen.getByText(/5 left/)).toBeInTheDocument();
+  });
+});
+
+describe('a client admin’s colleagues', () => {
+  const colleague = (overrides: object = {}) => ({
+    id: 'c1',
+    name: 'Ada Obi',
+    email: 'ada@glossup.com',
+    jobTitle: 'Founder',
+    hasAccess: true,
+    role: 'client_admin',
+    invitedAt: Date.parse('2026-09-20T09:00:00Z'),
+    isYou: true,
+    ...overrides,
+  });
+
+  it('never offers somebody the means to lock themselves out', () => {
+    state.queries['portalColleagues.list'] = [
+      colleague(),
+      colleague({ id: 'c2', name: 'Kunle Bakare', email: 'kunle@glossup.com', role: 'client_member', isYou: false }),
+    ];
+    render(<PortalColleagues />);
+    expect(screen.getByText('you')).toBeInTheDocument();
+    // One row has the button, and it is not theirs.
+    const remove = screen.getAllByRole('button', { name: 'Remove access' });
+    expect(remove).toHaveLength(1);
+  });
+
+  it('lets a contact Unbuilt already holds in, without asking for their details again', async () => {
+    state.queries['portalColleagues.list'] = [
+      colleague(),
+      colleague({
+        id: 'c2',
+        name: 'Bisi Accounts',
+        email: 'accounts@glossup.com',
+        hasAccess: false,
+        role: null,
+        invitedAt: undefined,
+        isYou: false,
+      }),
+    ];
+    render(<PortalColleagues />);
+    expect(screen.getByText('No access')).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Give access' }));
+    const dialog = within(screen.getByRole('dialog'));
+    expect(dialog.getByLabelText('Name')).toBeDisabled();
+    await userEvent.selectOptions(dialog.getByLabelText('What they can do'), 'client_admin');
+    await userEvent.click(dialog.getByRole('button', { name: 'Give access' }));
+    await waitFor(() =>
+      expect(state.mutations['portalColleagues.invite']).toHaveBeenCalledWith({
+        name: 'Bisi Accounts',
+        email: 'accounts@glossup.com',
+        jobTitle: 'Founder',
+        role: 'client_admin',
+      }),
+    );
+  });
+
+  it('says what removing access does, and what it leaves alone', async () => {
+    state.queries['portalColleagues.list'] = [colleague({ isYou: false })];
+    render(<PortalColleagues />);
+    await userEvent.click(screen.getByRole('button', { name: 'Remove access' }));
+    expect(screen.getByText(/nothing already approved or signed changes/)).toBeInTheDocument();
+  });
+
+  it('gives the server’s reason when a change would leave nobody able to approve or pay', async () => {
+    state.queries['portalColleagues.list'] = [colleague()];
+    state.mutations['portalColleagues.setRole'] = vi
+      .fn()
+      .mockRejectedValue(
+        new ConvexError({ code: 'crm.lastAdmin', message: 'Somebody has to be able to approve and pay.' }),
+      );
+    render(<PortalColleagues />);
+    await userEvent.selectOptions(screen.getByLabelText('What Ada Obi can do'), 'client_member');
+    expect(await screen.findByRole('alert')).toHaveTextContent('Somebody has to be able to approve and pay.');
   });
 });
