@@ -314,9 +314,10 @@ export const reply = teamMutation('tickets.manage')({
       if (ticket.requesterContactId) {
         await notifyClientContacts(ctx, [ticket.requesterContactId], {
           event: 'ticket.reply',
-          // Named by its subject rather than its number, which means nothing to a client, and carrying what was
-          // actually said: otherwise every reply on a ticket reads identically and tells them nothing.
-          title: `Unbuilt replied about ${ticket.subject}`,
+          // The number leads, as on every other ticket notification either side gets, then the subject so they know
+          // which one it is, and the body carries what was actually said: otherwise every reply on a ticket reads
+          // identically and tells them nothing.
+          title: `${ticket.number}: Unbuilt replied about ${ticket.subject}`,
           body: said.slice(0, 140),
           link: `/tickets/${ticketId}`,
         });

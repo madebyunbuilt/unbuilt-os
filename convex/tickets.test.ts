@@ -289,9 +289,9 @@ describe('the thread', () => {
     expect(notifications.find((n) => n.recipientKind === 'client')).toMatchObject({
       event: 'ticket.reply',
       recipientId: client.contactId,
-      // What was said, under the ticket's own name: a client who gets three replies should be able to tell them
-      // apart without opening any of them.
-      title: 'Unbuilt replied about Checkout is down',
+      // The number, then which ticket it is, then what was said: a client who gets three replies should be able to
+      // tell them apart without opening any of them.
+      title: 'UNB-TKT-0001: Unbuilt replied about Checkout is down',
       body: 'We are on it.',
     });
   });
