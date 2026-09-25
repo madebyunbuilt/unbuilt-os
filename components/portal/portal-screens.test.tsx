@@ -617,6 +617,14 @@ describe('support in the portal', () => {
     state.push.mockClear();
   });
 
+  it('does not promise an email that is not coming', async () => {
+    render(<PortalTickets />);
+    await userEvent.click(screen.getByRole('button', { name: 'Ask for help' }));
+    const dialog = within(await screen.findByRole('dialog'));
+    // Until the communications step delivers them, a reply only ever arrives in the portal.
+    expect(dialog.queryByText(/email/i)).not.toBeInTheDocument();
+  });
+
   it('asks how bad it is in the client’s words, never in P-codes', async () => {
     render(<PortalTickets />);
     await userEvent.click(screen.getByRole('button', { name: 'Ask for help' }));

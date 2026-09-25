@@ -49,7 +49,8 @@ export function RaiseTicket({ onRaised }: { onRaised?: (ticketId: Id<'tickets'>)
     <FormDialog
       trigger={<Button>Ask for help</Button>}
       title="Ask for help"
-      description="Tell Unbuilt what is wrong. You will get an email when they reply."
+      // No email promise: until the communications step, a reply only arrives in the portal (12-client-portal.md).
+      description="Tell Unbuilt what is wrong. Their reply appears on this page, and in your notifications."
       submitLabel="Send it"
       canSubmit={subject.trim().length > 0 && description.trim().length > 0}
       onSubmit={async () => {
