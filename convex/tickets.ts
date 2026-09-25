@@ -289,11 +289,12 @@ export const reply = teamMutation('tickets.manage')({
     const ticket = await visibleTicket(ctx, ticketId);
     if (ticket.status === 'closed') throw slaError('tickets.closed', 'This ticket is closed; raise a new one');
     const now = Date.now();
+    const said = text(body, 'Message', { required: true, max: 10_000 })!;
 
     await ctx.db.insert('ticketMessages', {
       ticketId,
       visibility,
-      body: text(body, 'Message', { required: true, max: 10_000 })!,
+      body: said,
       authorKind: 'team',
       authorMemberId: ctx.principal.member._id,
       fileIds: fileIds ?? [],
@@ -313,8 +314,10 @@ export const reply = teamMutation('tickets.manage')({
       if (ticket.requesterContactId) {
         await notifyClientContacts(ctx, [ticket.requesterContactId], {
           event: 'ticket.reply',
-          title: `Unbuilt replied to ${ticket.number}`,
-          body: ticket.subject,
+          // Named by its subject rather than its number, which means nothing to a client, and carrying what was
+          // actually said: otherwise every reply on a ticket reads identically and tells them nothing.
+          title: `Unbuilt replied about ${ticket.subject}`,
+          body: said.slice(0, 140),
           link: `/tickets/${ticketId}`,
         });
       }
