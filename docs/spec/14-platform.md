@@ -54,8 +54,10 @@
 - The Resend webhook updates delivery status (delivered, bounced, complained, opened when enabled). A hard bounce flags
   the contact's email as invalid and notifies the record owner.
 - **Resend's inbound webhook carries no body** (studio, 2026-09-25): `email.received` gives the sender, the subject,
-  the recipients and an `email_id`, and nothing else. The text is fetched from the API with that id, which needs a key
-  with read access, not a sending-only one. A fetch that fails still raises the ticket, saying plainly that the body
+  the recipients and an `email_id`, and nothing else. The text is fetched from `GET /emails/receiving/{id}` with that
+  id — received mail has its own path, and `/emails/{id}`, which serves what the studio sent, answers 404 for it. The
+  request carries a user agent, because the API sits behind Cloudflare, which turns an anonymous client away with its
+  own 403 before Resend sees the key at all. A fetch that fails still raises the ticket, saying plainly that the body
   could not be read and quoting the id: somebody waiting for support is worse served by silence than by a short
   ticket.
 - **The studio does not own its domain's MX** (studio, 2026-09-25): `unbuilt.studio` receives through Zoho, so

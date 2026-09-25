@@ -135,16 +135,30 @@ export const collect = internalAction({
 async function fetchBody(emailId: string): Promise<string | null> {
   const apiKey = process.env.RESEND_API_KEY;
   if (!apiKey) return null;
-  const response = await fetch(`https://api.resend.com/emails/${emailId}`, {
-    headers: { authorization: `Bearer ${apiKey}` },
+  // Received mail has its own path; /emails/{id} is for what the studio sent and answers 404 here. A user agent is
+  // sent because the API sits behind Cloudflare, which turns an anonymous client away before Resend ever sees it.
+  const response = await fetch(`https://api.resend.com/emails/receiving/${emailId}`, {
+    headers: { authorization: `Bearer ${apiKey}`, 'user-agent': 'unbuilt-os' },
   });
   if (!response.ok) return null;
-  const mail = (await response.json()) as { text?: string; html?: string };
+  const mail = (await response.json()) as { text?: string; html?: string; html_format?: string };
   const text = mail.text?.trim();
   if (text) return text;
-  // Nothing but HTML: tags out, entities back, so the thread reads as words rather than markup.
+  // Nothing but HTML: tags out, entities back, so the thread reads as words rather than markup. Resend sometimes
+  // hands the HTML over as a data URI rather than as itself.
   const html = mail.html?.trim();
-  return html ? htmlToText(html) : null;
+  if (!html) return null;
+  return htmlToText(html.startsWith('data:') ? decodeDataUri(html) : html);
+}
+
+function decodeDataUri(uri: string): string {
+  const [header, ...rest] = uri.split(',');
+  const payload = rest.join(',');
+  try {
+    return header.includes('base64') ? atob(payload) : decodeURIComponent(payload);
+  } catch {
+    return '';
+  }
 }
 
 function htmlToText(html: string): string {
