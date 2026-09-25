@@ -37,6 +37,97 @@ const STATUS_CHOICES: { value: Exclude<TicketStatus, 'new'>; label: string }[] =
   { value: 'closed', label: 'Closed — no more replies' },
 ];
 
+/**
+ * An email from an address the studio does not recognise. Until somebody says whose it is, it has no client, no
+ * policy and no promise, so this sits above everything else on the page.
+ */
+function Triage({ ticket }: { ticket: Ticket }) {
+  const triage = useMutation(api.tickets.triage);
+  const clients = useQuery(api.clients.list, {});
+  const [clientId, setClientId] = useState('');
+  const contacts = useQuery(api.contacts.listForClient, clientId ? { clientId: clientId as Id<'clients'> } : 'skip');
+  const [contactId, setContactId] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  return (
+    <div className="space-y-3 rounded-lg border border-attention p-4">
+      <div>
+        <p className="font-medium">Who is this from?</p>
+        <p className="text-sm text-muted-foreground">
+          {ticket.fromEmail} wrote to support, and Unbuilt has no contact for that address. Nothing is promised on this
+          ticket until you say whose it is — and the clock then runs from when the email arrived.
+        </p>
+      </div>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <div className="space-y-1">
+          <Label htmlFor="triage-client" className="text-xs text-muted-foreground">
+            Client
+          </Label>
+          <NativeSelect
+            id="triage-client"
+            value={clientId}
+            onChange={(event) => {
+              setClientId(event.target.value);
+              setContactId('');
+            }}
+          >
+            <option value="">Choose a client</option>
+            {(clients ?? []).map((client) => (
+              <option key={client.id} value={client.id}>
+                {client.displayName}
+              </option>
+            ))}
+          </NativeSelect>
+        </div>
+        <div className="space-y-1">
+          <Label htmlFor="triage-contact" className="text-xs text-muted-foreground">
+            Who wrote in
+          </Label>
+          <NativeSelect
+            id="triage-contact"
+            value={contactId}
+            disabled={!clientId}
+            onChange={(event) => setContactId(event.target.value)}
+          >
+            <option value="">Not sure yet</option>
+            {(contacts ?? []).map((contact) => (
+              <option key={contact.id} value={contact.id}>
+                {contact.name}
+              </option>
+            ))}
+          </NativeSelect>
+        </div>
+      </div>
+      <Button
+        disabled={!clientId || saving}
+        onClick={async () => {
+          setSaving(true);
+          setError(null);
+          try {
+            await triage({
+              ticketId: ticket.id,
+              clientId: clientId as Id<'clients'>,
+              requesterContactId: contactId ? (contactId as Id<'contacts'>) : undefined,
+            });
+          } catch (caught) {
+            setError(errorMessage(caught));
+          } finally {
+            setSaving(false);
+          }
+        }}
+      >
+        {saving ? 'Saving…' : 'This is their ticket'}
+      </Button>
+      {error && (
+        <p role="alert" className="text-sm text-destructive">
+          {error}
+        </p>
+      )}
+    </div>
+  );
+}
+
 /** What was promised, and how it is doing. Absent when the client has no SLA policy: there is nothing to report. */
 function SlaPanel({ ticket, now }: { ticket: Ticket; now: number }) {
   if (!ticket.hasSla) {
@@ -226,7 +317,8 @@ export function TicketDetail({ ticketId, permissions }: { ticketId: Id<'tickets'
           <div className="min-w-0">
             <h1 className="font-display text-3xl font-bold">{ticket.subject}</h1>
             <p className="mt-1 text-muted-foreground">
-              {ticket.number} · {ticket.clientName} · raised {formatMoment(ticket.createdAt)}
+              {ticket.number} · {ticket.clientName ?? ticket.fromEmail ?? 'Not yet placed'} · raised{' '}
+              {formatMoment(ticket.createdAt)}
             </p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
@@ -242,7 +334,7 @@ export function TicketDetail({ ticketId, permissions }: { ticketId: Id<'tickets'
         </p>
       )}
 
-      <SlaPanel ticket={ticket} now={now} />
+      {ticket.needsTriage ? <Triage ticket={ticket} /> : <SlaPanel ticket={ticket} now={now} />}
 
       {canManage && !closed && (
         <div className="grid gap-3 rounded-lg border p-4 sm:grid-cols-3">

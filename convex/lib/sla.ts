@@ -41,8 +41,10 @@ export async function calendarFor(
  */
 export async function policyForTicket(
   ctx: Ctx,
-  args: { clientId: Id<'clients'>; projectId?: Id<'projects'> },
+  args: { clientId?: Id<'clients'>; projectId?: Id<'projects'> },
 ): Promise<Doc<'slaPolicies'> | null> {
+  // No client yet means no policy: nothing was promised to somebody the studio has not identified.
+  if (!args.clientId) return null;
   const project = args.projectId ? await ctx.db.get('projects', args.projectId) : null;
   const ids = [project?.slaPolicyId, (await ctx.db.get('clients', args.clientId))?.slaPolicyId];
   for (const id of ids) {

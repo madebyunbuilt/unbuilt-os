@@ -3,6 +3,7 @@ import { authComponent, createAuth } from './auth';
 import { preflight, submit } from './enquiries';
 import { download } from './files';
 import * as paying from './paying';
+import { inboundEmailWebhook } from './inboundEmail';
 import { paystackWebhook } from './paystackWebhook';
 import * as signing from './signing';
 
@@ -30,5 +31,8 @@ for (const step of ['view', 'start'] as const) {
   http.route({ path: `/public/pay/${step}`, method: 'OPTIONS', handler: paying.preflight });
 }
 http.route({ path: '/webhooks/paystack', method: 'POST', handler: paystackWebhook });
+
+// Mail sent to support@, turned into tickets (09-support-and-sla.md).
+http.route({ path: '/webhooks/inbound-email', method: 'POST', handler: inboundEmailWebhook });
 
 export default http;
