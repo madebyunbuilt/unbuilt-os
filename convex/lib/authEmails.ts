@@ -1,6 +1,7 @@
 import { render } from '@react-email/render';
 import { createElement } from 'react';
 import { Resend } from 'resend';
+import { senderFor } from './senders';
 import { InvitationEmail } from '../../emails/auth/invitation';
 import { MagicLinkEmail } from '../../emails/auth/magic-link';
 import { PortalInvitationEmail } from '../../emails/auth/portal-invitation';
@@ -13,8 +14,6 @@ export type AuthEmail =
   | { kind: 'signInCode'; to: string; code: string }
   | { kind: 'invitation'; to: string; url: string; inviterName: string; roleName: string; expiresAt: number }
   | { kind: 'portalInvitation'; to: string; url: string; inviterName: string; clientName: string };
-
-const DEFAULT_FROM = 'Unbuilt OS <onboarding@resend.dev>';
 
 export async function renderAuthEmail(email: AuthEmail): Promise<{ subject: string; html: string; text: string }> {
   const { subject, element } = (() => {
@@ -58,7 +57,7 @@ export async function sendAuthEmail(email: AuthEmail): Promise<void> {
 
   const { subject, html, text } = await renderAuthEmail(email);
   const { error } = await new Resend(apiKey).emails.send({
-    from: process.env.AUTH_EMAIL_FROM ?? DEFAULT_FROM,
+    from: senderFor('notifications'),
     to: email.to,
     subject,
     html,

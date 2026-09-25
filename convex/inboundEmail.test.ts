@@ -250,3 +250,63 @@ describe('the webhook itself', () => {
     expect([first, second]).toEqual([true, false]);
   });
 });
+
+describe('who is allowed to post mail in', () => {
+  const secret = 'a-shared-secret-long-enough-to-be-real';
+  const post = async (headers: Record<string, string>, body = '{}') =>
+    await t.fetch('/webhooks/inbound-email', { method: 'POST', headers, body });
+
+  afterEach(() => vi.unstubAllEnvs());
+
+  it('turns away anything unsigned', async () => {
+    vi.stubEnv('INBOUND_EMAIL_SECRET', secret);
+    expect((await post({})).status).toBe(401);
+    expect((await post({ authorization: 'Bearer wrong-secret-of-the-same-length!!' })).status).toBe(401);
+  });
+
+  it('takes the shared secret while no provider is wired up', async () => {
+    vi.stubEnv('INBOUND_EMAIL_SECRET', secret);
+    const body = JSON.stringify({ messageId: 'a', from: 'ada@glossup.com', subject: 'Hi', text: 'Hello' });
+    expect((await post({ authorization: `Bearer ${secret}` }, body)).status).toBe(200);
+  });
+
+  it('stops taking it the moment a real signing secret exists', async () => {
+    vi.stubEnv('INBOUND_EMAIL_SECRET', secret);
+    // Turning the provider on closes the back door rather than leaving two ways in.
+    vi.stubEnv('RESEND_WEBHOOK_SECRET', 'whsec_c2VjcmV0LXRoaW5n');
+    expect((await post({ authorization: `Bearer ${secret}` })).status).toBe(401);
+  });
+
+  it('takes a correctly signed delivery, and refuses one signed for another moment', async () => {
+    const raw = 'whsec_c2VjcmV0LXRoaW5n';
+    vi.stubEnv('RESEND_WEBHOOK_SECRET', raw);
+    const body = JSON.stringify({ messageId: 'b', from: 'ada@glossup.com', subject: 'Hi', text: 'Hello' });
+    const id = 'msg_1';
+    const timestamp = Math.floor(Date.now() / 1000);
+    const key = await crypto.subtle.importKey(
+      'raw',
+      Uint8Array.from(atob(raw.replace(/^whsec_/, '')), (character) => character.charCodeAt(0)),
+      { name: 'HMAC', hash: 'SHA-256' },
+      false,
+      ['sign'],
+    );
+    const sign = async (at: number) =>
+      btoa(
+        String.fromCharCode(
+          ...new Uint8Array(await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(`${id}.${at}.${body}`))),
+        ),
+      );
+
+    const headers = (at: number, signature: string) => ({
+      'svix-id': id,
+      'svix-timestamp': String(at),
+      'svix-signature': `v1,${signature}`,
+      'content-type': 'application/json',
+    });
+    expect((await post(headers(timestamp, await sign(timestamp)), body)).status).toBe(200);
+
+    // An hour old: signed properly once, but too late to be replayed now.
+    const stale = timestamp - 3600;
+    expect((await post(headers(stale, await sign(stale)), body)).status).toBe(401);
+  });
+});

@@ -1,6 +1,7 @@
 import { render } from '@react-email/render';
 import { createElement } from 'react';
 import { Resend } from 'resend';
+import { senderFor } from './senders';
 import { InvoiceReminderEmail } from '../../emails/invoices/invoice-reminder';
 import { InvoiceSentEmail } from '../../emails/invoices/invoice-sent';
 
@@ -25,8 +26,6 @@ export type InvoiceEmail = {
   pdf: { filename: string; content: Uint8Array };
 };
 
-const DEFAULT_FROM = 'Unbuilt OS <onboarding@resend.dev>';
-
 export async function renderInvoiceEmail({ pdf: _pdf, to: _to, ...email }: InvoiceEmail) {
   const element = createElement(InvoiceSentEmail, email);
   return {
@@ -43,7 +42,7 @@ export async function sendInvoiceEmail(email: InvoiceEmail): Promise<void> {
   if (!apiKey) throw new Error('RESEND_API_KEY is not set on this deployment');
   const { subject, html, text } = await renderInvoiceEmail(email);
   const { error } = await new Resend(apiKey).emails.send({
-    from: process.env.AUTH_EMAIL_FROM ?? DEFAULT_FROM,
+    from: senderFor('billing'),
     to: email.to,
     subject,
     html,
@@ -72,7 +71,7 @@ export async function sendReminderEmail({ to, pdf, ...email }: ReminderEmail): P
   if (!apiKey) throw new Error('RESEND_API_KEY is not set on this deployment');
   const element = createElement(InvoiceReminderEmail, email);
   const { error } = await new Resend(apiKey).emails.send({
-    from: process.env.AUTH_EMAIL_FROM ?? DEFAULT_FROM,
+    from: senderFor('billing'),
     to,
     subject:
       email.wording === 'late'

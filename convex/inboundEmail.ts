@@ -8,23 +8,60 @@ import { openTicket, recordClientReply } from './tickets';
 // POST /webhooks/inbound-email (14-platform.md, Webhooks): mail sent to support@ becomes a ticket, or a message on the
 // ticket it is replying to. Verify, store the event once, then answer quickly, as with every other webhook.
 
-/**
- * A shared secret, which 14-platform.md allows in place of a provider signature. The studio has not chosen an inbound
- * provider yet; when it does, its own signature replaces this, and nothing downstream changes.
- */
-function authorised(request: Request): boolean {
-  const secret = process.env.INBOUND_EMAIL_SECRET;
-  if (!secret || secret.length < 32) return false;
-  const offered = request.headers.get('authorization')?.replace(/^Bearer\s+/i, '') ?? '';
-  if (offered.length !== secret.length) return false;
+/** Constant-time compare, so a wrong secret tells an attacker nothing about how wrong it was. */
+function sameSecret(a: string, b: string): boolean {
+  if (a.length !== b.length) return false;
   let difference = 0;
-  for (let i = 0; i < secret.length; i++) difference |= offered.charCodeAt(i) ^ secret.charCodeAt(i);
+  for (let i = 0; i < a.length; i++) difference |= a.charCodeAt(i) ^ b.charCodeAt(i);
   return difference === 0;
 }
 
+const SVIX_TOLERANCE_MS = 5 * 60 * 1000;
+
+/**
+ * Resend signs inbound mail the way it signs its delivery webhook: Svix headers over `id.timestamp.body`, with the
+ * secret base64 after a `whsec_` prefix (14-platform.md, Webhooks).
+ */
+async function svixVerified(request: Request, raw: string, now: number): Promise<boolean> {
+  const secret = process.env.RESEND_WEBHOOK_SECRET;
+  if (!secret) return false;
+  const id = request.headers.get('svix-id');
+  const timestamp = request.headers.get('svix-timestamp');
+  const offered = request.headers.get('svix-signature');
+  if (!id || !timestamp || !offered || !/^\d+$/.test(timestamp)) return false;
+  // A signature is only good for a few minutes, so a captured request cannot be replayed later.
+  if (Math.abs(now - Number(timestamp) * 1000) > SVIX_TOLERANCE_MS) return false;
+
+  const key = await crypto.subtle.importKey(
+    'raw',
+    Uint8Array.from(atob(secret.replace(/^whsec_/, '')), (character) => character.charCodeAt(0)),
+    { name: 'HMAC', hash: 'SHA-256' },
+    false,
+    ['sign'],
+  );
+  const signed = await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(`${id}.${timestamp}.${raw}`));
+  const expected = btoa(String.fromCharCode(...new Uint8Array(signed)));
+  // The header carries every signature Svix currently accepts, space separated and each prefixed with its version.
+  return offered.split(' ').some((part) => sameSecret(part.replace(/^v1,/, ''), expected));
+}
+
+/**
+ * A shared secret, which 14-platform.md allows in place of a provider signature. It is how the studio can try the
+ * endpoint before any provider is pointed at it, and it stops working the moment a real signing secret is configured,
+ * so turning the provider on closes this door rather than leaving two.
+ */
+function bearerVerified(request: Request): boolean {
+  if (process.env.RESEND_WEBHOOK_SECRET) return false;
+  const secret = process.env.INBOUND_EMAIL_SECRET;
+  if (!secret || secret.length < 32) return false;
+  return sameSecret(request.headers.get('authorization')?.replace(/^Bearer\s+/i, '') ?? '', secret);
+}
+
 export const inboundEmailWebhook = publicHttp(async (ctx, request) => {
-  if (!authorised(request)) return new Response('Unauthorised', { status: 401 });
   const raw = await request.text();
+  if (!(await svixVerified(request, raw, Date.now())) && !bearerVerified(request)) {
+    return new Response('Unauthorised', { status: 401 });
+  }
 
   let payload: unknown;
   try {

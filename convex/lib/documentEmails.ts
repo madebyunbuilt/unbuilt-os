@@ -1,6 +1,7 @@
 import { render } from '@react-email/render';
 import { createElement } from 'react';
 import { Resend } from 'resend';
+import { senderFor } from './senders';
 import { DocumentSentEmail } from '../../emails/documents/document-sent';
 
 // The email that carries a document to a client (07-documents-and-esign.md, Send). The document is read in the portal,
@@ -19,8 +20,6 @@ export type DocumentEmail = {
   validUntil?: string;
 };
 
-const DEFAULT_FROM = 'Unbuilt OS <onboarding@resend.dev>';
-
 export async function renderDocumentEmail(email: DocumentEmail) {
   const element = createElement(DocumentSentEmail, email);
   return {
@@ -36,7 +35,7 @@ export async function sendDocumentEmail(email: DocumentEmail): Promise<void> {
 
   const { subject, html, text } = await renderDocumentEmail(email);
   const { error } = await new Resend(apiKey).emails.send({
-    from: process.env.AUTH_EMAIL_FROM ?? DEFAULT_FROM,
+    from: senderFor('notifications'),
     to: email.to,
     subject,
     html,
