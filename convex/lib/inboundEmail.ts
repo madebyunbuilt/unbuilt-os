@@ -8,6 +8,11 @@ export type InboundEmail = {
   fromName?: string;
   subject: string;
   body: string;
+  /**
+   * Resend's own id for the message. Its webhook carries no body at all (studio, 2026-09-25), so this is what the
+   * content is fetched with afterwards.
+   */
+  emailId?: string;
 };
 
 const string = (value: unknown): string | undefined =>
@@ -45,10 +50,11 @@ export function normalise(payload: unknown): InboundEmail | null {
 
   const body = field('text', 'plain', 'body', 'TextBody', 'stripped-text');
   const subject = field('subject', 'Subject');
-  // A message with neither a subject nor a body is not something anybody can act on.
-  if (!subject && !body) return null;
+  // Resend's webhook carries neither, only an id to fetch the content with, so an email_id counts as substance too.
+  if (!subject && !body && !field('email_id', 'emailId')) return null;
 
   return {
+    emailId: field('email_id', 'emailId'),
     messageId: field('messageId', 'message_id', 'MessageID', 'Message-Id', 'id') ?? `${from.email}:${Date.now()}`,
     from: from.email,
     fromName: from.name,

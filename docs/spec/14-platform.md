@@ -53,6 +53,14 @@
 - Every send is logged in `messageLog`, linked to the client and record.
 - The Resend webhook updates delivery status (delivered, bounced, complained, opened when enabled). A hard bounce flags
   the contact's email as invalid and notifies the record owner.
+- **Resend's inbound webhook carries no body** (studio, 2026-09-25): `email.received` gives the sender, the subject,
+  the recipients and an `email_id`, and nothing else. The text is fetched from the API with that id, which needs a key
+  with read access, not a sending-only one. A fetch that fails still raises the ticket, saying plainly that the body
+  could not be read and quoting the id: somebody waiting for support is worse served by silence than by a short
+  ticket.
+- **The studio does not own its domain's MX** (studio, 2026-09-25): `unbuilt.studio` receives through Zoho, so
+  inbound must go to a subdomain such as `inbound.unbuilt.studio`, with `support@unbuilt.studio` forwarded to it.
+  Pointing the root MX at Resend would take down every mailbox the studio has.
 - **Inbound** for `support@` uses Resend inbound (studio, 2026-09-25: one account and one bill, and the same Svix
   signing the delivery webhook already uses), parsed into tickets (see `09-support-and-sla.md`). A shared secret in an
   Authorization header is accepted **only while `RESEND_WEBHOOK_SECRET` is unset**, so the studio can try the endpoint

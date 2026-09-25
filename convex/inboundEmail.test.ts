@@ -243,6 +243,33 @@ describe('an email from somebody the studio does not know', () => {
   });
 });
 
+describe('an email whose body has to be fetched', () => {
+  it('raises the ticket anyway when Resend will not give us the words', async () => {
+    // Resend's webhook carries an id and no body; a fetch that fails must not swallow somebody's request for help.
+    const { ticketId } = await arrive({
+      body: '(Unbuilt could not read this email. Resend id abc-123.)',
+      subject: 'Payments are failing',
+    });
+    const ticket = await pm.as.query(api.tickets.get, { ticketId });
+    expect(ticket.subject).toBe('Payments are failing');
+    expect(ticket.messages[0].body).toContain('could not read this email');
+    expect(ticket.messages[0].body).toContain('abc-123');
+  });
+
+  it('reads an email from somebody unknown as theirs, never as the studio’s own words', async () => {
+    const { ticketId } = await arrive({ from: 'nobody@example.com' });
+    const ticket = await pm.as.query(api.tickets.get, { ticketId });
+    // A system message would read as Unbuilt in the portal once the ticket is placed.
+    expect(ticket.messages[0].authorKind).toBe('client');
+  });
+
+  it('keeps an id with no subject or body, since the words come later', () => {
+    expect(normalise({ type: 'email.received', data: { from: 'ada@glossup.com', email_id: 'abc-123' } })).toMatchObject(
+      { emailId: 'abc-123', from: 'ada@glossup.com' },
+    );
+  });
+});
+
 describe('the webhook itself', () => {
   it('stores a message once, however many times it is delivered', async () => {
     const first = await t.mutation(internal.inboundEmail.recordEvent, { messageId: 'abc', payload: '{}' });

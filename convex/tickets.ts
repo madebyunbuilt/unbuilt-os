@@ -207,7 +207,10 @@ export async function openTicket(
     ticketId,
     visibility: 'public',
     body: args.description,
-    authorKind: args.requesterContactId ? 'client' : args.raisedByMemberId ? 'team' : 'system',
+    // Whose words these are, which is not the same as who typed them: a ticket the studio raises after a phone call
+    // still opens with what the client said. An email from somebody not yet identified is theirs too, and must never
+    // read as though Unbuilt said it.
+    authorKind: args.requesterContactId || args.fromEmail ? 'client' : args.raisedByMemberId ? 'team' : 'system',
     authorMemberId: args.raisedByMemberId,
     authorContactId: args.requesterContactId,
     fileIds: [],

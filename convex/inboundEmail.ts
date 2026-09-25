@@ -1,6 +1,6 @@
 import { v } from 'convex/values';
 import { internal } from './_generated/api';
-import { internalMutation, publicHttp } from './lib/functions';
+import { internalAction, internalMutation, publicHttp } from './lib/functions';
 import { normalise, ticketNumberIn, withoutQuotedReply } from './lib/inboundEmail';
 import { activeMembersWith, notifyTeamMembers } from './lib/notify';
 import { openTicket, recordClientReply } from './tickets';
@@ -77,7 +77,8 @@ export const inboundEmailWebhook = publicHttp(async (ctx, request) => {
     messageId: email.messageId,
     payload: raw,
   });
-  if (fresh) await ctx.scheduler.runAfter(0, internal.inboundEmail.deliver, { email });
+  // The body is fetched before the ticket is written, which needs an action rather than a mutation.
+  if (fresh) await ctx.scheduler.runAfter(0, internal.inboundEmail.collect, { email });
   return new Response('ok', { status: 200 });
 });
 
@@ -104,12 +105,63 @@ export const recordEvent = internalMutation({
 });
 
 const emailArg = v.object({
+  emailId: v.optional(v.string()),
   messageId: v.string(),
   from: v.string(),
   fromName: v.optional(v.string()),
   subject: v.string(),
   body: v.string(),
 });
+
+/**
+ * Resend's webhook says an email arrived and nothing about what it says (studio, 2026-09-25), so the content is
+ * fetched here before the ticket is written.
+ *
+ * A fetch that fails does not lose the email: the ticket is raised anyway, saying plainly that the body could not be
+ * read and where to find it. A person waiting for support is worse served by silence than by a short ticket.
+ */
+export const collect = internalAction({
+  args: { email: emailArg },
+  handler: async (ctx, { email }): Promise<void> => {
+    let body = email.body;
+    if (!body && email.emailId) {
+      body = (await fetchBody(email.emailId)) ?? `(Unbuilt could not read this email. Resend id ${email.emailId}.)`;
+    }
+    await ctx.runMutation(internal.inboundEmail.deliver, { email: { ...email, body } });
+  },
+});
+
+/** The text of a received email, or null when Resend will not give it to us. */
+async function fetchBody(emailId: string): Promise<string | null> {
+  const apiKey = process.env.RESEND_API_KEY;
+  if (!apiKey) return null;
+  const response = await fetch(`https://api.resend.com/emails/${emailId}`, {
+    headers: { authorization: `Bearer ${apiKey}` },
+  });
+  if (!response.ok) return null;
+  const mail = (await response.json()) as { text?: string; html?: string };
+  const text = mail.text?.trim();
+  if (text) return text;
+  // Nothing but HTML: tags out, entities back, so the thread reads as words rather than markup.
+  const html = mail.html?.trim();
+  return html ? htmlToText(html) : null;
+}
+
+function htmlToText(html: string): string {
+  return html
+    .replace(/<(script|style)[\s\S]*?<\/\1>/gi, '')
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/(p|div|tr|li|h[1-6])>/gi, '\n')
+    .replace(/<[^>]+>/g, '')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
 
 /**
  * Turning an email into support. A reply carrying a ticket number joins that ticket, through the same path a portal
