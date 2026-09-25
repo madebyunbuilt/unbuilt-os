@@ -33,14 +33,16 @@ and pull request (or several), merged when its definition of done is met.
 8. **Payments** — Paystack initialise, pay pages, webhook, verification, refunds.
 9. **Billing automation** — billing schedules, change requests, retainers and periods, late fees, expenses, vendors and
    bills.
-10. **Client portal** — every portal page, portal roles, client admin colleague management, token pages, terms
-    acceptance.
+10. **Client portal** — every portal page, portal roles, client admin colleague management, token pages. Terms
+    acceptance moved to step 14 (studio, 2026-09-25): the terms are CMS legal pages, which do not exist until then, so
+    building the acceptance here would ask clients to consent to nothing.
 11. **Support** — SLA policies, tickets, business-time timers, breaches, inbound email, retainer hours, monthly SLA
     reports.
 12. **Monitoring and renewals** — monitors, incidents, managed assets, renewal reminders and invoices.
 13. **Vault** — encryption, reveal flow, client submissions, rotation, access logs.
 14. **CMS** — works, service pages, insights, legal pages, testimonials, settings, revisions, preview tokens, publishing
-    and deploy hook, site content endpoint, project-to-case-study, website migration import.
+    and deploy hook, site content endpoint, project-to-case-study, website migration import. Also portal terms
+    acceptance, carried over from step 10: the legal pages built here are what a client is being asked to accept.
 15. **Communications** — Resend templates and webhook, WhatsApp templates, opt-in, status webhook, the full event
     catalogue, preferences.
 16. **Calendar and intake** — Google Calendar OAuth, meetings, booking pages, intake forms.

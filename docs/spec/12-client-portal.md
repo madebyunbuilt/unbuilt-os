@@ -93,7 +93,11 @@ client (see `03-auth-and-permissions.md`).
 - **Branding**: Unbuilt branding. The client's name appears in the header.
 - **First sign-in** shows a short walkthrough and asks for WhatsApp opt-in with a clear explanation of what will be sent.
 - **Portal privacy notice** and terms, served from the CMS legal pages, linked in the footer and accepted on first sign-in
-  (acceptance recorded with version and time).
+  (acceptance recorded with version and time). **Built in step 14, not step 10** (studio, 2026-09-25): the notice and
+  terms are CMS legal pages, so until the CMS exists there is nothing for a client to read. Asking somebody to accept
+  an empty page records a consent that is worth nothing, which matters more here than elsewhere because this consent is
+  the one `15-security-and-compliance.md` relies on. Until then the portal asks for no acceptance at all rather than
+  showing a placeholder.
 
 ## Public token pages
 
@@ -112,5 +116,5 @@ Token pages show only the one document or invoice.
 - A Client member cannot pay invoices or approve change requests unless the client's settings allow it.
 - A client admin can invite a colleague, who receives a magic link and the chosen role.
 - Credential submissions from the portal are encrypted before storage and cannot be read back in plaintext.
-- First sign-in records acceptance of the current portal terms version.
+- First sign-in records acceptance of the current portal terms version (step 14, once the legal pages exist).
 - Token pages expose only their single document or invoice and stop working when the token is revoked or expired.
