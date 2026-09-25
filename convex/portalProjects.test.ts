@@ -154,6 +154,57 @@ describe('deciding on a deliverable', () => {
     expect(view?.deliverables[0]).toMatchObject({ version: 2, needsYou: true });
   });
 
+  it('tells the studio what needs changing, rather than leaving them to notice', async () => {
+    const deliverableId = await inReview();
+    await glossup.as.mutation(api.portalProjects.decideDeliverable, {
+      deliverableId,
+      version: 1,
+      decision: 'changes_requested',
+      note: 'The logo is the old one on screen two',
+    });
+
+    // The people whose work it is: the project's manager and whoever submitted the version.
+    const notices = await t.run((ctx) => ctx.db.query('notifications').collect());
+    const told = notices.filter((notice) => notice.event === 'deliverable_decided');
+    expect(told.map((notice) => notice.recipientId).sort()).toEqual([pm.memberId].sort());
+    expect(told[0].body).toBe('The logo is the old one on screen two');
+    expect(told[0].title).toContain('asked for changes');
+    // And it is on the client's timeline, not only in a notification somebody may clear.
+    const activity = await t.run((ctx) => ctx.db.query('activities').collect());
+    expect(activity.some((entry) => entry.body === 'The logo is the old one on screen two')).toBe(true);
+  });
+
+  it('tells the studio about an approval too', async () => {
+    const deliverableId = await inReview();
+    await glossup.as.mutation(api.portalProjects.decideDeliverable, {
+      deliverableId,
+      version: 1,
+      decision: 'approved',
+    });
+    const notices = await t.run((ctx) => ctx.db.query('notifications').collect());
+    expect(notices.some((notice) => notice.title.includes('approved'))).toBe(true);
+  });
+
+  it('lets the client open what was submitted for them to look at', async () => {
+    const deliverableId = await pm.as.mutation(api.deliverables.create, { projectId, title: 'Screens' });
+    const storageId = await t.run((ctx) => ctx.storage.store(new Blob(['png'], { type: 'image/png' })));
+    await pm.as.mutation(api.deliverables.submitVersion, {
+      deliverableId,
+      uploads: [{ storageId, name: 'screen-two.png', contentType: 'image/png' }],
+      links: [],
+    });
+
+    const view = await glossup.as.query(api.portalProjects.project, { projectId });
+    const shown = view?.deliverables.find((row) => row.id === deliverableId);
+    expect(shown?.files[0]).toMatchObject({ name: 'screen-two.png' });
+    // And it opens: the file is theirs to read, which is what the portal rule on deliverables allows.
+    expect(await glossup.as.query(api.files.portalDownloadUrl, { fileId: shown!.files[0].id })).toMatchObject({
+      name: 'screen-two.png',
+    });
+    // Not another client's, though.
+    await expectCode(qravit.as.query(api.files.portalDownloadUrl, { fileId: shown!.files[0].id }), 'auth.notFound');
+  });
+
   it('refuses a version that has already been replaced', async () => {
     const deliverableId = await inReview();
     await pm.as.mutation(api.deliverables.submitVersion, { deliverableId, uploads: [], links: [{ url: 'x.com' }] });

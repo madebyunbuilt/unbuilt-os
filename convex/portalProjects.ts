@@ -66,7 +66,12 @@ export const project = portalQuery('portal.projects.view')({
           version: deliverable.currentVersion,
           approvedAt: deliverable.approvedAt,
           // What the studio actually sent them to look at. Who made it and when they logged it is not their business.
-          files: version?.fileIds ?? [],
+          files: await Promise.all(
+            (version?.fileIds ?? []).map(async (fileId) => {
+              const file = await ctx.db.get('files', fileId);
+              return { id: fileId, name: file?.name ?? 'Attachment', sizeBytes: file?.sizeBytes ?? 0 };
+            }),
+          ),
           links: version?.links ?? [],
           notes: version?.notes,
           needsYou: deliverable.status === 'in_review',
@@ -146,6 +151,7 @@ export const decideDeliverable = portalMutation('portal.deliverables.approve')({
     deliverableId: v.id('deliverables'),
     version: v.number(),
     decision: v.union(v.literal('approved'), v.literal('changes_requested')),
+    note: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const principal = ctx.principal as ClientPrincipal;
@@ -158,6 +164,7 @@ export const decideDeliverable = portalMutation('portal.deliverables.approve')({
       contactId: principal.contact._id,
       version: args.version,
       decision: args.decision,
+      note: args.note,
       now: Date.now(),
     });
     if (result.milestoneApproved) {

@@ -45,6 +45,12 @@ client (see `03-auth-and-permissions.md`).
   `applyClientDecision`, and deciding a change request calls `applyDecision`, so an approval from the portal closes its
   milestone and moves the project's budget exactly as one recorded by the studio does. One rule rather than two that
   could drift. The contact is the actor either way.
+- **Asking for changes says what needs changing** (studio, 2026-09-25): the note is required, goes to the project's
+  manager and whoever submitted the version, and is written to the client's timeline rather than living only in a
+  notification somebody may clear. An approval tells them too (`14-platform.md`, Deliverable approved / changes
+  requested). Full comments on a deliverable, which let the studio reply, come with the comments work.
+- **The client opens what was submitted**: the files on a version are theirs to read, which is the portal rule on
+  deliverables that the earlier steps deferred to this one.
 - **A change above the signature threshold is not approved from the portal**: the button is absent and the page points
   at the signing link in their email. Declining never needs a signature.
 - **Retainer hours are shown as hours, and nothing beside them is priced**: no fee, no overage rate, no time entry and

@@ -56,9 +56,23 @@ const hours = (minutes: number) => {
 
 type Project = NonNullable<typeof api.portalProjects.project._returnType>;
 
-/** Approving what was delivered, or saying it is not right yet. Both are one press and a version number. */
+/** A file the studio submitted, which the client opens to look at it. */
+function Attachment({ file }: { file: Project['deliverables'][number]['files'][number] }) {
+  const url = useQuery(api.files.portalDownloadUrl, { fileId: file.id });
+  if (!url) return <li className="text-muted-foreground">{file.name}</li>;
+  return (
+    <li>
+      <a href={url.url} target="_blank" rel="noreferrer" className="underline">
+        {file.name}
+      </a>
+    </li>
+  );
+}
+
+/** Approving what was delivered, or saying what is not right about it yet. */
 function DeliverableActions({ deliverable }: { deliverable: Project['deliverables'][number] }) {
   const decide = useMutation(api.portalProjects.decideDeliverable);
+  const [note, setNote] = useState('');
   return (
     <div className="mt-3 flex flex-wrap gap-2">
       <ConfirmDialog
@@ -68,15 +82,31 @@ function DeliverableActions({ deliverable }: { deliverable: Project['deliverable
         confirmLabel="Approve"
         onConfirm={() => decide({ deliverableId: deliverable.id, version: deliverable.version, decision: 'approved' })}
       />
-      <ConfirmDialog
+      <FormDialog
         trigger={<Button variant="outline">Ask for changes</Button>}
         title={`Ask for changes to ${deliverable.title}`}
-        description="Unbuilt will send a new version. Tell them what needs changing in your usual channel."
-        confirmLabel="Ask for changes"
-        onConfirm={() =>
-          decide({ deliverableId: deliverable.id, version: deliverable.version, decision: 'changes_requested' })
+        description="Unbuilt is told straight away, and sends a new version."
+        submitLabel="Send this back"
+        canSubmit={note.trim().length > 0}
+        onSubmit={() =>
+          decide({
+            deliverableId: deliverable.id,
+            version: deliverable.version,
+            decision: 'changes_requested',
+            note,
+          })
         }
-      />
+      >
+        <div className="space-y-2">
+          <Label htmlFor={`changes-${deliverable.id}`}>What needs changing</Label>
+          <Textarea
+            id={`changes-${deliverable.id}`}
+            rows={4}
+            value={note}
+            onChange={(event) => setNote(event.target.value)}
+          />
+        </div>
+      </FormDialog>
     </div>
   );
 }
@@ -159,6 +189,13 @@ export function PortalProject({ projectId }: { projectId: Id<'projects'> }) {
                   <ToneBadge {...deliverableStatus(deliverable.status)} />
                 </div>
                 {deliverable.notes && <p className="mt-2 text-sm text-muted-foreground">{deliverable.notes}</p>}
+                {deliverable.files.length > 0 && (
+                  <ul className="mt-2 space-y-1 text-sm">
+                    {deliverable.files.map((file) => (
+                      <Attachment key={file.id} file={file} />
+                    ))}
+                  </ul>
+                )}
                 {deliverable.links.length > 0 && (
                   <ul className="mt-2 space-y-1 text-sm">
                     {deliverable.links.map((link, index) => (

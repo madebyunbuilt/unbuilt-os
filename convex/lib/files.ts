@@ -220,12 +220,14 @@ export const FILE_ACCESS: Partial<Record<TableNames, FileAccessRule>> = {
   bills: {
     team: (_ctx, principal) => principal.permissions.has('bills.manage') || principal.permissions.has('bills.pay'),
   },
-  // Deliverable versions follow project scope. The portal rule arrives with the client portal.
+  // Deliverable versions follow project scope for the team. The client reads what was submitted for their review: the
+  // shared rule above has already limited that to their own client's client-visible files.
   deliverables: {
     team: async (ctx, principal, file) => {
       const projectId = file.projectId ? ctx.db.normalizeId('projects', file.projectId) : null;
       return projectId ? await inProjectScope(ctx, principal, projectId) : false;
     },
+    portal: () => true,
   },
 };
 

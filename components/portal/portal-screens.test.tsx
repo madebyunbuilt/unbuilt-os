@@ -422,6 +422,37 @@ describe('a client’s project', () => {
     );
   });
 
+  it('will not send work back without saying what is wrong with it', async () => {
+    state.queries['portalProjects.project'] = project({ deliverables: [deliverable()] });
+    render(<PortalProject projectId={'p1' as never} />);
+    await userEvent.click(screen.getByRole('button', { name: 'Ask for changes' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Ask for changes to Onboarding flow' });
+    expect(within(dialog).getByRole('button', { name: 'Send this back' })).toBeDisabled();
+
+    await userEvent.type(within(dialog).getByLabelText('What needs changing'), 'The logo is the old one');
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Send this back' }));
+    await waitFor(() =>
+      expect(state.mutations['portalProjects.decideDeliverable']).toHaveBeenCalledWith({
+        deliverableId: 'd1',
+        version: 1,
+        decision: 'changes_requested',
+        note: 'The logo is the old one',
+      }),
+    );
+  });
+
+  it('shows the files the studio submitted, not only the links', () => {
+    state.queries['portalProjects.project'] = project({
+      deliverables: [deliverable({ files: [{ id: 'f1', name: 'screen-two.png', sizeBytes: 1024 }] })],
+    });
+    state.queries['files.portalDownloadUrl'] = { url: 'https://files.example.com/screen-two.png', name: 'x.png' };
+    render(<PortalProject projectId={'p1' as never} />);
+    expect(screen.getByRole('link', { name: 'screen-two.png' })).toHaveAttribute(
+      'href',
+      'https://files.example.com/screen-two.png',
+    );
+  });
+
   it('says what agreeing a change commits them to', async () => {
     state.queries['portalProjects.project'] = project({ changeRequests: [changeRequest()] });
     render(<PortalProject projectId={'p1' as never} />);
