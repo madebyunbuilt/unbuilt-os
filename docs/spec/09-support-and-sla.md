@@ -111,7 +111,10 @@
   - The stamps on the ticket record what was **sent**, not what is currently true. Downgrading a breached ticket does
     not un-send the breach, and does not make it eligible to be sent again.
   - **Admins** here means the holders of `settings.manage`, as in the January holiday reminder.
-- Time logged against a ticket counts toward the project and, for retainers, the retainer period.
+- Time logged against a ticket counts toward the project and, for retainers, the retainer period. It is logged from
+  the ticket itself, and the ticket shows what it has taken so far. **A ticket with no project cannot take time**
+  (studio, 2026-09-26): a time entry belongs to a project, and recording it against nothing would lose it — the screen
+  says to put the ticket on a project rather than offering a control that would be refused.
 - Messages are public (visible to the client) or internal notes.
 - **What was asked for is the first message** (studio, 2026-09-25), not a separate description field: the thread then
   reads in order from the start, and a reply and an opening request are the same kind of thing.
@@ -123,6 +126,9 @@
   priority's targets, plus whatever it has already spent waiting on the client. Escalating a P3 to a P1 therefore makes
   it due sooner — often already late — which is the point of escalating it. A first response that has already happened
   is not taken back: that target only matters until somebody replies.
+- **Reading a ticket that is not there answers with nothing** (studio, 2026-09-26), rather than an error: a bookmark, a
+  stale link or a notification for a ticket since deleted should say so on the page. A role with no ticket permission
+  at all is still refused outright — that is a different answer to a different question.
 - **Who sees a ticket**: `tickets.view.all` reaches every one. `tickets.view.assigned` reaches tickets on a project the
   member belongs to, and tickets assigned to them, which is what makes a ticket raised against a client with no project
   reachable by the person holding it. Anything out of scope is "not found", as everywhere else.

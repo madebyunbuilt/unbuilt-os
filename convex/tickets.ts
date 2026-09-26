@@ -438,18 +438,27 @@ export const get = teamQuery(null)({
   args: { ticketId: v.id('tickets') },
   handler: async (ctx, { ticketId }) => {
     if (!ctx.can('tickets.view.all')) requirePermission(ctx.principal, 'tickets.view.assigned');
-    const ticket = await visibleTicket(ctx, ticketId);
+    // Reading something that is not there, or not theirs, is answered with nothing rather than an error: a stale
+    // link, a bookmark or a notification for a ticket since deleted should say so, not fail the page.
+    const ticket = await ctx.db.get('tickets', ticketId);
+    if (!ticket || !(await canSeeTicket(ctx, ctx.principal, ticket))) return null;
     const messages = await ctx.db
       .query('ticketMessages')
       .withIndex('by_ticket', (q) => q.eq('ticketId', ticketId))
       .collect();
     const client = ticket.clientId ? await ctx.db.get('clients', ticket.clientId) : null;
+    // What this ticket has cost so far, which on a retainer is what the client's hours are being spent on.
+    const timeEntries = await ctx.db
+      .query('timeEntries')
+      .withIndex('by_ticket', (q) => q.eq('ticketId', ticketId))
+      .collect();
     const policy = ticket.slaPolicyId ? await ctx.db.get('slaPolicies', ticket.slaPolicyId) : null;
     return {
       ...view(ticket),
       // A ticket waiting on triage genuinely has no client yet; the screen says so rather than guessing.
       clientName: client?.displayName,
       slaPolicyName: policy?.name,
+      minutesLogged: timeEntries.reduce((total, entry) => total + entry.minutes, 0),
       messages: await Promise.all(
         messages
           .sort((a, b) => a.createdAt - b.createdAt)

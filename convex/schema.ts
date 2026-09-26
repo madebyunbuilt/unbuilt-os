@@ -573,7 +573,8 @@ export default defineSchema({
     .index('by_member_week', ['memberId', 'weekStart', 'status'])
     .index('by_project_date', ['projectId', 'date'])
     .index('by_status', ['status'])
-    .index('by_task', ['taskId']),
+    .index('by_task', ['taskId'])
+    .index('by_ticket', ['ticketId']),
 
   // At most one running timer per member; stopping it writes a draft time entry.
   timers: defineTable({

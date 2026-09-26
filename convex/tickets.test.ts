@@ -107,7 +107,7 @@ const raise = async (overrides: object = {}) =>
 describe('what the studio promised', () => {
   it('counts the promise in business time, stepping over the evening, the holiday and the weekend', async () => {
     const ticketId = await raise();
-    const ticket = await pm.as.query(api.tickets.get, { ticketId });
+    const ticket = (await pm.as.query(api.tickets.get, { ticketId }))!;
 
     // Raised at 16:55 on Thursday with a P1: one business hour to reply, eight to resolve. Five minutes are left that
     // Thursday; Friday is a holiday and the weekend is not business time, so the rest is counted on the Monday.
@@ -119,14 +119,14 @@ describe('what the studio promised', () => {
 
   it('promises nothing to a client with no policy, rather than inventing a time', async () => {
     await t.run(async (ctx) => ctx.db.patch('clients', clientId, { slaPolicyId: undefined }));
-    const ticket = await pm.as.query(api.tickets.get, { ticketId: await raise() });
+    const ticket = (await pm.as.query(api.tickets.get, { ticketId: await raise() }))!;
     expect(ticket.firstResponseDueAt).toBeUndefined();
     expect(ticket.resolutionDueAt).toBeUndefined();
     expect(ticket.hasSla).toBe(false);
   });
 
   it('gives a best-effort priority a reply time and no resolution time', async () => {
-    const ticket = await pm.as.query(api.tickets.get, { ticketId: await raise({ priority: 'p4' }) });
+    const ticket = (await pm.as.query(api.tickets.get, { ticketId: await raise({ priority: 'p4' }) }))!;
     expect(ticket.firstResponseDueAt).toBeDefined();
     // P4 is a question: answered, but never promised a fix by a date.
     expect(ticket.resolutionDueAt).toBeUndefined();
@@ -149,12 +149,12 @@ describe('what the studio promised', () => {
 
   it('keeps the promise it was raised under when the policy is later retired', async () => {
     const ticketId = await raise();
-    const before = await pm.as.query(api.tickets.get, { ticketId });
+    const before = (await pm.as.query(api.tickets.get, { ticketId }))!;
     await t.run(async (ctx) => {
       const policy = await ctx.db.query('slaPolicies').first();
       await ctx.db.patch('slaPolicies', policy!._id, { active: false });
     });
-    const after = await pm.as.query(api.tickets.get, { ticketId });
+    const after = (await pm.as.query(api.tickets.get, { ticketId }))!;
     expect(after.resolutionDueAt).toBe(before.resolutionDueAt);
   });
 });
@@ -164,31 +164,31 @@ describe('the clock while a ticket is worked', () => {
     const ticketId = await raise();
     await travelTo('2026-10-12T09:30:00');
     await pm.as.mutation(api.tickets.reply, { ticketId, body: 'Looking now.', visibility: 'internal' });
-    expect((await pm.as.query(api.tickets.get, { ticketId })).firstRespondedAt).toBeUndefined();
+    expect((await pm.as.query(api.tickets.get, { ticketId }))!.firstRespondedAt).toBeUndefined();
 
     await pm.as.mutation(api.tickets.reply, { ticketId, body: 'We are on it.', visibility: 'public' });
-    const ticket = await pm.as.query(api.tickets.get, { ticketId });
+    const ticket = (await pm.as.query(api.tickets.get, { ticketId }))!;
     expect(ticket.firstRespondedAt).toBe(lagos('2026-10-12T09:30:00'));
     expect(ticket.status).toBe('open');
     // A later reply does not move it: the first response is the one that was promised.
     await travelTo('2026-10-12T11:00:00');
     await pm.as.mutation(api.tickets.reply, { ticketId, body: 'Still on it.', visibility: 'public' });
-    expect((await pm.as.query(api.tickets.get, { ticketId })).firstRespondedAt).toBe(lagos('2026-10-12T09:30:00'));
+    expect((await pm.as.query(api.tickets.get, { ticketId }))!.firstRespondedAt).toBe(lagos('2026-10-12T09:30:00'));
   });
 
   it('adds the business time spent waiting on the client back onto the resolution time', async () => {
     const ticketId = await raise();
-    const promised = (await pm.as.query(api.tickets.get, { ticketId })).resolutionDueAt!;
+    const promised = (await pm.as.query(api.tickets.get, { ticketId }))!.resolutionDueAt!;
 
     // Asked the client something at 10:00 on the Monday; they came back at 15:00. Five business hours of the delay
     // were theirs, so the studio gets those five hours back.
     await travelTo('2026-10-12T10:00:00');
     await pm.as.mutation(api.tickets.setStatus, { ticketId, status: 'pending_client' });
-    expect((await pm.as.query(api.tickets.get, { ticketId })).pausedAt).toBe(lagos('2026-10-12T10:00:00'));
+    expect((await pm.as.query(api.tickets.get, { ticketId }))!.pausedAt).toBe(lagos('2026-10-12T10:00:00'));
 
     await travelTo('2026-10-12T15:00:00');
     await pm.as.mutation(api.tickets.setStatus, { ticketId, status: 'open' });
-    const ticket = await pm.as.query(api.tickets.get, { ticketId });
+    const ticket = (await pm.as.query(api.tickets.get, { ticketId }))!;
     expect(ticket.pausedAt).toBeUndefined();
     // 16:55 on the Monday plus five business hours: only five minutes of that Monday are left, so the rest is counted
     // on the Tuesday.
@@ -198,13 +198,13 @@ describe('the clock while a ticket is worked', () => {
 
   it('counts only business time while waiting, not the night in between', async () => {
     const ticketId = await raise();
-    const promised = (await pm.as.query(api.tickets.get, { ticketId })).resolutionDueAt!;
+    const promised = (await pm.as.query(api.tickets.get, { ticketId }))!.resolutionDueAt!;
     await travelTo('2026-10-12T16:00:00');
     await pm.as.mutation(api.tickets.setStatus, { ticketId, status: 'pending_client' });
     // Overnight: 16:00 to 17:00 on the Monday and 09:00 to 10:00 on the Tuesday is two business hours, not eighteen.
     await travelTo('2026-10-13T10:00:00');
     await pm.as.mutation(api.tickets.setStatus, { ticketId, status: 'open' });
-    const ticket = await pm.as.query(api.tickets.get, { ticketId });
+    const ticket = (await pm.as.query(api.tickets.get, { ticketId }))!;
     // Two business hours later than it was, which reads as the next morning. Counting the eighteen hours on the wall
     // clock instead would have moved it to the Thursday.
     expect(ticket.resolutionDueAt).toBe(lagos('2026-10-13T10:55:00'));
@@ -221,7 +221,7 @@ describe('the clock while a ticket is worked', () => {
       body: 'Thanks, that is what we needed.',
       visibility: 'public',
     });
-    const ticket = await pm.as.query(api.tickets.get, { ticketId });
+    const ticket = (await pm.as.query(api.tickets.get, { ticketId }))!;
     expect(ticket.status).toBe('open');
     expect(ticket.pausedAt).toBeUndefined();
     expect(ticket.resolutionDueAt).toBe(lagos('2026-10-13T13:55:00'));
@@ -231,7 +231,7 @@ describe('the clock while a ticket is worked', () => {
     const ticketId = await raise({ priority: 'p3' });
     await travelTo('2026-10-12T09:30:00');
     await pm.as.mutation(api.tickets.setPriority, { ticketId, priority: 'p1' });
-    const ticket = await pm.as.query(api.tickets.get, { ticketId });
+    const ticket = (await pm.as.query(api.tickets.get, { ticketId }))!;
     // Exactly as though it had been raised a P1 at 16:55 on the Thursday, so an escalated ticket is due sooner —
     // here, already late — rather than being handed a fresh hour.
     expect(ticket.firstResponseDueAt).toBe(lagos('2026-10-12T09:55:00'));
@@ -242,9 +242,9 @@ describe('the clock while a ticket is worked', () => {
     const ticketId = await raise({ priority: 'p3' });
     await travelTo('2026-10-12T09:30:00');
     await pm.as.mutation(api.tickets.reply, { ticketId, body: 'We have it.', visibility: 'public' });
-    const before = (await pm.as.query(api.tickets.get, { ticketId })).firstResponseDueAt;
+    const before = (await pm.as.query(api.tickets.get, { ticketId }))!.firstResponseDueAt;
     await pm.as.mutation(api.tickets.setPriority, { ticketId, priority: 'p1' });
-    const ticket = await pm.as.query(api.tickets.get, { ticketId });
+    const ticket = (await pm.as.query(api.tickets.get, { ticketId }))!;
     expect(ticket.firstResponseDueAt).toBe(before);
     expect(ticket.firstRespondedAt).toBe(lagos('2026-10-12T09:30:00'));
   });
@@ -253,7 +253,7 @@ describe('the clock while a ticket is worked', () => {
     const ticketId = await raise();
     await travelTo('2026-10-12T12:00:00');
     await pm.as.mutation(api.tickets.setStatus, { ticketId, status: 'resolved' });
-    expect((await pm.as.query(api.tickets.get, { ticketId })).resolvedAt).toBe(lagos('2026-10-12T12:00:00'));
+    expect((await pm.as.query(api.tickets.get, { ticketId }))!.resolvedAt).toBe(lagos('2026-10-12T12:00:00'));
 
     await pm.as.mutation(api.tickets.setStatus, { ticketId, status: 'closed' });
     await expectCode(pm.as.mutation(api.tickets.setStatus, { ticketId, status: 'open' }), 'tickets.closed');
@@ -269,7 +269,7 @@ describe('the thread', () => {
     const ticketId = await raise();
     await pm.as.mutation(api.tickets.reply, { ticketId, body: 'Suspect the gateway.', visibility: 'internal' });
     await pm.as.mutation(api.tickets.reply, { ticketId, body: 'We are on it.', visibility: 'public' });
-    const { messages } = await pm.as.query(api.tickets.get, { ticketId });
+    const { messages } = (await pm.as.query(api.tickets.get, { ticketId }))!;
     expect(messages.map((m) => [m.authorKind, m.visibility, m.body])).toEqual([
       ['client', 'public', 'Nobody can pay.'],
       ['team', 'internal', 'Suspect the gateway.'],
@@ -347,6 +347,57 @@ describe('the thread', () => {
   });
 });
 
+describe('time spent on a ticket', () => {
+  it('counts toward the ticket and its project', async () => {
+    const projectId = await newProject();
+    const ticketId = await raise({ projectId });
+    await pm.as.mutation(api.time.log, {
+      projectId,
+      ticketId,
+      date: '2026-10-08',
+      minutes: 90,
+      description: 'Traced the gateway timeout',
+      billable: true,
+    });
+    expect((await pm.as.query(api.tickets.get, { ticketId }))!.minutesLogged).toBe(90);
+    const entry = await t.run((ctx) => ctx.db.query('timeEntries').first());
+    expect(entry).toMatchObject({ ticketId, projectId });
+  });
+
+  it('refuses a ticket with no project, rather than recording it against nothing', async () => {
+    const projectId = await newProject();
+    const ticketId = await raise();
+    await expectCode(
+      pm.as.mutation(api.time.log, {
+        projectId,
+        ticketId,
+        date: '2026-10-08',
+        minutes: 30,
+        description: 'x',
+        billable: true,
+      }),
+      'time.invalid',
+    );
+  });
+
+  it('refuses a ticket that belongs to another project', async () => {
+    const projectId = await newProject();
+    const other = await newProject();
+    const ticketId = await raise({ projectId: other });
+    await expectCode(
+      pm.as.mutation(api.time.log, {
+        projectId,
+        ticketId,
+        date: '2026-10-08',
+        minutes: 30,
+        description: 'x',
+        billable: true,
+      }),
+      'time.invalid',
+    );
+  });
+});
+
 describe('who may see and touch a ticket', () => {
   it('refuses a client, a project it does not belong to, and a contact from elsewhere', async () => {
     const other = await createClientUser(t, roles.client_admin, { clientName: 'Qravit', email: 'bola@qravit.com' });
@@ -383,14 +434,21 @@ describe('who may see and touch a ticket', () => {
     const theirs = await raise({ subject: 'Not theirs' });
     expect((await member.as.query(api.tickets.list, {})).map((row) => row.id)).toEqual([mine]);
     // A ticket out of scope is not there at all, rather than there and forbidden.
-    await expectCode(member.as.query(api.tickets.get, { ticketId: theirs }), 'tickets.notFound');
+    expect(await member.as.query(api.tickets.get, { ticketId: theirs })).toBeNull();
   });
 
   it('reaches a ticket on a project they work on, even when it is somebody else’s', async () => {
     const projectId = await newProject();
     await pm.as.mutation(api.projects.addProjectMember, { projectId, memberId: member.memberId });
     const ticketId = await raise({ projectId, assigneeMemberId: pm.memberId });
-    expect((await member.as.query(api.tickets.get, { ticketId })).id).toBe(ticketId);
+    expect((await member.as.query(api.tickets.get, { ticketId }))!.id).toBe(ticketId);
+  });
+
+  it('answers with nothing for a ticket that is not there, rather than failing the page', async () => {
+    const ticketId = await raise();
+    await t.run((ctx) => ctx.db.delete('tickets', ticketId));
+    // A bookmark, or a notification for a ticket since deleted: the screen says so instead of throwing.
+    expect(await pm.as.query(api.tickets.get, { ticketId })).toBeNull();
   });
 
   it('is closed to a role with no ticket permission at all', async () => {
@@ -400,6 +458,7 @@ describe('who may see and touch a ticket', () => {
     });
     const ticketId = await raise();
     await expectCode(editor.as.query(api.tickets.list, {}), 'auth.forbidden');
+    // Still forbidden rather than empty: a role with no ticket permission is refused, not told it is missing.
     await expectCode(editor.as.query(api.tickets.get, { ticketId }), 'auth.forbidden');
     await expectCode(editor.as.query(api.tickets.forClient, { clientId }), 'auth.forbidden');
     await expectCode(
