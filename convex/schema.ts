@@ -1448,6 +1448,8 @@ export default defineSchema({
     fromEmail: v.optional(v.string()),
     // Waiting for somebody to say which client this is. Only email from an unrecognised sender starts this way.
     needsTriage: v.optional(v.boolean()),
+    // Why a promise was missed, written by the studio for the client's monthly report. Nothing else can supply it.
+    breachReason: v.optional(v.string()),
     raisedByMemberId: v.optional(v.id('teamMembers')),
     assigneeMemberId: v.optional(v.id('teamMembers')),
     createdAt: v.number(),
@@ -1482,6 +1484,49 @@ export default defineSchema({
     .index('by_client', ['clientId'])
     .index('by_project', ['projectId'])
     .index('by_assignee', ['assigneeMemberId'])
+    .index('by_status', ['status']),
+
+  // The monthly SLA report (09-support-and-sla.md, Monthly SLA report). Figures are worked out once and stored: a
+  // report is a statement about a month that has closed, and must read the same in a year as it did on the day.
+  slaReports: defineTable({
+    clientId: v.id('clients'),
+    slaPolicyId: v.id('slaPolicies'),
+    // YYYY-MM-DD, the month it covers, inclusive of both ends.
+    periodStart: v.string(),
+    periodEnd: v.string(),
+    status: v.union(v.literal('draft'), v.literal('sent')),
+    generatedAt: v.number(),
+    byPriority: v.array(
+      v.object({
+        priority: v.union(v.literal('p1'), v.literal('p2'), v.literal('p3'), v.literal('p4')),
+        opened: v.number(),
+        resolved: v.number(),
+        // Absent where nothing was promised at that priority, which is not the same as nothing being met.
+        firstResponseComplianceBps: v.optional(v.number()),
+        resolutionComplianceBps: v.optional(v.number()),
+      }),
+    ),
+    breaches: v.array(
+      v.object({
+        ticketId: v.id('tickets'),
+        number: v.string(),
+        subject: v.string(),
+        priority: v.union(v.literal('p1'), v.literal('p2'), v.literal('p3'), v.literal('p4')),
+        target: v.union(v.literal('firstResponse'), v.literal('resolution')),
+        // How late it was, in business minutes, and what the studio said about why.
+        lateMinutes: v.number(),
+        reason: v.optional(v.string()),
+      }),
+    ),
+    retainerMinutes: v.optional(v.object({ included: v.number(), used: v.number() })),
+    // Uptime and incidents arrive with monitoring; the shape is here so a report written before then says so rather
+    // than looking as though nothing went wrong.
+    monitoring: v.optional(v.literal('not_monitored')),
+    sentAt: v.optional(v.number()),
+    sentByMemberId: v.optional(v.id('teamMembers')),
+    remindedAt: v.optional(v.number()),
+  })
+    .index('by_client_period', ['clientId', 'periodStart'])
     .index('by_status', ['status']),
 
   ticketMessages: defineTable({
