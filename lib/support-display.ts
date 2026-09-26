@@ -107,3 +107,33 @@ export function formatMoment(at: number): string {
     minute: '2-digit',
   });
 }
+
+/** A compliance figure as a percentage, or a plain word when nothing was promised at that priority. */
+export function compliance(bps: number | undefined): string {
+  if (bps === undefined) return 'None raised';
+  const percent = bps / 100;
+  return `${Number.isInteger(percent) ? percent : percent.toFixed(1)}%`;
+}
+
+/** The month a report covers: "October 2026". */
+export function monthLabel(periodStart: string): string {
+  return new Date(`${periodStart}T00:00:00Z`).toLocaleDateString('en-GB', {
+    month: 'long',
+    year: 'numeric',
+    timeZone: 'UTC',
+  });
+}
+
+/** How late something was, in business time: "5 hours late", "2 days late". */
+export function lateness(minutes: number): string {
+  const said = (amount: number, unit: string) => {
+    const shown = amount % 1 === 0 ? String(amount) : amount.toFixed(1);
+    return `${shown} ${unit}${shown === '1' ? '' : 's'} late`;
+  };
+  if (minutes < 60) return said(Math.max(1, Math.round(minutes)), 'minute');
+  // A business day is eight hours, so anything longer reads better in days than in a large hour count.
+  const hours = minutes / 60;
+  return hours < 8 ? said(hours, 'hour') : said(hours / 8, 'business day');
+}
+
+export const TARGET_LABEL = { firstResponse: 'First reply', resolution: 'Resolution' } as const;

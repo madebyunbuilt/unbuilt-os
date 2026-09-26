@@ -157,6 +157,10 @@
 - **No SLA anywhere in the portal** (studio, 2026-09-25): no due times, no countdown, no policy name. What the studio
   promised is what the studio is scored on, and a client watching a clock tick down learns nothing they can act on.
   The monthly SLA report is where compliance is reported, deliberately after the fact.
+- **A client and the studio read the same report** (studio, 2026-09-26), rendered by one component from the same
+  stored figures. Two versions would eventually disagree, and the one the client held would be the one that mattered.
+  A draft is absent from the portal entirely: until somebody at the studio has read a month, it is a working paper and
+  not a statement about anything.
 - **Priorities are offered in the client's words**, not as P-codes: "Everything is down, or data is at risk" rather
   than P1.
 - **Internal notes are absent from every portal response**, not hidden by the screen.
