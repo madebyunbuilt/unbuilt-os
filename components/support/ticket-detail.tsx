@@ -363,6 +363,18 @@ export function TicketDetail({ ticketId, permissions }: { ticketId: Id<'tickets'
   const now = useNow();
 
   if (ticket === undefined) return <p className="text-muted-foreground">Loading…</p>;
+  if (ticket === null) {
+    return (
+      <div className="space-y-3">
+        <Link href="/support/tickets" className="text-sm underline">
+          ← Tickets
+        </Link>
+        <p className="rounded-md border border-dashed p-6 text-muted-foreground">
+          That ticket is not here. It may have been deleted, or it belongs to work you are not on.
+        </p>
+      </div>
+    );
+  }
 
   const run = async (work: Promise<unknown>) => {
     setError(null);

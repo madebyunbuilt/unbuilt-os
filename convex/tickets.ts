@@ -438,7 +438,10 @@ export const get = teamQuery(null)({
   args: { ticketId: v.id('tickets') },
   handler: async (ctx, { ticketId }) => {
     if (!ctx.can('tickets.view.all')) requirePermission(ctx.principal, 'tickets.view.assigned');
-    const ticket = await visibleTicket(ctx, ticketId);
+    // Reading something that is not there, or not theirs, is answered with nothing rather than an error: a stale
+    // link, a bookmark or a notification for a ticket since deleted should say so, not fail the page.
+    const ticket = await ctx.db.get('tickets', ticketId);
+    if (!ticket || !(await canSeeTicket(ctx, ctx.principal, ticket))) return null;
     const messages = await ctx.db
       .query('ticketMessages')
       .withIndex('by_ticket', (q) => q.eq('ticketId', ticketId))

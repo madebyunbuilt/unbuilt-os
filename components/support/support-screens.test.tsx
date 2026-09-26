@@ -275,6 +275,13 @@ describe('one ticket', () => {
     );
   });
 
+  it('says a ticket is not here instead of failing the page', () => {
+    state.queries['tickets.get'] = null;
+    render(<TicketDetail ticketId={'gone' as never} permissions={permissions} />);
+    expect(screen.getByText(/That ticket is not here/)).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: '← Tickets' })).toBeInTheDocument();
+  });
+
   it('will not offer to log time against a ticket with nowhere to put it', () => {
     render(<TicketDetail ticketId={'t1' as never} permissions={permissions} />);
     expect(screen.getByText(/Put this ticket on a project to log time/)).toBeInTheDocument();

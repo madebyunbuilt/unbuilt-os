@@ -138,7 +138,7 @@ describe('an email from somebody the studio knows', () => {
     expect(ticket).not.toHaveProperty('needsTriage');
     // A P3 has one business day to be answered: raised at 10:00 on a Monday, due 10:00 on the Tuesday.
     expect(ticket.firstResponseDueAt).toBe(lagos('2026-10-13T10:00:00'));
-    expect(await pm.as.query(api.tickets.get, { ticketId })).toMatchObject({ clientName: 'Glossup' });
+    expect(await pm.as.query(api.tickets.get, { ticketId }))!.toMatchObject({ clientName: 'Glossup' });
   });
 
   it('threads a reply onto the ticket its subject names', async () => {
@@ -152,7 +152,7 @@ describe('an email from somebody the studio knows', () => {
     expect(await tickets()).toHaveLength(1);
     // Their answer starts the studio's clock again, exactly as a portal reply would.
     expect((await t.run((ctx) => ctx.db.get('tickets', ticketId)))!.status).toBe('open');
-    const ticket = await pm.as.query(api.tickets.get, { ticketId });
+    const ticket = (await pm.as.query(api.tickets.get, { ticketId }))!;
     expect(ticket.messages.map((m) => m.body)).toEqual(['Nobody can pay.', 'Which card?', 'A Visa card.']);
   });
 
@@ -184,7 +184,7 @@ describe('an email from somebody the studio does not know', () => {
     expect(ticket).not.toHaveProperty('clientId');
     // Nothing was promised, because there is no client and so no policy.
     expect(ticket.firstResponseDueAt).toBeUndefined();
-    expect((await pm.as.query(api.tickets.get, { ticketId })).clientName).toBeUndefined();
+    expect((await pm.as.query(api.tickets.get, { ticketId }))!.clientName).toBeUndefined();
   });
 
   it('tells the people who work tickets that it needs somebody', async () => {
@@ -250,7 +250,7 @@ describe('an email whose body has to be fetched', () => {
       body: '(Unbuilt could not read this email. Resend id abc-123.)',
       subject: 'Payments are failing',
     });
-    const ticket = await pm.as.query(api.tickets.get, { ticketId });
+    const ticket = (await pm.as.query(api.tickets.get, { ticketId }))!;
     expect(ticket.subject).toBe('Payments are failing');
     expect(ticket.messages[0].body).toContain('could not read this email');
     expect(ticket.messages[0].body).toContain('abc-123');
@@ -258,7 +258,7 @@ describe('an email whose body has to be fetched', () => {
 
   it('reads an email from somebody unknown as theirs, never as the studio’s own words', async () => {
     const { ticketId } = await arrive({ from: 'nobody@example.com' });
-    const ticket = await pm.as.query(api.tickets.get, { ticketId });
+    const ticket = (await pm.as.query(api.tickets.get, { ticketId }))!;
     // A system message would read as Unbuilt in the portal once the ticket is placed.
     expect(ticket.messages[0].authorKind).toBe('client');
   });
