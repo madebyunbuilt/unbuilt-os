@@ -103,4 +103,14 @@ describe('NotificationsBell', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Notifications' }));
     expect(await screen.findByText(/Nothing yet/)).toBeInTheDocument();
   });
+
+  it('says when each one arrived, not only which day', async () => {
+    // The day heading answers "which day"; two notifications about the same ticket are told apart by the time.
+    const at = Date.parse('2026-10-12T09:05:00Z');
+    state.result = { items: [item('a', { createdAt: at })], unreadCount: 1 };
+    render(<NotificationsBell surface="team" />);
+    await userEvent.click(screen.getByRole('button', { name: /Notifications/ }));
+    const shown = new Intl.DateTimeFormat('en-GB', { hour: '2-digit', minute: '2-digit' }).format(at);
+    expect(await screen.findByText(shown)).toBeInTheDocument();
+  });
 });
