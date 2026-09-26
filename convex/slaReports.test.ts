@@ -236,3 +236,41 @@ describe('writing and sending it', () => {
     await expectCode(finance.as.mutation(api.slaReports.send, { reportId: report!.id }), 'auth.forbidden');
   });
 });
+
+describe('what a client can read', () => {
+  it('sees nothing until the studio has sent it', async () => {
+    await raise();
+    const report = await octoberReport();
+    // A draft is the studio's own working paper.
+    expect(await ada.as.query(api.portalReports.list, {})).toEqual([]);
+    expect(await ada.as.query(api.portalReports.get, { reportId: report!.id })).toBeNull();
+
+    await pm.as.mutation(api.slaReports.send, { reportId: report!.id });
+    const listed = await ada.as.query(api.portalReports.list, {});
+    expect(listed).toHaveLength(1);
+    expect(listed[0]).toMatchObject({ periodStart: '2026-10-01' });
+    expect(await ada.as.query(api.portalReports.get, { reportId: report!.id })).not.toBeNull();
+  });
+
+  it('reads the same figures the studio read before sending them', async () => {
+    const ticketId = await raise();
+    await travelTo('2026-10-09T11:00:00');
+    await pm.as.mutation(api.tickets.reply, { ticketId, body: 'Sorry.', visibility: 'public' });
+    const report = await octoberReport();
+    await pm.as.mutation(api.slaReports.send, { reportId: report!.id });
+
+    const theirs = await ada.as.query(api.portalReports.get, { reportId: report!.id });
+    expect(theirs!.byPriority).toEqual(report!.byPriority);
+    expect(theirs!.breaches.map((b) => b.number)).toEqual(report!.breaches.map((b) => b.number));
+  });
+
+  it('never reaches another client’s month', async () => {
+    await raise();
+    const report = await octoberReport();
+    await pm.as.mutation(api.slaReports.send, { reportId: report!.id });
+    // Signed in after the month turned, so their session belongs to now rather than to October.
+    const other = await createClientUser(t, roles.client_admin, { clientName: 'Qravit', email: 'bola@qravit.com' });
+    expect(await other.as.query(api.portalReports.get, { reportId: report!.id })).toBeNull();
+    expect(await other.as.query(api.portalReports.list, {})).toEqual([]);
+  });
+});
