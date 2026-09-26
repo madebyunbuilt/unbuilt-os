@@ -90,6 +90,7 @@ import type * as lib_timeOff from "../lib/timeOff.js";
 import type * as lib_timeOffFormat from "../lib/timeOffFormat.js";
 import type * as lib_validation from "../lib/validation.js";
 import type * as milestones from "../milestones.js";
+import type * as monitors from "../monitors.js";
 import type * as notifications from "../notifications.js";
 import type * as paying from "../paying.js";
 import type * as payments from "../payments.js";
@@ -219,6 +220,7 @@ declare const fullApi: ApiFromModules<{
   "lib/timeOffFormat": typeof lib_timeOffFormat;
   "lib/validation": typeof lib_validation;
   milestones: typeof milestones;
+  monitors: typeof monitors;
   notifications: typeof notifications;
   paying: typeof paying;
   payments: typeof payments;

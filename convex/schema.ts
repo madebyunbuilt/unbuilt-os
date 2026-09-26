@@ -1486,6 +1486,53 @@ export default defineSchema({
     .index('by_assignee', ['assigneeMemberId'])
     .index('by_status', ['status']),
 
+  // Uptime monitoring (09-support-and-sla.md, Uptime monitoring). A monitor is a promise the studio makes to itself:
+  // that somebody will know a site is down before the client rings to say so.
+  monitors: defineTable({
+    clientId: v.id('clients'),
+    projectId: v.optional(v.id('projects')),
+    name: v.string(),
+    url: v.string(),
+    method: v.union(v.literal('GET'), v.literal('HEAD')),
+    expectedStatus: v.number(),
+    intervalMinutes: v.number(),
+    timeoutMs: v.number(),
+    // Whether the URL is the client's live site, which decides how loudly a failure is treated.
+    production: v.boolean(),
+    status: v.union(v.literal('up'), v.literal('down'), v.literal('paused')),
+    lastCheckedAt: v.optional(v.number()),
+    lastStatusCode: v.optional(v.number()),
+    // One failure is a blip; the second is an incident.
+    consecutiveFailures: v.number(),
+    // While paused, time is not counted against uptime at all: the studio was asked not to look.
+    pausedAt: v.optional(v.number()),
+    pausedMinutes: v.number(),
+  })
+    .index('by_client', ['clientId'])
+    .index('by_status', ['status'])
+    .index('by_project', ['projectId']),
+
+  monitorChecks: defineTable({
+    monitorId: v.id('monitors'),
+    checkedAt: v.number(),
+    ok: v.boolean(),
+    statusCode: v.optional(v.number()),
+    latencyMs: v.optional(v.number()),
+    error: v.optional(v.string()),
+  }).index('by_monitor_time', ['monitorId', 'checkedAt']),
+
+  incidents: defineTable({
+    monitorId: v.id('monitors'),
+    clientId: v.id('clients'),
+    startedAt: v.number(),
+    resolvedAt: v.optional(v.number()),
+    ticketId: v.optional(v.id('tickets')),
+    summary: v.string(),
+  })
+    .index('by_monitor_started', ['monitorId', 'startedAt'])
+    .index('by_client', ['clientId'])
+    .index('by_resolved', ['resolvedAt']),
+
   // The monthly SLA report (09-support-and-sla.md, Monthly SLA report). Figures are worked out once and stored: a
   // report is a statement about a month that has closed, and must read the same in a year as it did on the day.
   slaReports: defineTable({

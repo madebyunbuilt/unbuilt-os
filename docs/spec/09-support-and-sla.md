@@ -210,6 +210,15 @@
 - The first passing check after an incident resolves it, notifies the team and adds a message to the ticket.
 - Uptime % = passing checks / total checks for the period, excluding paused time. Check history is kept for 90 days;
   monthly uptime figures are stored permanently on the SLA report.
+- **A monitor may not point inside a private network** (studio, 2026-09-26): not `localhost`, not a private range, not
+  the cloud metadata address. Otherwise anyone who can add a monitor could make the studio's own servers fetch things
+  on their behalf, and read back the status and timing.
+- **A monitor starts paused** and claims nothing until it has actually been checked. Starting as "up" would mean the
+  first screen a person sees is a guess.
+- **Paused time is not counted against uptime**: the studio was asked not to look, so the period simply does not
+  include it.
+- **The recovery message is public on the ticket**, because it was the client's own site that was down and the ticket
+  is where they will look.
 
 ## Managed assets and renewals
 
