@@ -347,6 +347,57 @@ describe('the thread', () => {
   });
 });
 
+describe('time spent on a ticket', () => {
+  it('counts toward the ticket and its project', async () => {
+    const projectId = await newProject();
+    const ticketId = await raise({ projectId });
+    await pm.as.mutation(api.time.log, {
+      projectId,
+      ticketId,
+      date: '2026-10-08',
+      minutes: 90,
+      description: 'Traced the gateway timeout',
+      billable: true,
+    });
+    expect((await pm.as.query(api.tickets.get, { ticketId })).minutesLogged).toBe(90);
+    const entry = await t.run((ctx) => ctx.db.query('timeEntries').first());
+    expect(entry).toMatchObject({ ticketId, projectId });
+  });
+
+  it('refuses a ticket with no project, rather than recording it against nothing', async () => {
+    const projectId = await newProject();
+    const ticketId = await raise();
+    await expectCode(
+      pm.as.mutation(api.time.log, {
+        projectId,
+        ticketId,
+        date: '2026-10-08',
+        minutes: 30,
+        description: 'x',
+        billable: true,
+      }),
+      'time.invalid',
+    );
+  });
+
+  it('refuses a ticket that belongs to another project', async () => {
+    const projectId = await newProject();
+    const other = await newProject();
+    const ticketId = await raise({ projectId: other });
+    await expectCode(
+      pm.as.mutation(api.time.log, {
+        projectId,
+        ticketId,
+        date: '2026-10-08',
+        minutes: 30,
+        description: 'x',
+        billable: true,
+      }),
+      'time.invalid',
+    );
+  });
+});
+
 describe('who may see and touch a ticket', () => {
   it('refuses a client, a project it does not belong to, and a contact from elsewhere', async () => {
     const other = await createClientUser(t, roles.client_admin, { clientName: 'Qravit', email: 'bola@qravit.com' });

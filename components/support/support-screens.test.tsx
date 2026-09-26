@@ -23,7 +23,7 @@ vi.mock('@/convex/_generated/api', () => {
   const functions = (name: string) => new Proxy({}, { get: (_, fn: string) => ({ _name: `${name}.${fn}` }) });
   return {
     api: Object.fromEntries(
-      ['tickets', 'clients', 'projects', 'contacts', 'team', 'files'].map((n) => [n, functions(n)]),
+      ['tickets', 'clients', 'projects', 'contacts', 'team', 'files', 'time'].map((n) => [n, functions(n)]),
     ),
   };
 });
@@ -51,6 +51,7 @@ const ticket = (overrides: object = {}) => ({
   hasSla: true,
   needsTriage: false,
   fromEmail: undefined,
+  minutesLogged: 0,
   ...overrides,
 });
 
@@ -271,6 +272,28 @@ describe('one ticket', () => {
         clientId: 'c1',
         requesterContactId: undefined,
       }),
+    );
+  });
+
+  it('will not offer to log time against a ticket with nowhere to put it', () => {
+    render(<TicketDetail ticketId={'t1' as never} permissions={permissions} />);
+    expect(screen.getByText(/Put this ticket on a project to log time/)).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Log time' })).not.toBeInTheDocument();
+  });
+
+  it('logs time against the ticket and its project', async () => {
+    state.queries['tickets.get'] = detail({ projectId: 'p1', minutesLogged: 90 });
+    render(<TicketDetail ticketId={'t1' as never} permissions={permissions} />);
+    expect(screen.getByText('Time logged: 1h 30m')).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Log time' }));
+    const dialog = within(await screen.findByRole('dialog'));
+    await userEvent.type(dialog.getByLabelText('How long'), '45m');
+    await userEvent.type(dialog.getByLabelText('What you did'), 'Checked the gateway');
+    await userEvent.click(dialog.getByRole('button', { name: 'Log it' }));
+    await waitFor(() =>
+      expect(state.mutations['time.log']).toHaveBeenCalledWith(
+        expect.objectContaining({ projectId: 'p1', ticketId: 't1', minutes: 45, billable: true }),
+      ),
     );
   });
 

@@ -111,7 +111,10 @@
   - The stamps on the ticket record what was **sent**, not what is currently true. Downgrading a breached ticket does
     not un-send the breach, and does not make it eligible to be sent again.
   - **Admins** here means the holders of `settings.manage`, as in the January holiday reminder.
-- Time logged against a ticket counts toward the project and, for retainers, the retainer period.
+- Time logged against a ticket counts toward the project and, for retainers, the retainer period. It is logged from
+  the ticket itself, and the ticket shows what it has taken so far. **A ticket with no project cannot take time**
+  (studio, 2026-09-26): a time entry belongs to a project, and recording it against nothing would lose it — the screen
+  says to put the ticket on a project rather than offering a control that would be refused.
 - Messages are public (visible to the client) or internal notes.
 - **What was asked for is the first message** (studio, 2026-09-25), not a separate description field: the thread then
   reads in order from the start, and a reply and an opening request are the same kind of thing.

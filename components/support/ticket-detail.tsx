@@ -4,15 +4,18 @@ import { useMutation, useQuery } from 'convex/react';
 import Link from 'next/link';
 import { useState } from 'react';
 import { AttachmentsField, useAttachments } from '@/components/app/attachments-field';
+import { FormDialog } from '@/components/app/form-dialog';
 import { LinkedText } from '@/components/app/linked-text';
 import { ToneBadge } from '@/components/team/status-badge';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { NativeSelect } from '@/components/ui/native-select';
 import { Textarea } from '@/components/ui/textarea';
 import { api } from '@/convex/_generated/api';
 import { type Id } from '@/convex/_generated/dataModel';
 import { errorMessage } from '@/lib/convex-error';
+import { formatDuration, parseDurationToMinutes } from '@/lib/time-display';
 import { useNow } from '@/lib/use-now';
 import {
   formatMoment,
@@ -185,6 +188,67 @@ function Attachment({ file }: { file: Message['files'][number] }) {
         {file.name}
       </a>
     </li>
+  );
+}
+
+/**
+ * Time spent on a ticket, which on a retainer is what the client's hours are being spent on. A ticket with no project
+ * has nowhere to put it, and says so rather than offering a control that would be refused.
+ */
+function TimeOnTicket({ ticket }: { ticket: Ticket }) {
+  const log = useMutation(api.time.log);
+  const [spent, setSpent] = useState('');
+  const [description, setDescription] = useState('');
+  const logged = ticket.minutesLogged > 0 ? formatDuration(ticket.minutesLogged) : 'Nothing yet';
+
+  if (!ticket.projectId) {
+    return (
+      <p className="text-sm text-muted-foreground">
+        Time logged: {logged}. Put this ticket on a project to log time against it.
+      </p>
+    );
+  }
+  return (
+    <div className="flex flex-wrap items-center justify-between gap-3">
+      <p className="text-sm text-muted-foreground">Time logged: {logged}</p>
+      <FormDialog
+        trigger={
+          <Button variant="outline" size="sm">
+            Log time
+          </Button>
+        }
+        title={`Log time on ${ticket.number}`}
+        description="It counts toward the project, and toward the client's retainer hours where they have one."
+        submitLabel="Log it"
+        canSubmit={spent.trim().length > 0 && description.trim().length > 0}
+        onSubmit={async () => {
+          await log({
+            projectId: ticket.projectId!,
+            ticketId: ticket.id,
+            date: new Date().toISOString().slice(0, 10),
+            minutes: parseDurationToMinutes(spent),
+            description,
+            billable: true,
+          });
+          setSpent('');
+          setDescription('');
+        }}
+      >
+        <div className="space-y-2">
+          <Label htmlFor="ticket-time-spent">How long</Label>
+          <Input
+            id="ticket-time-spent"
+            value={spent}
+            onChange={(event) => setSpent(event.target.value)}
+            placeholder="1h 30m"
+          />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="ticket-time-what">What you did</Label>
+          <Input id="ticket-time-what" value={description} onChange={(event) => setDescription(event.target.value)} />
+        </div>
+      </FormDialog>
+    </div>
   );
 }
 
@@ -404,6 +468,12 @@ export function TicketDetail({ ticketId, permissions }: { ticketId: Id<'tickets'
             Changing the priority works the promise out again from when the ticket was raised, so an escalation is due
             sooner rather than starting a fresh clock.
           </p>
+        </div>
+      )}
+
+      {canManage && !closed && (
+        <div className="rounded-lg border p-4">
+          <TimeOnTicket ticket={ticket} />
         </div>
       )}
 

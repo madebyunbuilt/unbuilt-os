@@ -444,12 +444,18 @@ export const get = teamQuery(null)({
       .withIndex('by_ticket', (q) => q.eq('ticketId', ticketId))
       .collect();
     const client = ticket.clientId ? await ctx.db.get('clients', ticket.clientId) : null;
+    // What this ticket has cost so far, which on a retainer is what the client's hours are being spent on.
+    const timeEntries = await ctx.db
+      .query('timeEntries')
+      .withIndex('by_ticket', (q) => q.eq('ticketId', ticketId))
+      .collect();
     const policy = ticket.slaPolicyId ? await ctx.db.get('slaPolicies', ticket.slaPolicyId) : null;
     return {
       ...view(ticket),
       // A ticket waiting on triage genuinely has no client yet; the screen says so rather than guessing.
       clientName: client?.displayName,
       slaPolicyName: policy?.name,
+      minutesLogged: timeEntries.reduce((total, entry) => total + entry.minutes, 0),
       messages: await Promise.all(
         messages
           .sort((a, b) => a.createdAt - b.createdAt)

@@ -195,6 +195,7 @@ export const weekForReview = teamQuery('time.approve')({
 const entryFields = {
   projectId: v.id('projects'),
   taskId: v.optional(v.id('tasks')),
+  ticketId: v.optional(v.id('tickets')),
   date: v.string(),
   minutes: v.number(),
   description: v.string(),
@@ -206,6 +207,22 @@ async function checkedTask(ctx: Ctx, projectId: Id<'projects'>, taskId: Id<'task
   const task = await ctx.db.get('tasks', taskId);
   if (!task || task.projectId !== projectId) throw timeError('time.invalid', 'Choose a task on this project');
   return taskId;
+}
+
+/**
+ * Time spent on a ticket counts toward its project, and through the project toward a retainer's period
+ * (09-support-and-sla.md, Tickets). A ticket with no project has nowhere to put the time, and says so rather than
+ * quietly recording it against nothing.
+ */
+async function checkedTicket(ctx: Ctx, projectId: Id<'projects'>, ticketId: Id<'tickets'> | undefined) {
+  if (!ticketId) return undefined;
+  const ticket = await ctx.db.get('tickets', ticketId);
+  if (!ticket) throw timeError('time.invalid', 'That ticket is not here');
+  if (!ticket.projectId) {
+    throw timeError('time.invalid', `${ticket.number} is not on a project, so there is nowhere to put the time`);
+  }
+  if (ticket.projectId !== projectId) throw timeError('time.invalid', 'Choose a ticket on this project');
+  return ticketId;
 }
 
 /** Logs time for yourself. Entries start as drafts and keep your rates as they are now. */
@@ -224,6 +241,7 @@ export const log = teamMutation('time.log.own')({
       memberId: ctx.principal.member._id,
       projectId: args.projectId,
       taskId: await checkedTask(ctx, args.projectId, args.taskId),
+      ticketId: await checkedTicket(ctx, args.projectId, args.ticketId),
       date,
       weekStart: weekStartOf(date),
       minutes: checkedMinutes(args.minutes),
@@ -250,6 +268,7 @@ export const update = teamMutation('time.log.own')({
     await ctx.db.patch('timeEntries', entryId, {
       projectId: args.projectId,
       taskId: await checkedTask(ctx, args.projectId, args.taskId),
+      ticketId: await checkedTicket(ctx, args.projectId, args.ticketId),
       date,
       weekStart: weekStartOf(date),
       minutes: checkedMinutes(args.minutes),
