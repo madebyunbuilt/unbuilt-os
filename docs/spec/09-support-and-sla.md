@@ -64,6 +64,9 @@
     the message is rendered from the HTML instead, as `the checkout step (https://…)`. Gmail rewrites every link
     through its own redirector, in the text part as well as the HTML, and those are unwrapped back to where they
     actually go: a ticket should show the client's own page, not `google.com/url?q=`.
+  - **A message stays text all the way to the screen** (studio, 2026-09-25): links are made clickable when the thread
+    is rendered, by React, on both surfaces. The HTML a client's mail client sent is never stored and never rendered
+    — doing so would let anybody who can email support put script or styling into the studio's own app.
   - **A ticket awaiting triage has no client**, and therefore no policy and no promise: it is never late, and it
     reaches no client in the portal, because every portal query is scoped by client. Placing it works the promise out
     **from when the email arrived**, not from when somebody got round to it — an email that sat unread for three days

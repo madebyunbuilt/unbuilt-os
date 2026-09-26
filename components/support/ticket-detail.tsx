@@ -4,6 +4,7 @@ import { useMutation, useQuery } from 'convex/react';
 import Link from 'next/link';
 import { useState } from 'react';
 import { AttachmentsField, useAttachments } from '@/components/app/attachments-field';
+import { LinkedText } from '@/components/app/linked-text';
 import { ToneBadge } from '@/components/team/status-badge';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
@@ -200,7 +201,9 @@ function ThreadMessage({ message }: { message: Message }) {
           <span className="text-xs text-muted-foreground tabular-nums">{formatMoment(message.createdAt)}</span>
         </div>
       </div>
-      <p className="mt-2 text-sm whitespace-pre-wrap">{message.body}</p>
+      <p className="mt-2 text-sm whitespace-pre-wrap">
+        <LinkedText>{message.body}</LinkedText>
+      </p>
       {message.files.length > 0 && (
         <ul className="mt-2 space-y-1 text-sm">
           {message.files.map((file) => (
