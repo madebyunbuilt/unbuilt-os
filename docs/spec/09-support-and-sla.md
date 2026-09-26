@@ -126,6 +126,9 @@
   priority's targets, plus whatever it has already spent waiting on the client. Escalating a P3 to a P1 therefore makes
   it due sooner — often already late — which is the point of escalating it. A first response that has already happened
   is not taken back: that target only matters until somebody replies.
+- **Reading a ticket that is not there answers with nothing** (studio, 2026-09-26), rather than an error: a bookmark, a
+  stale link or a notification for a ticket since deleted should say so on the page. A role with no ticket permission
+  at all is still refused outright — that is a different answer to a different question.
 - **Who sees a ticket**: `tickets.view.all` reaches every one. `tickets.view.assigned` reaches tickets on a project the
   member belongs to, and tickets assigned to them, which is what makes a ticket raised against a client with no project
   reachable by the person holding it. Anything out of scope is "not found", as everywhere else.
