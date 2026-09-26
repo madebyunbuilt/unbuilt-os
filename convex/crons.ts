@@ -53,4 +53,11 @@ crons.cron('monthly sla reports', '30 6 1 * *', internal.slaReports.generateMont
 // 09:00 Lagos: nudge whoever holds SLA about a report a client is still waiting for.
 crons.daily('unsent sla reports', { hourUTC: 8, minuteUTC: 45 }, internal.slaReports.remindUnsent, {});
 
+// Every minute: fetch whatever monitor is due. The interval on each monitor decides how often it is actually checked;
+// this only decides how finely that interval can be kept.
+crons.interval('uptime checks', { minutes: 1 }, internal.monitors.runDue, {});
+
+// 03:30 Lagos: forget check history past the 90 days 09-support-and-sla.md keeps it for.
+crons.daily('forget old uptime checks', { hourUTC: 2, minuteUTC: 30 }, internal.monitors.forgetOldChecks, {});
+
 export default crons;
