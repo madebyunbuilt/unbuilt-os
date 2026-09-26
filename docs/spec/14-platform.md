@@ -45,12 +45,28 @@
   - `notifications@` for system mail
   - `billing@` for invoices and receipts
   - `support@` for tickets
+- **The three come from one setting** (studio, 2026-09-25): `AUTH_EMAIL_FROM` gives the display name and the domain,
+  and the mailbox follows what the mail is for (`convex/lib/senders.ts`). A sandbox address such as Resend's own is
+  left exactly as it is, since rewriting it would send from a mailbox that does not exist. `EMAIL_FROM_BILLING` and
+  the like override one sender without disturbing the others.
 - Templates in `emails/` built with React Email and the brand tokens. Every email has a plain-text part.
 - Every send is logged in `messageLog`, linked to the client and record.
 - The Resend webhook updates delivery status (delivered, bounced, complained, opened when enabled). A hard bounce flags
   the contact's email as invalid and notifies the record owner.
-- **Inbound** for `support@` uses an inbound email webhook (Resend inbound, or Postmark inbound if unavailable), parsed into
-  tickets (see `09-support-and-sla.md`).
+- **Resend's inbound webhook carries no body** (studio, 2026-09-25): `email.received` gives the sender, the subject,
+  the recipients and an `email_id`, and nothing else. The text is fetched from `GET /emails/receiving/{id}` with that
+  id — received mail has its own path, and `/emails/{id}`, which serves what the studio sent, answers 404 for it. The
+  request carries a user agent, because the API sits behind Cloudflare, which turns an anonymous client away with its
+  own 403 before Resend sees the key at all. A fetch that fails still raises the ticket, saying plainly that the body
+  could not be read and quoting the id: somebody waiting for support is worse served by silence than by a short
+  ticket.
+- **The studio does not own its domain's MX** (studio, 2026-09-25): `unbuilt.studio` receives through Zoho, so
+  inbound must go to a subdomain such as `inbound.unbuilt.studio`, with `support@unbuilt.studio` forwarded to it.
+  Pointing the root MX at Resend would take down every mailbox the studio has.
+- **Inbound** for `support@` uses Resend inbound (studio, 2026-09-25: one account and one bill, and the same Svix
+  signing the delivery webhook already uses), parsed into tickets (see `09-support-and-sla.md`). A shared secret in an
+  Authorization header is accepted **only while `RESEND_WEBHOOK_SECRET` is unset**, so the studio can try the endpoint
+  before pointing MX records anywhere, and turning the provider on closes that door rather than leaving two open.
 
 ## WhatsApp (Meta Cloud API)
 
@@ -66,14 +82,14 @@
 
 All in `convex/http.ts`:
 
-| Route                          | Verification                                     |
-| ------------------------------ | ------------------------------------------------ |
-| `POST /webhooks/paystack`      | HMAC-SHA512 `x-paystack-signature`               |
-| `POST /webhooks/resend`        | Svix signature headers                           |
-| `POST /webhooks/inbound-email` | Provider signature or basic auth secret          |
-| `GET/POST /webhooks/whatsapp`  | Verify token (GET), `X-Hub-Signature-256` (POST) |
-| `POST /public/enquiries`       | Turnstile, origin allowlist, rate limit          |
-| `GET /public/site-content`     | Bearer token                                     |
+| Route                          | Verification                                         |
+| ------------------------------ | ---------------------------------------------------- |
+| `POST /webhooks/paystack`      | HMAC-SHA512 `x-paystack-signature`                   |
+| `POST /webhooks/resend`        | Svix signature headers                               |
+| `POST /webhooks/inbound-email` | Svix signature (Resend), else `INBOUND_EMAIL_SECRET` |
+| `GET/POST /webhooks/whatsapp`  | Verify token (GET), `X-Hub-Signature-256` (POST)     |
+| `POST /public/enquiries`       | Turnstile, origin allowlist, rate limit              |
+| `GET /public/site-content`     | Bearer token                                         |
 
 Rules for every webhook:
 

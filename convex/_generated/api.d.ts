@@ -77,6 +77,7 @@ import type * as lib_renderDocumentPdf from "../lib/renderDocumentPdf.js";
 import type * as lib_retainers from "../lib/retainers.js";
 import type * as lib_schedules from "../lib/schedules.js";
 import type * as lib_seedData from "../lib/seedData.js";
+import type * as lib_senders from "../lib/senders.js";
 import type * as lib_settings from "../lib/settings.js";
 import type * as lib_signatureEmails from "../lib/signatureEmails.js";
 import type * as lib_signatures from "../lib/signatures.js";
@@ -202,6 +203,7 @@ declare const fullApi: ApiFromModules<{
   "lib/retainers": typeof lib_retainers;
   "lib/schedules": typeof lib_schedules;
   "lib/seedData": typeof lib_seedData;
+  "lib/senders": typeof lib_senders;
   "lib/settings": typeof lib_settings;
   "lib/signatureEmails": typeof lib_signatureEmails;
   "lib/signatures": typeof lib_signatures;

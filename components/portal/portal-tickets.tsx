@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { AttachmentsField, useAttachments } from '@/components/app/attachments-field';
+import { LinkedText } from '@/components/app/linked-text';
 import { FormDialog } from '@/components/app/form-dialog';
 import { ToneBadge } from '@/components/team/status-badge';
 import { Button } from '@/components/ui/button';
@@ -225,7 +226,9 @@ export function PortalTicket({ ticketId }: { ticketId: Id<'tickets'> }) {
               <p className="text-sm font-medium">{message.fromUnbuilt ? 'Unbuilt' : 'You'}</p>
               <span className="text-xs text-muted-foreground tabular-nums">{formatMoment(message.createdAt)}</span>
             </div>
-            <p className="mt-2 text-sm whitespace-pre-wrap">{message.body}</p>
+            <p className="mt-2 text-sm whitespace-pre-wrap">
+              <LinkedText>{message.body}</LinkedText>
+            </p>
             {message.files.length > 0 && (
               <ul className="mt-2 space-y-1 text-sm">
                 {message.files.map((file) => (

@@ -1,6 +1,7 @@
 import { render } from '@react-email/render';
 import { createElement } from 'react';
 import { Resend } from 'resend';
+import { senderFor } from './senders';
 import { SignedCopyEmail } from '../../emails/signatures/signed-copy';
 import { SigningCodeEmail } from '../../emails/signatures/signing-code';
 import { type SigningRequestReason, SigningRequestEmail } from '../../emails/signatures/signing-request';
@@ -31,8 +32,6 @@ export type SignatureEmail =
       sha256: string;
       pdf: { filename: string; content: Uint8Array };
     });
-
-const DEFAULT_FROM = 'Unbuilt OS <onboarding@resend.dev>';
 
 const longDate = (at: number) =>
   new Intl.DateTimeFormat('en-GB', { dateStyle: 'long', timeZone: 'Africa/Lagos' }).format(at);
@@ -91,7 +90,7 @@ export async function sendSignatureEmail(email: SignatureEmail): Promise<void> {
 
   const { subject, html, text } = await renderSignatureEmail(email);
   const { error } = await new Resend(apiKey).emails.send({
-    from: process.env.AUTH_EMAIL_FROM ?? DEFAULT_FROM,
+    from: senderFor('notifications'),
     to: email.to,
     subject,
     html,

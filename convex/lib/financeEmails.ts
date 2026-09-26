@@ -1,6 +1,7 @@
 import { render } from '@react-email/render';
 import { createElement } from 'react';
 import { Resend } from 'resend';
+import { senderFor } from './senders';
 import { FinanceDocumentEmail } from '../../emails/finance/finance-document';
 
 // Receipt and credit note emails. The PDF goes as an attachment; nothing here logs the address or the amount.
@@ -15,14 +16,12 @@ export type FinanceEmail = {
   pdf: { filename: string; content: Uint8Array };
 };
 
-const DEFAULT_FROM = 'Unbuilt OS <onboarding@resend.dev>';
-
 export async function sendFinanceEmail({ to, pdf, ...email }: FinanceEmail): Promise<void> {
   const apiKey = process.env.RESEND_API_KEY;
   if (!apiKey) throw new Error('RESEND_API_KEY is not set on this deployment');
   const element = createElement(FinanceDocumentEmail, email);
   const { error } = await new Resend(apiKey).emails.send({
-    from: process.env.AUTH_EMAIL_FROM ?? DEFAULT_FROM,
+    from: senderFor('billing'),
     to,
     subject: `${email.kind} ${email.number} from ${email.studioName}`,
     html: await render(element),
