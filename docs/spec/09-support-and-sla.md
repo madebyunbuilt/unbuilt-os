@@ -181,6 +181,21 @@
   - retainer hours used
 - The project manager reviews and sends it; it is then emailed as a PDF and posted in the portal. Unsent reports remind
   the manager after 3 business days.
+- **The figures are worked out once and stored** (studio, 2026-09-26): a report is a statement about a month that has
+  closed, and must read the same in a year as it did on the day. It is written once per client per month, so running
+  the cron twice, or catching a month up by hand, never hands a client a second version.
+- **A ticket counts toward the month it was raised in**, so a report covers what the client asked for in that month
+  rather than whatever happened to be open when it ended.
+- **A priority nothing came up under is left blank, not scored** (studio, 2026-09-26): a month with no P1 tickets did
+  not meet its P1 target, it simply never had one, and 100% would be a claim about work that never existed.
+- **A ticket still unresolved past its fix time is a missed target**, counted to the end of the month rather than to
+  now — otherwise an old report would grow every time somebody opened it.
+- **Why a target was missed is written by a person** (studio, 2026-09-26), on the ticket, and carried into the report.
+  Nothing else can supply it: the system knows a promise was missed, never why.
+- **Nothing is sent without somebody reading it.** A report that went out on its own would eventually tell a client
+  something nobody at the studio had looked at.
+- Until monitoring lands (`12`), a report says outright that nothing was monitored rather than showing an empty
+  uptime section, which would read as though nothing had gone wrong.
 
 ## Uptime monitoring
 

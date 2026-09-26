@@ -46,4 +46,11 @@ crons.daily('bills due', { hourUTC: 7, minuteUTC: 0 }, internal.bills.remindDue,
 // past it. A P1 has one business hour to be answered, so anything slower than this would warn too late to help.
 crons.interval('sla warnings', { minutes: 15 }, internal.slaAlerts.runDue, {});
 
+// 07:30 Lagos on the 1st: last month's SLA reports, waiting for somebody to read before they go to a client. A month
+// that ends on a weekend simply means the reports sit a day or two before anybody opens them.
+crons.cron('monthly sla reports', '30 6 1 * *', internal.slaReports.generateMonthly, {});
+
+// 09:00 Lagos: nudge whoever holds SLA about a report a client is still waiting for.
+crons.daily('unsent sla reports', { hourUTC: 8, minuteUTC: 45 }, internal.slaReports.remindUnsent, {});
+
 export default crons;
