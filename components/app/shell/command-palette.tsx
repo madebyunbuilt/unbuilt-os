@@ -15,7 +15,7 @@ import {
   CommandList,
   CommandSeparator,
 } from '@/components/ui/command';
-import { type Destination, destinationsFor, search, trailLabel } from '@/lib/destinations';
+import { type Destination, destinationsFor, matches, search, trailLabel } from '@/lib/destinations';
 import { type NavIcon as NavIconName, type NavSection } from '@/lib/navigation';
 import { type Surface } from '@/lib/surface';
 
@@ -70,62 +70,72 @@ export function CommandPalette({
     run(() => router.push(destination.href));
   };
 
+  // The things the palette does rather than goes to. They answer to what was typed like everything else, so a query
+  // that matches nothing leaves the list genuinely empty instead of offering Sign out.
+  const commands = useMemo(() => {
+    const all = [
+      {
+        label: 'Match system theme',
+        icon: Monitor,
+        keywords: ['appearance', 'automatic'],
+        run: () => setPreference('system'),
+      },
+      { label: 'Light theme', icon: Sun, keywords: ['appearance', 'day'], run: () => setPreference('light') },
+      { label: 'Dark theme', icon: Moon, keywords: ['appearance', 'night'], run: () => setPreference('dark') },
+      { label: 'Keyboard shortcuts', icon: Keyboard, keywords: ['keys', 'help'], run: onShowShortcuts },
+      { label: 'Sign out', icon: LogOut, keywords: ['log out', 'leave', 'account'], run: () => void signOut() },
+    ];
+    return all.filter((command) =>
+      matches({ label: command.label, trail: [], href: '', keywords: command.keywords }, query),
+    );
+  }, [query, setPreference, onShowShortcuts, signOut]);
+
   return (
     <CommandDialog
       open={open}
       onOpenChange={onOpenChange}
+      // Matching and ranking happen in lib/destinations.ts, which knows about trails and keywords; cmdk's own filter
+      // sees only each item's value and would throw away everything found by a keyword.
+      shouldFilter={false}
       title="Command palette"
       description="Go to a page or run a command"
     >
       <CommandInput placeholder="Search pages, settings and commands…" value={query} onValueChange={setQuery} />
       <CommandList>
-        <CommandEmpty>No matches.</CommandEmpty>
-        <CommandGroup heading="Go to">
-          {found.map((destination) => (
-            <CommandItem
-              key={destination.href}
-              value={destination.href}
-              disabled={destination.built === false}
-              onSelect={() => goTo(destination)}
-            >
-              <NavIcon name={iconFor(destination, sections)} />
-              <span className="min-w-0">
-                {/* The trail first, small: what somebody needs is to recognise where it lives, then read the name. */}
-                {destination.trail.length > 0 && (
-                  <span className="block text-xs text-muted-foreground">{trailLabel(destination)}</span>
-                )}
-                <span className="block">{destination.label}</span>
-              </span>
-              {destination.built === false && <span className="ml-auto text-xs text-draft">Not built yet</span>}
-            </CommandItem>
-          ))}
-        </CommandGroup>
-        <CommandSeparator />
-        <CommandGroup heading="Appearance">
-          <CommandItem value="theme system" onSelect={() => run(() => setPreference('system'))}>
-            <Monitor />
-            Match system theme
-          </CommandItem>
-          <CommandItem value="theme light" onSelect={() => run(() => setPreference('light'))}>
-            <Sun />
-            Light theme
-          </CommandItem>
-          <CommandItem value="theme dark" onSelect={() => run(() => setPreference('dark'))}>
-            <Moon />
-            Dark theme
-          </CommandItem>
-        </CommandGroup>
-        <CommandSeparator />
-        <CommandGroup heading="Account">
-          <CommandItem value="keyboard shortcuts" onSelect={() => run(onShowShortcuts)}>
-            <Keyboard />
-            Keyboard shortcuts
-          </CommandItem>
-          <CommandItem value="sign out" onSelect={() => run(() => void signOut())}>
-            <LogOut />
-            Sign out
-          </CommandItem>
-        </CommandGroup>
+        {found.length === 0 && commands.length === 0 && <CommandEmpty>No matches.</CommandEmpty>}
+        {found.length > 0 && (
+          <CommandGroup heading="Go to">
+            {found.map((destination) => (
+              <CommandItem
+                key={destination.href}
+                value={destination.href}
+                disabled={destination.built === false}
+                onSelect={() => goTo(destination)}
+              >
+                <NavIcon name={iconFor(destination, sections)} />
+                <span className="min-w-0">
+                  {/* The trail first, small: what somebody needs is to recognise where it lives, then read the name. */}
+                  {destination.trail.length > 0 && (
+                    <span className="block text-xs text-muted-foreground">{trailLabel(destination)}</span>
+                  )}
+                  <span className="block">{destination.label}</span>
+                </span>
+                {destination.built === false && <span className="ml-auto text-xs text-draft">Not built yet</span>}
+              </CommandItem>
+            ))}
+          </CommandGroup>
+        )}
+        {commands.length > 0 && found.length > 0 && <CommandSeparator />}
+        {commands.length > 0 && (
+          <CommandGroup heading="Commands">
+            {commands.map((command) => (
+              <CommandItem key={command.label} value={command.label} onSelect={() => run(command.run)}>
+                <command.icon />
+                {command.label}
+              </CommandItem>
+            ))}
+          </CommandGroup>
+        )}
       </CommandList>
     </CommandDialog>
   );
