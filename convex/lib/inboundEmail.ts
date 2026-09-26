@@ -86,3 +86,91 @@ export function withoutQuotedReply(body: string): string {
   // Everything was quoted: better to keep the lot than to store an empty message.
   return kept.length > 0 ? kept : body.trim();
 }
+
+/**
+ * The address a link really points at. Gmail rewrites every link in the mail it sends through its own redirector, so
+ * a ticket would otherwise show google.com/url?q=... where the client wrote a page of their own.
+ */
+export function unwrapRedirect(href: string): string {
+  const match = href.match(/^https?:\/\/(?:www\.)?google\.[^/]+\/url\?(.*)$/i);
+  if (!match) return href;
+  const target = new URLSearchParams(match[1]).get('q') ?? new URLSearchParams(match[1]).get('url');
+  return target && /^https?:\/\//i.test(target) ? target : href;
+}
+
+/**
+ * The same unwrapping, applied to addresses written out in plain text. Gmail rewrites links in the text part as well
+ * as the HTML one, so without this a ticket shows the redirector even when the words came through perfectly.
+ */
+export function unwrapUrlsIn(text: string): string {
+  return text.replace(/https?:\/\/(?:www\.)?google\.[^\s<>"')]+/gi, (url) => unwrapRedirect(url));
+}
+
+/** Every link address in a piece of HTML, in the order they appear. */
+export function linksIn(html: string): string[] {
+  return [...html.matchAll(/<a[^>]+href=["']([^"']+)["']/gi)]
+    .map((match) => unwrapRedirect(match[1]))
+    .filter((href) => /^https?:\/\//i.test(href));
+}
+
+/**
+ * HTML as words, keeping where each link went: `Accept the invitation (https://…)`. A link whose text is already its
+ * own address is left alone rather than printed twice.
+ */
+export function htmlToText(html: string): string {
+  return html
+    .replace(/<(script|style)[\s\S]*?<\/\1>/gi, '')
+    .replace(/<a[^>]+href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi, (_match, raw: string, label: string) => {
+      const href = unwrapRedirect(raw);
+      const words = label
+        .replace(/<[^>]+>/g, '')
+        .replace(/\s+/g, ' ')
+        .trim();
+      if (!/^https?:\/\//i.test(href)) return words;
+      return !words || words === href ? href : `${words} (${href})`;
+    })
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/(p|div|tr|li|h[1-6])>/gi, '\n')
+    .replace(/<[^>]+>/g, '')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/[ \t]+\n/g, '\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
+export function decodeDataUri(uri: string): string {
+  const [header, ...rest] = uri.split(',');
+  const payload = rest.join(',');
+  try {
+    return header.includes('base64') ? atob(payload) : decodeURIComponent(payload);
+  } catch {
+    return '';
+  }
+}
+
+/**
+ * What an email actually says. The plain-text part is preferred, because it is what the sender's own software chose
+ * to write — but mail clients routinely drop link addresses from it, leaving "click here" pointing at nothing. When
+ * the HTML holds a link the text does not, the HTML is rendered instead, so the studio can follow what a client sent.
+ */
+export function readableBody(mail: { text?: string; html?: string }): string | null {
+  const text = mail.text?.trim();
+  const html = mail.html?.trim();
+  const source = html?.startsWith('data:') ? decodeDataUri(html) : html;
+  const links = source ? linksIn(source) : [];
+
+  if (text) {
+    // Unwrapped first, or the comparison below is fooled: a redirector carries its target inside its own query
+    // string, so the address always looks present even when only the wrapper is there.
+    const plain = unwrapUrlsIn(text);
+    const missing = links.filter((href) => !plain.includes(href));
+    if (missing.length === 0 || !source) return plain;
+    return htmlToText(source);
+  }
+  return source ? htmlToText(source) : null;
+}

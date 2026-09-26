@@ -1,7 +1,7 @@
 import { v } from 'convex/values';
 import { internal } from './_generated/api';
 import { internalAction, internalMutation, publicHttp } from './lib/functions';
-import { normalise, ticketNumberIn, withoutQuotedReply } from './lib/inboundEmail';
+import { normalise, readableBody, ticketNumberIn, withoutQuotedReply } from './lib/inboundEmail';
 import { activeMembersWith, notifyTeamMembers } from './lib/notify';
 import { openTicket, recordClientReply } from './tickets';
 
@@ -141,40 +141,7 @@ async function fetchBody(emailId: string): Promise<string | null> {
     headers: { authorization: `Bearer ${apiKey}`, 'user-agent': 'unbuilt-os' },
   });
   if (!response.ok) return null;
-  const mail = (await response.json()) as { text?: string; html?: string; html_format?: string };
-  const text = mail.text?.trim();
-  if (text) return text;
-  // Nothing but HTML: tags out, entities back, so the thread reads as words rather than markup. Resend sometimes
-  // hands the HTML over as a data URI rather than as itself.
-  const html = mail.html?.trim();
-  if (!html) return null;
-  return htmlToText(html.startsWith('data:') ? decodeDataUri(html) : html);
-}
-
-function decodeDataUri(uri: string): string {
-  const [header, ...rest] = uri.split(',');
-  const payload = rest.join(',');
-  try {
-    return header.includes('base64') ? atob(payload) : decodeURIComponent(payload);
-  } catch {
-    return '';
-  }
-}
-
-function htmlToText(html: string): string {
-  return html
-    .replace(/<(script|style)[\s\S]*?<\/\1>/gi, '')
-    .replace(/<br\s*\/?>/gi, '\n')
-    .replace(/<\/(p|div|tr|li|h[1-6])>/gi, '\n')
-    .replace(/<[^>]+>/g, '')
-    .replace(/&nbsp;/g, ' ')
-    .replace(/&amp;/g, '&')
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'")
-    .replace(/\n{3,}/g, '\n\n')
-    .trim();
+  return readableBody((await response.json()) as { text?: string; html?: string });
 }
 
 /**
