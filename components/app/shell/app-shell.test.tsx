@@ -74,7 +74,7 @@ describe('AppShell', () => {
     renderShell(permissionsOf('owner'));
     fireEvent.keyDown(window, { key: 'k', ctrlKey: true });
     const palette = await screen.findByRole('dialog', { name: 'Command palette' });
-    expect(within(palette).getByPlaceholderText('Type a page or command…')).toHaveFocus();
+    expect(within(palette).getByPlaceholderText('Search pages, settings and commands…')).toHaveFocus();
     expect(within(palette).getByText('Dark theme')).toBeInTheDocument();
   });
 
