@@ -5,7 +5,7 @@ import { recordActivity, requirePermission, text } from './lib/crm';
 import { internalMutation, teamMutation, teamQuery } from './lib/functions';
 import { studioToday } from './lib/invoices';
 import { activeMembersWith, clientPortalContacts, notifyClientContacts, notifyTeamMembers } from './lib/notify';
-import { figuresFor, previousMonth, retainerMinutesFor } from './lib/slaReports';
+import { figuresFor, monitoringFor, previousMonth, retainerMinutesFor } from './lib/slaReports';
 import { slaError } from './lib/sla';
 
 // The monthly SLA report (09-support-and-sla.md). Generated when the month closes, read and sent by a person: a
@@ -22,6 +22,8 @@ function view(report: Doc<'slaReports'>) {
     breaches: report.breaches,
     retainerMinutes: report.retainerMinutes,
     monitoring: report.monitoring,
+    uptime: report.uptime ?? [],
+    incidents: report.incidents ?? [],
     generatedAt: report.generatedAt,
     sentAt: report.sentAt,
   };
@@ -48,6 +50,11 @@ export async function generateFor(
   if (existing) return { reportId: existing._id, created: false };
 
   const figures = await figuresFor(ctx, { ...args, policy });
+  const watched = await monitoringFor(ctx, { ...args, targetBps: policy.uptimeTargetBps });
+  const monitoring = watched.monitored
+    ? { uptime: watched.uptime, incidents: watched.incidents }
+    : // Said outright, so an empty section cannot read as though nothing went wrong.
+      { monitoring: 'not_monitored' as const };
   const reportId = await ctx.db.insert('slaReports', {
     clientId: args.clientId,
     slaPolicyId: policy._id,
@@ -57,7 +64,7 @@ export async function generateFor(
     generatedAt: Date.now(),
     ...figures,
     retainerMinutes: await retainerMinutesFor(ctx, args),
-    monitoring: 'not_monitored',
+    ...monitoring,
   });
   return { reportId, created: true };
 }

@@ -142,3 +142,75 @@ export async function retainerMinutesFor(
   }
   return found ? { included, used } : undefined;
 }
+
+export type Monitoring = {
+  uptime: NonNullable<Doc<'slaReports'>['uptime']>;
+  incidents: NonNullable<Doc<'slaReports'>['incidents']>;
+  monitored: boolean;
+};
+
+/**
+ * How the things the studio watches behaved over the month (09-support-and-sla.md, Uptime monitoring). Worked out
+ * when the month closes and stored: checks are kept for ninety days, and this figure has to outlive them.
+ *
+ * Uptime is passing checks over checks actually made. Paused time needs no arithmetic — no check is recorded while a
+ * monitor is paused, so a period nobody was asked to watch simply is not in the figure.
+ */
+export async function monitoringFor(
+  ctx: Ctx,
+  args: { clientId: Id<'clients'>; periodStart: string; periodEnd: string; targetBps?: number },
+): Promise<Monitoring> {
+  const monitors = await ctx.db
+    .query('monitors')
+    .withIndex('by_client', (q) => q.eq('clientId', args.clientId))
+    .collect();
+  if (monitors.length === 0) return { uptime: [], incidents: [], monitored: false };
+
+  const from = Date.parse(`${args.periodStart}T00:00:00Z`);
+  const to = Date.parse(`${args.periodEnd}T23:59:59.999Z`);
+
+  const uptime: Monitoring['uptime'] = [];
+  const incidents: Monitoring['incidents'] = [];
+
+  for (const monitor of monitors) {
+    const checks = await ctx.db
+      .query('monitorChecks')
+      .withIndex('by_monitor_time', (q) => q.eq('monitorId', monitor._id).gte('checkedAt', from).lte('checkedAt', to))
+      .collect();
+    // A monitor added mid-month, or paused throughout, has nothing to report rather than a perfect record.
+    if (checks.length > 0) {
+      const passed = checks.filter((check) => check.ok).length;
+      uptime.push({
+        monitorId: monitor._id,
+        name: monitor.name,
+        url: monitor.url,
+        checks: checks.length,
+        passed,
+        uptimeBps: Math.round((passed / checks.length) * 10_000),
+        targetBps: args.targetBps,
+      });
+    }
+
+    for (const incident of await ctx.db
+      .query('incidents')
+      .withIndex('by_monitor_started', (q) =>
+        q.eq('monitorId', monitor._id).gte('startedAt', from).lte('startedAt', to),
+      )
+      .collect()) {
+      const ticket = incident.ticketId ? await ctx.db.get('tickets', incident.ticketId) : null;
+      incidents.push({
+        monitorName: monitor.name,
+        startedAt: incident.startedAt,
+        resolvedAt: incident.resolvedAt,
+        // Measured to the end of the month for one still running, so an old report does not grow when it is opened.
+        downMinutes: Math.max(1, Math.round(((incident.resolvedAt ?? to) - incident.startedAt) / 60_000)),
+        ticketNumber: ticket?.number,
+        summary: incident.summary,
+      });
+    }
+  }
+
+  uptime.sort((a, b) => a.uptimeBps - b.uptimeBps || a.name.localeCompare(b.name));
+  incidents.sort((a, b) => a.startedAt - b.startedAt);
+  return { uptime, incidents, monitored: true };
+}

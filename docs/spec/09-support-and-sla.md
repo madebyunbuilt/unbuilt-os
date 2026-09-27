@@ -201,8 +201,18 @@
   Nothing else can supply it: the system knows a promise was missed, never why.
 - **Nothing is sent without somebody reading it.** A report that went out on its own would eventually tell a client
   something nobody at the studio had looked at.
-- Until monitoring lands (`12`), a report says outright that nothing was monitored rather than showing an empty
-  uptime section, which would read as though nothing had gone wrong.
+- **Uptime on the report is worked out when the month closes and stored** (studio, 2026-09-27), like every other
+  figure on it. Checks are kept for ninety days; the report has to outlive them. Paused time needs no arithmetic: no
+  check is recorded while a monitor is paused, so a period nobody was asked to watch is simply not in the figure.
+- **A monitor that was never checked is left out**, not counted as perfect — the same rule as a priority nothing came
+  up under. A client with monitors but no checks is told there is no figure to give.
+- **A monitor is only judged against a target the policy actually sets**: without `uptimeTargetBps` the report shows
+  the figure and says no target was set, rather than inventing one to pass or fail against.
+- **An incident still running at the month's end is measured to the end of the month**, not to now, so an old report
+  does not grow each time somebody opens it. It says it was still down rather than showing a duration as though it
+  had ended.
+- A client with nothing monitored still gets the sentence saying so, rather than an empty uptime section that would
+  read as though nothing had gone wrong.
 
 ## Uptime monitoring
 
