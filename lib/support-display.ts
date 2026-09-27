@@ -170,3 +170,40 @@ export function ago(at: number | undefined, now: number): string {
   if (ms < 90_000) return 'just now';
   return `${gapInWords(ms)} ago`;
 }
+
+export type AssetType = 'domain' | 'hosting' | 'ssl' | 'app_store_account' | 'subscription' | 'other';
+
+export const ASSET_TYPE_LABEL: Record<AssetType, string> = {
+  domain: 'Domain',
+  hosting: 'Hosting',
+  ssl: 'SSL certificate',
+  app_store_account: 'App store account',
+  subscription: 'Subscription',
+  other: 'Other',
+};
+
+/**
+ * How near a renewal is, in words and in weight. A date that has passed is the loudest thing on the page: a lapsed
+ * domain takes a client's site with it, and every day it stays lapsed is worse than the last.
+ */
+export function renewal(
+  daysUntil: number,
+  status: 'active' | 'cancelled' | 'transferred',
+): {
+  label: string;
+  tone: StatusTone;
+} {
+  if (status === 'transferred') return { label: 'Theirs now', tone: 'muted' };
+  if (status === 'cancelled') return { label: 'Cancelled', tone: 'muted' };
+  if (daysUntil < 0) {
+    const late = -daysUntil;
+    return { label: `Lapsed ${late} day${late === 1 ? '' : 's'} ago`, tone: 'attention' };
+  }
+  if (daysUntil === 0) return { label: 'Renews today', tone: 'attention' };
+  if (daysUntil === 1) return { label: 'Renews tomorrow', tone: 'attention' };
+  return {
+    label: `Renews in ${daysUntil} days`,
+    // Inside a fortnight it wants somebody's attention; before that it is simply a date.
+    tone: daysUntil <= 14 ? 'attention' : daysUntil <= 60 ? 'draft' : 'muted',
+  };
+}

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ago, compliance, lateness, monthLabel, uptime } from './support-display';
+import { ago, compliance, lateness, monthLabel, renewal, uptime } from './support-display';
 
 // How an SLA report reads (09-support-and-sla.md). A client reads these numbers as a judgement on the studio, so
 // what they cannot mean matters as much as what they do.
@@ -48,5 +48,28 @@ describe('how a monitor reads', () => {
     expect(ago(now - 12 * 60_000, now)).toBe('12 minutes ago');
     expect(ago(now - 3 * 60 * 60_000, now)).toBe('3 hours ago');
     expect(ago(undefined, now)).toBe('never');
+  });
+});
+
+describe('how near a renewal is', () => {
+  it('makes a lapsed asset the loudest thing on the page', () => {
+    expect(renewal(-1, 'active')).toEqual({ label: 'Lapsed 1 day ago', tone: 'attention' });
+    expect(renewal(-12, 'active')).toEqual({ label: 'Lapsed 12 days ago', tone: 'attention' });
+  });
+
+  it('reads today and tomorrow as words, not as numbers', () => {
+    expect(renewal(0, 'active').label).toBe('Renews today');
+    expect(renewal(1, 'active').label).toBe('Renews tomorrow');
+  });
+
+  it('grows quieter the further off it is', () => {
+    expect(renewal(7, 'active').tone).toBe('attention');
+    expect(renewal(30, 'active').tone).toBe('draft');
+    expect(renewal(200, 'active').tone).toBe('muted');
+  });
+
+  it('says an asset handed over is no longer the studio’s to renew', () => {
+    // A transferred asset has a date in the past and still must not shout.
+    expect(renewal(-40, 'transferred')).toEqual({ label: 'Theirs now', tone: 'muted' });
   });
 });
