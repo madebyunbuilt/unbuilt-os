@@ -15,8 +15,9 @@ const APP_DIR = join(ROOT, 'app');
  * whole of what is knowingly ahead of the screens.
  */
 const NOT_BUILT_YET: Record<string, string> = {
-  // The vault's screens are the last part of step 13; the rotation prompt that links here landed with the backend.
+  // The vault's screens are the last part of step 13; the reminders that link here landed with the backend.
   '/projects/:param/vault': 'step 13, vault screens',
+  '/clients/:param/vault': 'step 13, vault screens',
 };
 
 function filesIn(dir: string, keep: (name: string) => boolean): string[] {

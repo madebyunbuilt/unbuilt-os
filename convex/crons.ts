@@ -66,4 +66,7 @@ crons.daily('renewal reminders', { hourUTC: 7, minuteUTC: 15 }, internal.assets.
 // 09:15 Lagos: anything past its renewal date that nobody has said is renewed. A lapsed domain gets worse each day.
 crons.daily('overdue renewals', { hourUTC: 8, minuteUTC: 15 }, internal.assets.alertOverdue, {});
 
+// 08:45 Lagos: vault items due to be rotated, seven days before the date and on it.
+crons.daily('vault rotation reminders', { hourUTC: 7, minuteUTC: 45 }, internal.vaultData.sendRotationReminders, {});
+
 export default crons;

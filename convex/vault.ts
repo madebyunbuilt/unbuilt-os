@@ -3,8 +3,8 @@
 import { v } from 'convex/values';
 import { internal } from './_generated/api';
 import { type Id } from './_generated/dataModel';
-import { open, seal } from './lib/crypto';
-import { portalAction, teamAction } from './lib/functions';
+import { activeKeyVersion, open, seal } from './lib/crypto';
+import { internalAction, portalAction, teamAction } from './lib/functions';
 import { REVEAL_VISIBLE_MS, type SealedFields, TWO_FACTOR_WINDOW_MS, vaultError } from './lib/vault';
 
 // The only place a vault key is ever touched (10-vault.md, Storage). Everything else in the codebase handles
@@ -180,6 +180,83 @@ export const recordCopy = teamAction(null)({
       authUserId: principal.authUserId,
     });
     return null;
+  },
+});
+
+/**
+ * Key rotation (10-vault.md, Storage). Re-encrypts every item under the active key, a batch at a time, rescheduling
+ * itself until it runs out of items. Resumable because the cursor lives in the run's row: an interrupted rotation is
+ * restarted with the same `rotationId` and carries on from where it stopped, rather than starting over.
+ *
+ * An item that will not decrypt is counted and skipped, never deleted or blanked: the only copy of that secret is the
+ * ciphertext, and a key that cannot read it is a reason to go and find the right key, not to destroy the value. The old
+ * key must therefore stay set until `failed` is zero, which is why the count is kept on the run.
+ */
+export const rotateKeys = internalAction({
+  args: {
+    rotationId: v.optional(v.id('vaultKeyRotations')),
+    cursor: v.optional(v.union(v.string(), v.null())),
+    batchSize: v.optional(v.number()),
+    startedByMemberId: v.optional(v.id('teamMembers')),
+  },
+  handler: async (ctx, args): Promise<{ rotationId: Id<'vaultKeyRotations'>; isDone: boolean }> => {
+    const toKeyVersion = activeKeyVersion();
+    const rotationId =
+      args.rotationId ??
+      (await ctx.runMutation(internal.vaultData.beginKeyRotation, {
+        toKeyVersion,
+        startedByMemberId: args.startedByMemberId,
+      }));
+    const batchSize = args.batchSize ?? 50;
+
+    const page = await ctx.runQuery(internal.vaultData.itemsToReencrypt, {
+      cursor: args.cursor ?? null,
+      batchSize,
+    });
+
+    let processed = 0;
+    let skipped = 0;
+    let failed = 0;
+    for (const item of page.items) {
+      if (item.keyVersion === toKeyVersion) {
+        skipped++;
+        continue;
+      }
+      const [secretIv, usernameIv, notesIv] = item.iv.split('.');
+      let plain: { secret: string; username?: string; notes?: string };
+      try {
+        plain = {
+          secret: open({ ciphertext: item.secretCiphertext, iv: secretIv, keyVersion: item.keyVersion }),
+          username:
+            item.usernameCiphertext && usernameIv
+              ? open({ ciphertext: item.usernameCiphertext, iv: usernameIv, keyVersion: item.keyVersion })
+              : undefined,
+          notes:
+            item.notesCiphertext && notesIv
+              ? open({ ciphertext: item.notesCiphertext, iv: notesIv, keyVersion: item.keyVersion })
+              : undefined,
+        };
+      } catch {
+        // Nothing about the value goes into the count, and nothing is logged: a failure here is about a key, not a secret.
+        failed++;
+        continue;
+      }
+      await ctx.runMutation(internal.vaultData.applyReencrypted, { itemId: item._id, ...sealFields(plain) });
+      processed++;
+    }
+
+    await ctx.runMutation(internal.vaultData.recordRotationProgress, {
+      rotationId,
+      processed,
+      skipped,
+      failed,
+      cursor: page.cursor,
+      isDone: page.isDone,
+    });
+    if (!page.isDone) {
+      await ctx.scheduler.runAfter(0, internal.vault.rotateKeys, { rotationId, cursor: page.cursor, batchSize });
+    }
+    return { rotationId, isDone: page.isDone };
   },
 });
 
