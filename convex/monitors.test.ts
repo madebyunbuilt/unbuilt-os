@@ -74,6 +74,33 @@ describe('what a monitor may point at', () => {
     }
   });
 
+  it('assumes https when somebody types a bare domain', async () => {
+    const monitorId = await pm.as.mutation(api.monitors.create, {
+      clientId,
+      name: 'Glossup',
+      url: 'glossup.example.com/health',
+      production: true,
+    });
+    expect((await pm.as.query(api.monitors.get, { monitorId }))!.url).toBe('https://glossup.example.com/health');
+  });
+
+  it('leaves an explicit http alone, because that is a real choice', async () => {
+    const monitorId = await pm.as.mutation(api.monitors.create, {
+      clientId,
+      name: 'Old box',
+      url: 'http://glossup.example.com/health',
+      production: false,
+    });
+    expect((await pm.as.query(api.monitors.get, { monitorId }))!.url).toBe('http://glossup.example.com/health');
+  });
+
+  it('still refuses a private address typed without a scheme', async () => {
+    await expectCode(
+      pm.as.mutation(api.monitors.create, { clientId, name: 'Inside', url: 'localhost:3000', production: false }),
+      'monitors.invalid',
+    );
+  });
+
   it('refuses something that is not a web address at all', async () => {
     await expectCode(
       pm.as.mutation(api.monitors.create, { clientId, name: 'Nope', url: 'file:///etc/passwd', production: false }),

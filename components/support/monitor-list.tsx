@@ -97,12 +97,12 @@ function NewMonitor() {
         <Label htmlFor="monitor-url">Address</Label>
         <Input
           id="monitor-url"
-          type="url"
           value={url}
           onChange={(event) => setUrl(event.target.value)}
-          placeholder="https://example.com/health"
+          placeholder="example.com/health"
           required
         />
+        <p className="text-xs text-muted-foreground">https:// is assumed unless you say otherwise.</p>
       </div>
       <div className="space-y-2">
         <Label htmlFor="monitor-interval">How often</Label>

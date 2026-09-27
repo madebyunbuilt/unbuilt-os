@@ -53,9 +53,12 @@ async function getMonitor(ctx: QueryCtx | MutationCtx, monitorId: Id<'monitors'>
 
 /** Only somewhere a request can actually be sent, and never inside the studio's own network. */
 function checkedUrl(raw: string): string {
+  const typed = raw.trim();
   let url: URL;
   try {
-    url = new URL(raw.trim());
+    // Somebody typing glossup.com means https://glossup.com; making them type the scheme buys nothing. An explicit
+    // http:// is left alone, because that is a real choice about what is being watched.
+    url = new URL(/^[a-z][a-z0-9+.-]*:\/\//i.test(typed) ? typed : `https://${typed}`);
   } catch {
     throw monitorError('monitors.invalid', 'That is not a URL Unbuilt can check');
   }
