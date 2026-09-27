@@ -161,6 +161,20 @@ describe('one monitor', () => {
     expect(dialog.getByText(/check history goes too. Any tickets it raised stay/)).toBeInTheDocument();
   });
 
+  it('lets the interval be changed without losing what it has found', async () => {
+    render(<MonitorDetail monitorId={'m1' as never} />);
+    await userEvent.click(screen.getByRole('button', { name: 'Change' }));
+    const dialog = within(await screen.findByRole('dialog'));
+    expect(dialog.getByText(/checks already made are kept/)).toBeInTheDocument();
+    await userEvent.selectOptions(dialog.getByLabelText('How often'), '30');
+    await userEvent.click(dialog.getByRole('button', { name: 'Save' }));
+    await waitFor(() =>
+      expect(state.mutations['monitors.update']).toHaveBeenCalledWith(
+        expect.objectContaining({ monitorId: 'm1', intervalMinutes: 30, url: 'https://glossup.example.com/checkout' }),
+      ),
+    );
+  });
+
   it('says a monitor is not here rather than failing the page', () => {
     state.queries['monitors.get'] = null;
     render(<MonitorDetail monitorId={'gone' as never} />);

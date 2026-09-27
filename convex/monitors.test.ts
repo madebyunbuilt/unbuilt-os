@@ -205,6 +205,95 @@ describe('when it comes back', () => {
   });
 });
 
+describe('changing a monitor', () => {
+  const change = async (monitorId: Id<'monitors'>, overrides: object = {}) =>
+    await pm.as.mutation(api.monitors.update, {
+      monitorId,
+      name: 'Glossup checkout',
+      url: 'https://glossup.example.com/checkout',
+      method: 'GET',
+      expectedStatus: 200,
+      intervalMinutes: 5,
+      timeoutMs: 10_000,
+      production: true,
+      ...overrides,
+    });
+
+  it('changes how often it is checked, keeping what it has already found', async () => {
+    const monitorId = await newMonitor();
+    await pass(monitorId);
+    await change(monitorId, { intervalMinutes: 30 });
+
+    const monitor = (await pm.as.query(api.monitors.get, { monitorId }))!;
+    expect(monitor.intervalMinutes).toBe(30);
+    // The history is the point: changing an interval must not throw away the record.
+    expect(monitor.checks).toHaveLength(1);
+    expect(monitor.uptimeBps).toBe(10_000);
+  });
+
+  it('waits the new interval, not the old one', async () => {
+    const monitorId = await newMonitor();
+    await pass(monitorId);
+    await change(monitorId, { intervalMinutes: 30 });
+    vi.setSystemTime(Date.parse('2026-10-12T09:06:00Z'));
+    expect(await t.mutation(internal.monitors.due, {})).toHaveLength(0);
+    vi.setSystemTime(Date.parse('2026-10-12T09:31:00Z'));
+    expect(await t.mutation(internal.monitors.due, {})).toHaveLength(1);
+  });
+
+  it('fills in a scheme on a changed address, and still refuses a private one', async () => {
+    const monitorId = await newMonitor();
+    await change(monitorId, { url: 'glossup.example.com/health' });
+    expect((await pm.as.query(api.monitors.get, { monitorId }))!.url).toBe('https://glossup.example.com/health');
+    await expectCode(change(monitorId, { url: '127.0.0.1/health' }), 'monitors.invalid');
+  });
+
+  it('refuses a different site, which would blend two uptime figures into one', async () => {
+    const monitorId = await newMonitor();
+    await expectCode(change(monitorId, { url: 'https://qravit.example.com/checkout' }), 'monitors.differentSite');
+  });
+
+  it('allows a new path or a new scheme on the same site', async () => {
+    const monitorId = await newMonitor();
+    await change(monitorId, { url: 'https://glossup.example.com/pay' });
+    expect((await pm.as.query(api.monitors.get, { monitorId }))!.url).toBe('https://glossup.example.com/pay');
+    await change(monitorId, { url: 'http://glossup.example.com/pay' });
+    expect((await pm.as.query(api.monitors.get, { monitorId }))!.url).toBe('http://glossup.example.com/pay');
+  });
+
+  it('writes a changed address to the client’s timeline, so an odd month can be explained', async () => {
+    const monitorId = await newMonitor();
+    await change(monitorId, { url: 'https://glossup.example.com/pay' });
+    const activities = await t.run((ctx) => ctx.db.query('activities').collect());
+    expect(activities.some((entry) => entry.title.includes('now watches https://glossup.example.com/pay'))).toBe(true);
+  });
+
+  it('refuses an interval or a timeout nobody meant', async () => {
+    const monitorId = await newMonitor();
+    await expectCode(change(monitorId, { intervalMinutes: 0 }), 'monitors.invalid');
+    await expectCode(change(monitorId, { intervalMinutes: 4000 }), 'monitors.invalid');
+    await expectCode(change(monitorId, { timeoutMs: 100 }), 'monitors.invalid');
+  });
+
+  it('is closed to a role without monitors.manage', async () => {
+    const monitorId = await newMonitor();
+    const finance = await createTeamMember(t, roles.finance, { email: 'zainab@unbuilt.studio', name: 'Zainab B' });
+    await expectCode(
+      finance.as.mutation(api.monitors.update, {
+        monitorId,
+        name: 'x',
+        url: 'https://example.com',
+        method: 'GET',
+        expectedStatus: 200,
+        intervalMinutes: 5,
+        timeoutMs: 10_000,
+        production: false,
+      }),
+      'auth.forbidden',
+    );
+  });
+});
+
 describe('pausing and removing', () => {
   it('records nothing while paused', async () => {
     const monitorId = await newMonitor();

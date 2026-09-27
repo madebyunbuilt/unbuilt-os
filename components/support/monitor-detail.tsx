@@ -5,13 +5,143 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { ConfirmDialog } from '@/components/app/confirm-dialog';
+import { FormDialog } from '@/components/app/form-dialog';
 import { ToneBadge } from '@/components/team/status-badge';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { NativeSelect } from '@/components/ui/native-select';
+import { Switch } from '@/components/ui/switch';
 import { api } from '@/convex/_generated/api';
 import { type Id } from '@/convex/_generated/dataModel';
 import { errorMessage } from '@/lib/convex-error';
 import { ago, formatMoment, type MonitorStatus, monitorStatus, uptime } from '@/lib/support-display';
 import { useNow } from '@/lib/use-now';
+
+type Monitor = NonNullable<typeof api.monitors.get._returnType>;
+
+/** Changing what is watched and how often, without losing the history of what it found. */
+function EditMonitor({ monitor }: { monitor: Monitor }) {
+  const update = useMutation(api.monitors.update);
+  const projects = useQuery(api.projects.list, { clientId: monitor.clientId as Id<'clients'> });
+  const [name, setName] = useState(monitor.name);
+  const [url, setUrl] = useState(monitor.url);
+  const [projectId, setProjectId] = useState(monitor.projectId ?? '');
+  const [method, setMethod] = useState(monitor.method);
+  const [expectedStatus, setExpectedStatus] = useState(String(monitor.expectedStatus));
+  const [intervalMinutes, setIntervalMinutes] = useState(String(monitor.intervalMinutes));
+  const [timeoutSeconds, setTimeoutSeconds] = useState(String(Math.round(monitor.timeoutMs / 1000)));
+  const [production, setProduction] = useState(monitor.production);
+
+  return (
+    <FormDialog
+      trigger={<Button variant="outline">Change</Button>}
+      title={`Change ${monitor.name}`}
+      description="The checks already made are kept, so the uptime figure carries on rather than starting again. A different site needs its own monitor."
+      submitLabel="Save"
+      canSubmit={name.trim().length > 0 && url.trim().length > 0}
+      onSubmit={() =>
+        update({
+          monitorId: monitor.id,
+          projectId: projectId ? (projectId as Id<'projects'>) : undefined,
+          name,
+          url,
+          method,
+          expectedStatus: Number(expectedStatus),
+          intervalMinutes: Number(intervalMinutes),
+          timeoutMs: Number(timeoutSeconds) * 1000,
+          production,
+        })
+      }
+    >
+      <div className="space-y-2">
+        <Label htmlFor="edit-monitor-name">What to call it</Label>
+        <Input id="edit-monitor-name" value={name} onChange={(event) => setName(event.target.value)} />
+      </div>
+      <div className="space-y-2">
+        <Label htmlFor="edit-monitor-url">Address</Label>
+        <Input id="edit-monitor-url" value={url} onChange={(event) => setUrl(event.target.value)} />
+      </div>
+      <div className="space-y-2">
+        <Label htmlFor="edit-monitor-project">Project</Label>
+        <NativeSelect
+          id="edit-monitor-project"
+          value={projectId}
+          onChange={(event) => setProjectId(event.target.value)}
+        >
+          <option value="">No particular project</option>
+          {(projects ?? []).map((project) => (
+            <option key={project.id} value={project.id}>
+              {project.name}
+            </option>
+          ))}
+        </NativeSelect>
+      </div>
+      <div className="grid gap-3 sm:grid-cols-2">
+        <div className="space-y-2">
+          <Label htmlFor="edit-monitor-interval">How often</Label>
+          <NativeSelect
+            id="edit-monitor-interval"
+            value={intervalMinutes}
+            onChange={(event) => setIntervalMinutes(event.target.value)}
+          >
+            <option value="1">Every minute</option>
+            <option value="5">Every 5 minutes</option>
+            <option value="15">Every 15 minutes</option>
+            <option value="30">Every 30 minutes</option>
+            <option value="60">Every hour</option>
+          </NativeSelect>
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="edit-monitor-timeout">Seconds to answer</Label>
+          <Input
+            id="edit-monitor-timeout"
+            type="number"
+            min={1}
+            max={60}
+            value={timeoutSeconds}
+            onChange={(event) => setTimeoutSeconds(event.target.value)}
+          />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="edit-monitor-method">How to ask</Label>
+          <NativeSelect
+            id="edit-monitor-method"
+            value={method}
+            onChange={(event) => setMethod(event.target.value as 'GET' | 'HEAD')}
+          >
+            <option value="GET">Fetch the page (GET)</option>
+            <option value="HEAD">Only ask if it answers (HEAD)</option>
+          </NativeSelect>
+          <p className="text-xs text-muted-foreground">
+            Asking only is lighter on the client&rsquo;s server, but some servers refuse it and look down when they are
+            not.
+          </p>
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="edit-monitor-status">Answer that means healthy</Label>
+          <Input
+            id="edit-monitor-status"
+            type="number"
+            value={expectedStatus}
+            onChange={(event) => setExpectedStatus(event.target.value)}
+          />
+          <p className="text-xs text-muted-foreground">
+            200 for a normal page. Use 204 for a health check that returns nothing, or 301 if the address redirects.
+            Anything else counts as a failure.
+          </p>
+        </div>
+      </div>
+      <div className="flex items-start justify-between gap-3 rounded-md border p-3">
+        <div>
+          <Label htmlFor="edit-monitor-production">This is the live site</Label>
+          <p className="text-xs text-muted-foreground">A live site going down raises a P1 rather than a P2.</p>
+        </div>
+        <Switch id="edit-monitor-production" checked={production} onCheckedChange={setProduction} />
+      </div>
+    </FormDialog>
+  );
+}
 
 // One monitor (09-support-and-sla.md). What it is watching, whether it answered, and what happened the last time it
 // did not — with the ticket each incident raised, because that is where the work of fixing it lives.
@@ -91,15 +221,17 @@ export function MonitorDetail({ monitorId }: { monitorId: Id<'monitors'> }) {
           </dd>
         </div>
         <div>
-          <dt className="text-xs text-muted-foreground">Expecting</dt>
+          <dt className="text-xs text-muted-foreground">Healthy answer</dt>
           <dd className="mt-1 text-lg font-medium tabular-nums">{monitor.expectedStatus}</dd>
           <dd className="text-xs text-muted-foreground">
-            {monitor.method} · {Math.round(monitor.timeoutMs / 1000)}s timeout
+            {monitor.method === 'HEAD' ? 'Asks only' : 'Fetches the page'} · {Math.round(monitor.timeoutMs / 1000)}s to
+            answer
           </dd>
         </div>
       </dl>
 
       <div className="flex flex-wrap gap-2">
+        <EditMonitor monitor={monitor} />
         <Button
           variant="outline"
           onClick={() => void run(setPaused({ monitorId, paused: monitor.status !== 'paused' }))}

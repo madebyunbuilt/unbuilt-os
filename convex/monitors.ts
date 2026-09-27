@@ -197,6 +197,74 @@ export const create = teamMutation('monitors.manage')({
   },
 });
 
+/**
+ * Changing what is watched and how often. Everything but the client can move: a monitor's incidents and the tickets
+ * they raised belong to the client it was made for, so handing it to another one would falsify both — that is a new
+ * monitor, and the old one should be removed.
+ *
+ * A changed address keeps the history it already has. The figure then covers both, which is why the change is written
+ * to the client's timeline: somebody reading an odd month can see what happened.
+ */
+export const update = teamMutation('monitors.manage')({
+  args: {
+    monitorId: v.id('monitors'),
+    projectId: v.optional(v.id('projects')),
+    name: v.string(),
+    url: v.string(),
+    method: v.union(v.literal('GET'), v.literal('HEAD')),
+    expectedStatus: v.number(),
+    intervalMinutes: v.number(),
+    timeoutMs: v.number(),
+    production: v.boolean(),
+  },
+  handler: async (ctx, { monitorId, ...args }) => {
+    const monitor = await getMonitor(ctx, monitorId);
+    if (args.projectId) {
+      const project = await ctx.db.get('projects', args.projectId);
+      if (!project || project.clientId !== monitor.clientId) {
+        throw monitorError('monitors.invalid', "That project does not belong to this monitor's client");
+      }
+    }
+    if (args.intervalMinutes < 1 || args.intervalMinutes > 1440) {
+      throw monitorError('monitors.invalid', 'Check between once a minute and once a day');
+    }
+    if (args.timeoutMs < 1000 || args.timeoutMs > 60_000) {
+      throw monitorError('monitors.invalid', 'Give it between one and sixty seconds to answer');
+    }
+    const url = checkedUrl(args.url);
+    // A path or a scheme can change and still be the same site, so the history stays meaningful. A different host is
+    // a different thing being watched: keeping the old checks would make the uptime figure a blend of two sites, and
+    // that figure is stored on a client's SLA report for good.
+    if (new URL(url).hostname !== new URL(monitor.url).hostname) {
+      throw monitorError(
+        'monitors.differentSite',
+        `That is a different site. Watch ${new URL(url).hostname} with its own monitor, so the uptime figures stay about one site each.`,
+      );
+    }
+
+    await ctx.db.patch('monitors', monitorId, {
+      projectId: args.projectId,
+      name: text(args.name, 'Name', { required: true, max: 120 })!,
+      url,
+      method: args.method,
+      expectedStatus: args.expectedStatus,
+      intervalMinutes: args.intervalMinutes,
+      timeoutMs: args.timeoutMs,
+      production: args.production,
+    });
+
+    if (url !== monitor.url) {
+      await recordActivity(ctx, {
+        subject: { table: 'clients', id: monitor.clientId },
+        clientId: monitor.clientId,
+        type: 'system',
+        title: `Monitor ${monitor.name} now watches ${url}, was ${monitor.url}`,
+        actor: { kind: 'team', id: ctx.principal.member._id },
+      });
+    }
+  },
+});
+
 /** Starting and stopping. Paused time is not counted against uptime: the studio was asked not to look. */
 export const setPaused = teamMutation('monitors.manage')({
   args: { monitorId: v.id('monitors'), paused: v.boolean() },
