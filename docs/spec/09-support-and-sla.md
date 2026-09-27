@@ -249,6 +249,19 @@
 - `autoInvoice` creates the renewal invoice draft 30 days before the date.
 - An asset past its renewal date without being marked renewed alerts admins daily.
 - Transferring an asset to the client (for example at handover) sets its status to `transferred` and stops reminders.
+- **Each threshold fires once per renewal date**, recorded on the asset. Moving the date by hand, or renewing it,
+  clears what was said: a different date is a different renewal and is told about from scratch.
+- **A missed threshold is still sent** (studio, 2026-09-27): an asset added eight days before its date, or a week
+  nobody looked at, sends one message naming the nearest threshold rather than none. The point is that somebody knows,
+  not that a calendar was kept — and one message, not four for the thresholds that went by.
+- **Renewing asks for the next date rather than assuming one** (studio, 2026-09-27): a domain runs a year, hosting a
+  month, a certificate whatever it was bought for, and the data model records no period. A year on is offered as a
+  starting point, since that is what a domain almost always means, but guessing would put a date somebody trusted in
+  front of them. The 29th of February renews on the 28th rather than slipping into March.
+- **`autoInvoice` needs a price to invoice**: an asset the studio does not bill on cannot be set to invoice
+  automatically, and the price and its currency are given together or not at all.
+- **A renewal invoice is attributed to whoever added the asset**, as a scheduled invoice and a late fee already are.
+  An invoice nobody raised has nobody to ask about it.
 
 ## Acceptance criteria
 
