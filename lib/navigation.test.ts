@@ -41,6 +41,7 @@ describe('navigation', () => {
       'Projects',
       'Documents',
       'Support',
+      'Credentials',
     ]);
     expect(labels(navigationFor('portal', permissionsOf('client_admin')))).toContain('Invoices');
   });
