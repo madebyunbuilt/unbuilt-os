@@ -12,6 +12,8 @@ import { groupByDay } from '@/lib/notification-groups';
 import { type Surface } from '@/lib/surface';
 import { cn } from '@/lib/utils';
 
+const time = new Intl.DateTimeFormat('en-GB', { hour: '2-digit', minute: '2-digit' });
+
 const UNREAD_CAP = 99;
 
 export function NotificationsBell({ surface }: { surface: Surface }) {
@@ -107,6 +109,11 @@ export function NotificationsBell({ surface }: { surface: Surface }) {
                             {item.title}
                           </span>
                           <span className="mt-0.5 block text-sm text-muted-foreground">{item.body}</span>
+                        </span>
+                        {/* The day is in the heading above; this says when within it, which is what tells two
+                            notifications about the same ticket apart. */}
+                        <span className="shrink-0 text-xs text-muted-foreground tabular-nums">
+                          {time.format(item.createdAt)}
                         </span>
                       </button>
                     </li>

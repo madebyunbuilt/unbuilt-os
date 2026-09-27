@@ -129,7 +129,9 @@ export function AppShell({
       <CommandPalette
         open={paletteOpen}
         onOpenChange={setPaletteOpen}
+        surface={surface}
         sections={sections}
+        permissions={permissions}
         onShowShortcuts={() => setShortcutsOpen(true)}
       />
       <ShortcutsDialog open={shortcutsOpen} onOpenChange={setShortcutsOpen} />

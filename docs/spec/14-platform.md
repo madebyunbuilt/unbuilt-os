@@ -116,6 +116,15 @@ Rules for every webhook:
   - jump to pages
   - quick actions: new invoice, new ticket, log time, start timer, new deal
 - Results never include records the caller cannot open.
+- **The palette searches the whole hierarchy, not only page names** (studio, 2026-09-26): a setting buried inside a
+  page is indexed with the trail it sits on and the words somebody would actually type, so "VAT" reaches
+  `Settings › Billing` and lands on that part of the form. A result shows its trail above its name, the way a phone's
+  own settings search does.
+- **Keywords find a thing; they never outrank the thing named.** Typing "invoices" reaches the Invoices page, not
+  everything that mentions invoicing. Ranking is by how much of what was typed appears in the name itself.
+- **Nothing appears that the person could not open**: every destination carries the permissions its page carries.
+- **A destination that no longer resolves fails the build**, in `tests/unit/destinations-resolve.test.ts`. A stale
+  entry is worse than a missing one, because search would confidently send somebody somewhere wrong.
 
 ## Dashboards and reports
 

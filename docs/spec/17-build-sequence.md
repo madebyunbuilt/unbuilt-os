@@ -46,7 +46,12 @@ and pull request (or several), merged when its definition of done is met.
 15. **Communications** — Resend templates and webhook, WhatsApp templates, opt-in, status webhook, the full event
     catalogue, preferences.
 16. **Calendar and intake** — Google Calendar OAuth, meetings, booking pages, intake forms.
-17. **Reports and dashboards** — aggregates, role dashboards, every report, exports.
+17. **Reports, search and dashboards** — aggregates, role dashboards, every report, exports. Also the rest of the
+    command palette (studio, 2026-09-26): search across records, the quick actions `14-platform.md` names, and the
+    keyboard shortcuts listed under `?`. Step 1 built the palette _shell_ — the dialog and jumping to pages — and no
+    later step claimed what was left, so all three were invisible until somebody went looking. They belong here
+    because search has to reach every module, including CMS works and vault labels, and building it before those
+    exist would mean building it twice, with the second pass the one that got rushed.
 18. **Data and compliance** — imports, full export, privacy requests, retention cron, legal holds.
 19. **Hardening** — end-to-end flows from `16-key-flows.md`, security headers, rate limits review, backup and restore test,
     performance pass, accessibility audit.
