@@ -164,12 +164,14 @@ describe('ClientHeader', () => {
     const nav = screen.getByRole('navigation', { name: 'Client sections' });
     expect(within(nav).getByRole('link', { name: 'Contacts' })).toHaveAttribute('aria-current', 'page');
     expect(within(nav).getByRole('link', { name: 'Overview' })).not.toHaveAttribute('aria-current');
-    expect(within(nav).queryByRole('link', { name: 'Tickets' })).not.toBeInTheDocument();
-    expect(within(nav).getByText('Tickets')).toHaveAttribute('aria-disabled', 'true');
+    // Files has no page of its own yet, so it stays visible and inert.
+    expect(within(nav).queryByRole('link', { name: 'Files' })).not.toBeInTheDocument();
+    expect(within(nav).getByText('Files')).toHaveAttribute('aria-disabled', 'true');
     // Invoices show only to roles that can see them.
     expect(within(nav).queryByText('Invoices and payments')).not.toBeInTheDocument();
-    // Vault shows only to roles that can see vault items.
+    // Vault shows only to roles that can see vault items, and tickets only to roles that can see tickets.
     expect(within(nav).queryByText('Vault')).not.toBeInTheDocument();
+    expect(within(nav).queryByText('Tickets')).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Edit' })).toBeInTheDocument();
     unmount();
 

@@ -28,6 +28,8 @@ these.
 | Transfer safeguards for processors outside Nigeria                                                                                       | Listed in the privacy notice                         |
 | Portal terms and privacy notice text                                                                                                     | Draft legal pages in the CMS                         |
 
+| Whether a client or a project needs a Files tab of its own | Not built; every file already lives on the record it belongs to, and a second place to look for one may be worse than none |
+
 ## For the studio
 
 | Question                                                                 | Default in the build                                                                   |
