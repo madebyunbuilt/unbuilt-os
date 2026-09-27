@@ -22,6 +22,8 @@ function view(report: Doc<'slaReports'>) {
     })),
     retainerMinutes: report.retainerMinutes,
     monitoring: report.monitoring,
+    uptime: report.uptime ?? [],
+    incidents: report.incidents ?? [],
     sentAt: report.sentAt,
   };
 }

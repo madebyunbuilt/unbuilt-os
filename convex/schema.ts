@@ -1607,9 +1607,37 @@ export default defineSchema({
       }),
     ),
     retainerMinutes: v.optional(v.object({ included: v.number(), used: v.number() })),
-    // Uptime and incidents arrive with monitoring; the shape is here so a report written before then says so rather
-    // than looking as though nothing went wrong.
+    // Said outright for a client with nothing monitored, so an empty uptime section cannot read as though nothing
+    // went wrong.
     monitoring: v.optional(v.literal('not_monitored')),
+    // What each monitor managed over the month, worked out when the month closed. Checks are kept for ninety days;
+    // this is the figure that outlives them.
+    uptime: v.optional(
+      v.array(
+        v.object({
+          monitorId: v.id('monitors'),
+          name: v.string(),
+          url: v.string(),
+          checks: v.number(),
+          passed: v.number(),
+          uptimeBps: v.number(),
+          // The policy's target, where it sets one. Absent means the studio promised no figure to be judged against.
+          targetBps: v.optional(v.number()),
+        }),
+      ),
+    ),
+    incidents: v.optional(
+      v.array(
+        v.object({
+          monitorName: v.string(),
+          startedAt: v.number(),
+          resolvedAt: v.optional(v.number()),
+          downMinutes: v.number(),
+          ticketNumber: v.optional(v.string()),
+          summary: v.string(),
+        }),
+      ),
+    ),
     sentAt: v.optional(v.number()),
     sentByMemberId: v.optional(v.id('teamMembers')),
     remindedAt: v.optional(v.number()),

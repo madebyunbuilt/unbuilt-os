@@ -12,12 +12,14 @@ import { errorMessage } from '@/lib/convex-error';
 import { formatDay } from '@/lib/crm-display';
 import {
   compliance,
+  formatMoment,
   lateness,
   monthLabel,
   priorityLabel,
   priorityTone,
   TARGET_LABEL,
   type TicketPriority,
+  uptime,
 } from '@/lib/support-display';
 import { formatDuration } from '@/lib/time-display';
 
@@ -108,10 +110,74 @@ export function ReportFigures({ report }: { report: Report | NonNullable<typeof 
         </section>
       )}
 
-      {report.monitoring === 'not_monitored' && (
+      {report.monitoring === 'not_monitored' ? (
         <p className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">
           Unbuilt was not monitoring anything for you this month, so there is no uptime to report.
         </p>
+      ) : (
+        <section aria-labelledby="uptime" className="space-y-3">
+          <h2 id="uptime" className="font-display text-xl font-bold">
+            What stayed up
+          </h2>
+          {report.uptime.length === 0 ? (
+            <p className="rounded-md border border-dashed p-6 text-muted-foreground">
+              Nothing was checked this month, so there is no uptime figure to give.
+            </p>
+          ) : (
+            <div className="overflow-x-auto rounded-lg border">
+              <table className="w-full text-sm">
+                <thead className="border-b bg-muted/40 text-left">
+                  <tr>
+                    <th className="p-3 font-medium">What</th>
+                    <th className="p-3 font-medium">Uptime</th>
+                    <th className="p-3 font-medium">Promised</th>
+                    <th className="p-3 font-medium">Checks</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y">
+                  {report.uptime.map((row) => (
+                    <tr key={row.monitorId}>
+                      <td className="p-3">
+                        <span className="block">{row.name}</span>
+                        <span className="block text-xs break-all text-muted-foreground">{row.url}</span>
+                      </td>
+                      <td className="p-3 tabular-nums">{uptime(row.uptimeBps)}</td>
+                      <td className="p-3">
+                        {row.targetBps === undefined ? (
+                          <span className="text-muted-foreground">None set</span>
+                        ) : (
+                          <ToneBadge
+                            {...(row.uptimeBps >= row.targetBps
+                              ? { label: `Met ${uptime(row.targetBps)}`, tone: 'built' as const }
+                              : { label: `Under ${uptime(row.targetBps)}`, tone: 'attention' as const })}
+                          />
+                        )}
+                      </td>
+                      <td className="p-3 tabular-nums text-muted-foreground">{row.checks}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {report.incidents.length > 0 && (
+            <ul className="divide-y rounded-lg border">
+              {report.incidents.map((incident, index) => (
+                <li key={`${incident.monitorName}-${index}`} className="p-4">
+                  <p className="font-medium">{incident.summary}</p>
+                  <p className="text-sm text-muted-foreground">
+                    {formatMoment(incident.startedAt)} ·{' '}
+                    {incident.resolvedAt === undefined
+                      ? 'still down at the end of the month'
+                      : `down for ${incident.downMinutes} minute${incident.downMinutes === 1 ? '' : 's'}`}
+                    {incident.ticketNumber ? ` · ${incident.ticketNumber}` : ''}
+                  </p>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
       )}
     </div>
   );

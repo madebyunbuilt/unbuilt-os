@@ -166,6 +166,81 @@ describe('what a month looked like', () => {
     await raise();
     const report = await octoberReport();
     expect(report!.monitoring).toBe('not_monitored');
+    expect(report!.uptime).toEqual([]);
+  });
+
+  it('reports uptime for what was actually watched', async () => {
+    const monitorId = await pm.as.mutation(api.monitors.create, {
+      clientId,
+      name: 'Glossup checkout',
+      url: 'https://glossup.example.com/checkout',
+      production: true,
+    });
+    await pm.as.mutation(api.monitors.setPaused, { monitorId, paused: false });
+    // Three checks in October, one of them a failure: 66.67%.
+    await t.mutation(internal.monitors.record, { monitorId, ok: true, statusCode: 200 });
+    await t.mutation(internal.monitors.record, { monitorId, ok: false, error: 'timed out' });
+    await t.mutation(internal.monitors.record, { monitorId, ok: true, statusCode: 200 });
+
+    const report = await octoberReport();
+    expect(report!.monitoring).toBeUndefined();
+    expect(report!.uptime).toHaveLength(1);
+    expect(report!.uptime[0]).toMatchObject({ name: 'Glossup checkout', checks: 3, passed: 2, uptimeBps: 6667 });
+  });
+
+  it('leaves out a monitor that was never checked, rather than calling it perfect', async () => {
+    const monitorId = await pm.as.mutation(api.monitors.create, {
+      clientId,
+      name: 'Never started',
+      url: 'https://glossup.example.com/health',
+      production: false,
+    });
+    expect(monitorId).toBeDefined();
+    const report = await octoberReport();
+    // The client is monitored, so the section appears; this monitor simply has nothing to say.
+    expect(report!.monitoring).toBeUndefined();
+    expect(report!.uptime).toEqual([]);
+  });
+
+  it('carries the month’s incidents, with the ticket each one raised', async () => {
+    const monitorId = await pm.as.mutation(api.monitors.create, {
+      clientId,
+      name: 'Glossup checkout',
+      url: 'https://glossup.example.com/checkout',
+      production: true,
+    });
+    await pm.as.mutation(api.monitors.setPaused, { monitorId, paused: false });
+    // Down at 14:00, answering again at 14:30.
+    await travelTo('2026-10-08T14:00:00');
+    await t.mutation(internal.monitors.record, { monitorId, ok: false, error: 'timed out' });
+    await t.mutation(internal.monitors.record, { monitorId, ok: false, error: 'timed out' });
+    await travelTo('2026-10-08T14:30:00');
+    await t.mutation(internal.monitors.record, { monitorId, ok: true, statusCode: 200 });
+
+    const report = await octoberReport();
+    expect(report!.incidents).toHaveLength(1);
+    expect(report!.incidents[0]).toMatchObject({ monitorName: 'Glossup checkout', downMinutes: 30 });
+    expect(report!.incidents[0].ticketNumber).toMatch(/^UNB-TKT-/);
+    expect(report!.incidents[0].resolvedAt).toBeDefined();
+  });
+
+  it('measures an incident still running to the end of the month, not to now', async () => {
+    const monitorId = await pm.as.mutation(api.monitors.create, {
+      clientId,
+      name: 'Glossup checkout',
+      url: 'https://glossup.example.com/checkout',
+      production: true,
+    });
+    await pm.as.mutation(api.monitors.setPaused, { monitorId, paused: false });
+    await t.mutation(internal.monitors.record, { monitorId, ok: false, error: 'timed out' });
+    await t.mutation(internal.monitors.record, { monitorId, ok: false, error: 'timed out' });
+
+    const report = await octoberReport();
+    const [incident] = report!.incidents;
+    expect(incident.resolvedAt).toBeUndefined();
+    // Otherwise an old report would grow every time somebody opened it.
+    const toMonthEnd = Math.round((Date.parse('2026-10-31T23:59:59.999Z') - incident.startedAt) / 60_000);
+    expect(incident.downMinutes).toBe(toMonthEnd);
   });
 });
 

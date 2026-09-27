@@ -41,6 +41,8 @@ const report = (overrides: object = {}) => ({
   breaches: [],
   retainerMinutes: undefined,
   monitoring: 'not_monitored',
+  uptime: [],
+  incidents: [],
   generatedAt: Date.parse('2026-11-02T07:30:00Z'),
   sentAt: undefined,
   ...overrides,
@@ -99,6 +101,103 @@ describe('reading a month', () => {
     });
     render(<ReportDetail reportId={'r1' as never} />);
     expect(screen.getByText('No reason has been given for this one.')).toBeInTheDocument();
+  });
+
+  it('shows what stayed up, against what was promised', () => {
+    state.queries['slaReports.get'] = report({
+      monitoring: undefined,
+      uptime: [
+        {
+          monitorId: 'm1',
+          name: 'Glossup checkout',
+          url: 'https://glossup.example.com/checkout',
+          checks: 8640,
+          passed: 8631,
+          uptimeBps: 9990,
+          targetBps: 9950,
+        },
+      ],
+    });
+    render(<ReportDetail reportId={'r1' as never} />);
+    expect(screen.getByText('99.90%')).toBeInTheDocument();
+    expect(screen.getByText('Met 99.50%')).toBeInTheDocument();
+  });
+
+  it('says when a monitor fell under what was promised', () => {
+    state.queries['slaReports.get'] = report({
+      monitoring: undefined,
+      uptime: [
+        {
+          monitorId: 'm1',
+          name: 'Glossup checkout',
+          url: 'https://glossup.example.com/checkout',
+          checks: 8640,
+          passed: 8200,
+          uptimeBps: 9490,
+          targetBps: 9950,
+        },
+      ],
+    });
+    render(<ReportDetail reportId={'r1' as never} />);
+    expect(screen.getByText('Under 99.50%')).toBeInTheDocument();
+  });
+
+  it('does not judge a monitor against a target nobody set', () => {
+    state.queries['slaReports.get'] = report({
+      monitoring: undefined,
+      uptime: [
+        {
+          monitorId: 'm1',
+          name: 'Glossup checkout',
+          url: 'https://glossup.example.com/checkout',
+          checks: 10,
+          passed: 10,
+          uptimeBps: 10_000,
+          targetBps: undefined,
+        },
+      ],
+    });
+    render(<ReportDetail reportId={'r1' as never} />);
+    expect(screen.getByText('None set')).toBeInTheDocument();
+  });
+
+  it('lists the month’s incidents with the ticket each raised', () => {
+    state.queries['slaReports.get'] = report({
+      monitoring: undefined,
+      uptime: [],
+      incidents: [
+        {
+          monitorName: 'Glossup checkout',
+          startedAt: Date.parse('2026-10-08T13:00:00Z'),
+          resolvedAt: Date.parse('2026-10-08T13:30:00Z'),
+          downMinutes: 30,
+          ticketNumber: 'UNB-TKT-0004',
+          summary: 'Glossup checkout timed out',
+        },
+      ],
+    });
+    render(<ReportDetail reportId={'r1' as never} />);
+    expect(screen.getByText('Glossup checkout timed out')).toBeInTheDocument();
+    expect(screen.getByText(/down for 30 minutes · UNB-TKT-0004/)).toBeInTheDocument();
+  });
+
+  it('says an incident was still running at the end of the month', () => {
+    state.queries['slaReports.get'] = report({
+      monitoring: undefined,
+      uptime: [],
+      incidents: [
+        {
+          monitorName: 'Glossup checkout',
+          startedAt: Date.parse('2026-10-30T13:00:00Z'),
+          resolvedAt: undefined,
+          downMinutes: 2_000,
+          ticketNumber: undefined,
+          summary: 'Glossup checkout timed out',
+        },
+      ],
+    });
+    render(<ReportDetail reportId={'r1' as never} />);
+    expect(screen.getByText(/still down at the end of the month/)).toBeInTheDocument();
   });
 
   it('says nothing was monitored, instead of showing an empty uptime section', () => {
