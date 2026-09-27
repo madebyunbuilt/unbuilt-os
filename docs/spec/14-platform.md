@@ -53,6 +53,11 @@
 - Every send is logged in `messageLog`, linked to the client and record.
 - The Resend webhook updates delivery status (delivered, bounced, complained, opened when enabled). A hard bounce flags
   the contact's email as invalid and notifies the record owner.
+- **Only a received email is inbound mail** (studio, 2026-09-27). Resend posts every event a webhook subscribes to,
+  and a sent email carries a from, a to and a subject exactly as a received one does, so reading the payload without
+  checking `type` turns everything the studio posts — and everything else sharing the Resend account — into a support
+  ticket. The route acts on `email.received` only. A payload with no type at all is still accepted, because not every
+  provider labels one.
 - **Resend's inbound webhook carries no body** (studio, 2026-09-25): `email.received` gives the sender, the subject,
   the recipients and an `email_id`, and nothing else. The text is fetched from `GET /emails/receiving/{id}` with that
   id — received mail has its own path, and `/emails/{id}`, which serves what the studio sent, answers 404 for it. The

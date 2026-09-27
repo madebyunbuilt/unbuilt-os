@@ -174,3 +174,32 @@ export function readableBody(mail: { text?: string; html?: string }): string | n
   }
   return source ? htmlToText(source) : null;
 }
+
+/** Mailboxes that are never a person asking for help, whatever domain they are on. */
+const ROBOT_MAILBOXES = [
+  'noreply',
+  'no-reply',
+  'donotreply',
+  'do-not-reply',
+  'mailer-daemon',
+  'postmaster',
+  'bounce',
+  'bounces',
+];
+
+/**
+ * Why a message must not become a ticket, or null when it may.
+ *
+ * The line is between the studio's *system* and the studio's *people*, not between domains. Unbuilt OS writing to its
+ * own support address is a loop, and worse: ask it for a sign-in link there and the link arrives as a ticket anybody
+ * who can read tickets could use. But somebody at the studio emailing support about a client's site being down is
+ * doing exactly what a support address is for, and refusing that would lose real work.
+ */
+export function refuseSender(from: string, systemAddresses: readonly string[]): string | null {
+  const address = from.toLowerCase();
+  const [mailbox, domain] = address.split('@');
+  if (!domain) return 'not an address';
+  if (systemAddresses.some((system) => system.toLowerCase() === address)) return 'Unbuilt OS itself';
+  if (ROBOT_MAILBOXES.includes(mailbox)) return 'a robot mailbox';
+  return null;
+}
