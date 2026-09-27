@@ -2,8 +2,10 @@ import { v } from 'convex/values';
 import { type Doc, type Id } from './_generated/dataModel';
 import { type MutationCtx } from './_generated/server';
 import { appendAuditEntry } from './lib/audit';
+import { DEFAULT_BUSINESS_CALENDAR, localDateString } from './lib/businessTime';
 import { getClient, recordActivity, requirePermission, text } from './lib/crm';
 import { internalMutation, internalQuery, portalQuery, teamMutation, teamQuery } from './lib/functions';
+import { activeMembersWith, notifyTeamMembers } from './lib/notify';
 import { type TeamPrincipal } from './lib/principals';
 import {
   canSeeItem,
@@ -285,6 +287,70 @@ export const replaceSealed = internalMutation({
   },
 });
 
+/**
+ * Rotation reminders (10-vault.md, Lifecycle): seven days before the date, and on the date.
+ *
+ * Which milestone was last sent is remembered as its own date, not as a flag, so a day the cron did not run is caught
+ * up rather than skipped — a reminder about a credential going stale is not worth losing to a deployment window. Both
+ * milestones can be due at once for a date set inside the window; only the nearer one is sent, because two
+ * notifications about the same credential on the same day is how people learn to ignore them.
+ */
+export const sendRotationReminders = internalMutation({
+  args: {},
+  handler: async (ctx): Promise<{ sent: number }> => {
+    const today = localDateString(Date.now(), DEFAULT_BUSINESS_CALENDAR.timezone);
+    const due = await ctx.db
+      .query('vaultItems')
+      .withIndex('by_status_rotate', (q) => q.eq('status', 'active').lte('rotateByDate', addDays(today, 7)))
+      .collect();
+
+    let sent = 0;
+    for (const item of due) {
+      if (!item.rotateByDate) continue;
+      // The nearer milestone that has arrived: the date itself once it is here, otherwise the warning.
+      const milestone = today >= item.rotateByDate ? item.rotateByDate : addDays(item.rotateByDate, -7);
+      if (today < milestone || item.rotationRemindedOn === milestone) continue;
+
+      const recipients = await rotationRecipients(ctx, item);
+      if (recipients.length === 0) continue;
+      const onTheDay = milestone === item.rotateByDate;
+      await notifyTeamMembers(ctx, recipients, {
+        event: 'vault.rotation.due',
+        title: onTheDay ? `${item.label} is due to be rotated` : `${item.label} needs rotating in 7 days`,
+        body: onTheDay
+          ? `${item.label} was due to be changed on ${item.rotateByDate}. Change it where the credential lives, then update the vault.`
+          : `${item.label} is due to be changed on ${item.rotateByDate}.`,
+        link: `/clients/${item.clientId}/vault`,
+      });
+      await ctx.db.patch('vaultItems', item._id, { rotationRemindedOn: milestone });
+      sent++;
+    }
+    return { sent };
+  },
+});
+
+/**
+ * Who hears about a credential going stale. The spec names the project manager; an item held against the client as a
+ * whole has none, so it goes to the client's owner, and to everyone who can see the whole vault if the client has no
+ * owner either. A reminder nobody receives is the one failure this must not have.
+ */
+async function rotationRecipients(ctx: MutationCtx, item: Doc<'vaultItems'>): Promise<Id<'teamMembers'>[]> {
+  if (item.projectId) {
+    const project = await ctx.db.get('projects', item.projectId);
+    if (project) return [project.managerMemberId];
+  }
+  const client = await ctx.db.get('clients', item.clientId);
+  if (client?.ownerMemberId) return [client.ownerMemberId];
+  return await activeMembersWith(ctx, 'vault.view.all');
+}
+
+/** A YYYY-MM-DD shifted by whole days, which is all the rotation dates need: they are dates, not instants. */
+function addDays(date: string, days: number): string {
+  const shifted = new Date(`${date}T00:00:00Z`);
+  shifted.setUTCDate(shifted.getUTCDate() + days);
+  return shifted.toISOString().slice(0, 10);
+}
+
 /** Writing a sealed item. Called only by the Node action that sealed it; the plaintext never reaches this file. */
 export const insertSealed = internalMutation({
   args: {
@@ -371,6 +437,86 @@ export const logAccess = internalMutation({
         { action: 'read', table: 'vaultItems', recordId: args.vaultItemId },
       );
     }
+    return null;
+  },
+});
+
+// Key rotation ------------------------------------------------------------------------------------------------------
+
+/** Starts a run, or returns the one already going: two rotations at once would fight over the same rows. */
+export const beginKeyRotation = internalMutation({
+  args: { toKeyVersion: v.number(), startedByMemberId: v.optional(v.id('teamMembers')) },
+  handler: async (ctx, args): Promise<Id<'vaultKeyRotations'>> => {
+    const running = await ctx.db
+      .query('vaultKeyRotations')
+      .withIndex('by_status', (q) => q.eq('status', 'running'))
+      .first();
+    if (running) return running._id;
+    return await ctx.db.insert('vaultKeyRotations', {
+      ...args,
+      status: 'running',
+      processed: 0,
+      skipped: 0,
+      failed: 0,
+      startedAt: Date.now(),
+    });
+  },
+});
+
+/** One batch of items to re-encrypt, and where the next batch starts. Archived items are included: they still decrypt. */
+export const itemsToReencrypt = internalQuery({
+  args: { cursor: v.union(v.string(), v.null()), batchSize: v.number() },
+  handler: async (
+    ctx,
+    { cursor, batchSize },
+  ): Promise<{ items: Doc<'vaultItems'>[]; cursor: string | null; isDone: boolean }> => {
+    const page = await ctx.db.query('vaultItems').paginate({ cursor, numItems: batchSize });
+    return { items: page.page, cursor: page.continueCursor, isDone: page.isDone };
+  },
+});
+
+/**
+ * Stores one item's fields under the new key. Written as its own mutation per item so a failure costs one item rather
+ * than a batch, and so the row is never half-rotated: all three fields and the version move together.
+ */
+export const applyReencrypted = internalMutation({
+  args: {
+    itemId: v.id('vaultItems'),
+    usernameCiphertext: v.optional(v.string()),
+    secretCiphertext: v.string(),
+    notesCiphertext: v.optional(v.string()),
+    iv: v.string(),
+    keyVersion: v.number(),
+  },
+  handler: async (ctx, { itemId, ...sealed }): Promise<null> => {
+    const item = await ctx.db.get('vaultItems', itemId);
+    if (!item) return null;
+    // Re-encrypting is not a rotation of the secret: the value is the same one, so lastRotatedAt is left alone.
+    await ctx.db.patch('vaultItems', itemId, sealed);
+    return null;
+  },
+});
+
+/** Progress after a batch, and the finishing touch when the last one is in. */
+export const recordRotationProgress = internalMutation({
+  args: {
+    rotationId: v.id('vaultKeyRotations'),
+    processed: v.number(),
+    skipped: v.number(),
+    failed: v.number(),
+    cursor: v.union(v.string(), v.null()),
+    isDone: v.boolean(),
+  },
+  handler: async (ctx, args): Promise<null> => {
+    const run = await ctx.db.get('vaultKeyRotations', args.rotationId);
+    if (!run) return null;
+    await ctx.db.patch('vaultKeyRotations', args.rotationId, {
+      processed: run.processed + args.processed,
+      skipped: run.skipped + args.skipped,
+      failed: run.failed + args.failed,
+      cursor: args.cursor,
+      ...(args.isDone ? { status: 'done' as const, finishedAt: Date.now() } : {}),
+    });
     return null;
   },
 });

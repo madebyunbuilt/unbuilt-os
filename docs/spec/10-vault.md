@@ -11,7 +11,10 @@ sending them in chat or email.
 - The key comes from the Convex environment variable `VAULT_KEY_v<n>` (32 random bytes, base64). `VAULT_ACTIVE_KEY_VERSION`
   names the key used for new writes. Old keys stay available for decryption until rotation completes.
 - **Key rotation** is an internal action that re-encrypts every item with the active key and records progress. It runs
-  in batches and is resumable.
+  in batches and is resumable: the cursor lives on the run, so an interrupted rotation restarts from where it stopped.
+  Two runs cannot go at once. An item that will not decrypt is counted and left exactly as it was, never blanked or
+  deleted — the ciphertext is the only copy of that secret, so a key that cannot read it is a reason to find the right
+  key. The old key therefore stays set until that count is zero.
 - Labels, kind, URL and project are stored in plaintext so items can be listed and searched without decryption.
 - Plaintext is never logged, never included in audit diffs, never returned by a query, and never stored in notifications
   or emails.
@@ -33,7 +36,11 @@ sending them in chat or email.
 
 ## Lifecycle
 
-- Items can have a `rotateByDate`; reminders go to the project manager 7 days before and on the date.
+- Items can have a `rotateByDate`; reminders go to the project manager 7 days before and on the date. An item held
+  against the client as a whole has no project manager, so it goes to the client's owner, and to everyone with
+  `vault.view.all` if the client has no owner: a reminder nobody receives is the one failure this must not have.
+- Which milestone was last sent is stored as its own date rather than a flag, so a day the cron did not run is caught up
+  instead of skipped. When both milestones are due at once, only the nearer one is sent.
 - When a member leaves a project, the project manager is prompted to rotate credentials that member revealed (from the
   access log). Revealed, not merely reachable: the prompt is a list of credentials to change, and padding it with items
   nobody opened is how it starts being ignored. The prompt notifies and does not rotate anything, because the credential

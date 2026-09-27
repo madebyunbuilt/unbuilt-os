@@ -1546,6 +1546,22 @@ export default defineSchema({
     verifiedAt: v.number(),
   }).index('by_session', ['sessionId']),
 
+  // One run of the key rotation (10-vault.md, Storage). It exists so a rotation is resumable: the cursor is where the
+  // next batch starts, and a run that stops halfway leaves a record saying how far it got rather than a vault in an
+  // unknown state. `failed` counts items that would not decrypt, which must be looked at by hand: the old key is still
+  // needed to read them, so it stays set until the count is zero.
+  vaultKeyRotations: defineTable({
+    toKeyVersion: v.number(),
+    status: v.union(v.literal('running'), v.literal('done')),
+    cursor: v.optional(v.union(v.string(), v.null())),
+    processed: v.number(),
+    skipped: v.number(),
+    failed: v.number(),
+    startedAt: v.number(),
+    startedByMemberId: v.optional(v.id('teamMembers')),
+    finishedAt: v.optional(v.number()),
+  }).index('by_status', ['status']),
+
   // Things the studio keeps alive for a client: domains, hosting, certificates, developer accounts, subscriptions
   // (09-support-and-sla.md, Managed assets and renewals). What it costs the studio and what the client pays are kept
   // apart, because they are different numbers in different currencies more often than not.

@@ -379,6 +379,144 @@ describe('when somebody comes off a project', () => {
   });
 });
 
+describe('rotation reminders', () => {
+  const reminders = async () =>
+    await t.run((ctx) =>
+      ctx.db
+        .query('notifications')
+        .filter((q) => q.eq(q.field('event'), 'vault.rotation.due'))
+        .collect(),
+    );
+
+  it('warns seven days out, then again on the day, and not twice for either', async () => {
+    // Today is 2026-10-12, so a date of the 19th is exactly seven days away.
+    await addItem({ rotateByDate: '2026-10-19' });
+    await t.mutation(internal.vaultData.sendRotationReminders, {});
+    expect((await reminders()).map((n) => n.title)).toEqual(['Hosting login needs rotating in 7 days']);
+
+    // Running again the same day says nothing new.
+    await t.mutation(internal.vaultData.sendRotationReminders, {});
+    expect(await reminders()).toHaveLength(1);
+
+    vi.setSystemTime(Date.parse('2026-10-19T09:00:00Z'));
+    await t.mutation(internal.vaultData.sendRotationReminders, {});
+    expect((await reminders()).map((n) => n.title)).toEqual([
+      'Hosting login needs rotating in 7 days',
+      'Hosting login is due to be rotated',
+    ]);
+    await t.mutation(internal.vaultData.sendRotationReminders, {});
+    expect(await reminders()).toHaveLength(2);
+  });
+
+  it('catches up a day the cron did not run, rather than skipping it', async () => {
+    await addItem({ rotateByDate: '2026-10-19' });
+    // Nothing runs on the 12th. Two days later the warning is still the milestone that has passed, so it still arrives.
+    vi.setSystemTime(Date.parse('2026-10-14T09:00:00Z'));
+    await t.mutation(internal.vaultData.sendRotationReminders, {});
+    expect((await reminders()).map((n) => n.title)).toEqual(['Hosting login needs rotating in 7 days']);
+  });
+
+  it('says nothing for a date further off than a week, or for an archived item', async () => {
+    await addItem({ rotateByDate: '2026-12-01' });
+    const archived = await addItem({ label: 'Old key', rotateByDate: '2026-10-19' });
+    await pm.as.mutation(api.vaultData.setStatus, { itemId: archived, status: 'archived' });
+    await t.mutation(internal.vaultData.sendRotationReminders, {});
+    expect(await reminders()).toHaveLength(0);
+  });
+
+  it('goes to the project manager, and to the client owner when there is no project', async () => {
+    await addItem({ rotateByDate: '2026-10-19' });
+    await t.mutation(internal.vaultData.sendRotationReminders, {});
+    expect((await reminders())[0]).toMatchObject({ recipientId: pm.memberId });
+
+    // A client-level item has no project manager to tell, so the client's owner hears about it instead.
+    await t.run((ctx) => ctx.db.patch('clients', clientId, { ownerMemberId: member.memberId }));
+    await addItem({ label: 'Domain registrar', projectId: undefined, rotateByDate: '2026-10-19' });
+    await t.mutation(internal.vaultData.sendRotationReminders, {});
+    const forOwner = (await reminders()).find((n) => n.title.includes('Domain registrar'));
+    expect(forOwner).toMatchObject({ recipientId: member.memberId });
+  });
+
+  it('never puts the secret in the reminder', async () => {
+    await addItem({ rotateByDate: '2026-10-19' });
+    await t.mutation(internal.vaultData.sendRotationReminders, {});
+    expect(JSON.stringify(await reminders())).not.toContain(SECRET);
+  });
+});
+
+describe('key rotation', () => {
+  const secondKey = () => vi.stubEnv('VAULT_KEY_v2', Buffer.alloc(32, 9).toString('base64'));
+  const run = async (args: object = {}) => {
+    const result = await t.action(internal.vault.rotateKeys, args);
+    await t.finishAllScheduledFunctions(vi.runAllTimers);
+    return result;
+  };
+
+  it('re-encrypts every item, and every one still opens afterwards', async () => {
+    const first = await addItem({ label: 'One' });
+    const second = await addItem({ label: 'Two', notes: 'rotate after handover' });
+    secondKey();
+    vi.stubEnv('VAULT_ACTIVE_KEY_VERSION', '2');
+
+    await run();
+
+    const stored = await t.run((ctx) => ctx.db.query('vaultItems').collect());
+    expect(stored.map((item) => item.keyVersion)).toEqual([2, 2]);
+    // The acceptance criterion: the values are unchanged and still readable, under the new key.
+    expect((await pm.as.action(api.vault.reveal, { itemId: first })).secret).toBe(SECRET);
+    const reopened = await pm.as.action(api.vault.reveal, { itemId: second });
+    expect(reopened).toMatchObject({ secret: SECRET, notes: 'rotate after handover' });
+  });
+
+  it('carries on across batches and records how far it got', async () => {
+    for (const label of ['A', 'B', 'C', 'D', 'E']) await addItem({ label });
+    secondKey();
+    vi.stubEnv('VAULT_ACTIVE_KEY_VERSION', '2');
+
+    // Two at a time, so the run has to reschedule itself to finish.
+    const { rotationId } = await run({ batchSize: 2 });
+    const stored = await t.run((ctx) => ctx.db.query('vaultItems').collect());
+    expect(stored.every((item) => item.keyVersion === 2)).toBe(true);
+
+    const record = await t.run((ctx) => ctx.db.get('vaultKeyRotations', rotationId));
+    expect(record).toMatchObject({ status: 'done', toKeyVersion: 2, processed: 5, failed: 0 });
+    expect(record!.finishedAt).toBe(Date.now());
+  });
+
+  it('counts an item it cannot decrypt and leaves it alone', async () => {
+    const good = await addItem({ label: 'Readable' });
+    const bad = await addItem({ label: 'Tampered' });
+    // A row whose ciphertext no longer authenticates: the only copy of that value is now unreadable.
+    await t.run((ctx) => ctx.db.patch('vaultItems', bad, { secretCiphertext: 'AAAA' + 'B'.repeat(40) }));
+    secondKey();
+    vi.stubEnv('VAULT_ACTIVE_KEY_VERSION', '2');
+
+    const { rotationId } = await run();
+    const record = await t.run((ctx) => ctx.db.get('vaultKeyRotations', rotationId));
+    expect(record).toMatchObject({ processed: 1, failed: 1, status: 'done' });
+    // Destroying it would destroy the only copy, so it is left exactly as it was, still on the old key.
+    const untouched = await t.run((ctx) => ctx.db.get('vaultItems', bad));
+    expect(untouched).toMatchObject({ keyVersion: 1, secretCiphertext: 'AAAA' + 'B'.repeat(40) });
+    expect((await pm.as.action(api.vault.reveal, { itemId: good })).secret).toBe(SECRET);
+  });
+
+  it('leaves items already on the active key alone, and says it skipped them', async () => {
+    await addItem({ label: 'Already current' });
+    const { rotationId } = await run();
+    const record = await t.run((ctx) => ctx.db.get('vaultKeyRotations', rotationId));
+    expect(record).toMatchObject({ processed: 0, skipped: 1, failed: 0, status: 'done' });
+  });
+
+  it('does not start a second run while one is going', async () => {
+    await addItem();
+    secondKey();
+    vi.stubEnv('VAULT_ACTIVE_KEY_VERSION', '2');
+    const first = await t.mutation(internal.vaultData.beginKeyRotation, { toKeyVersion: 2 });
+    const second = await t.mutation(internal.vaultData.beginKeyRotation, { toKeyVersion: 2 });
+    expect(second).toBe(first);
+  });
+});
+
 describe('the audit log', () => {
   const auditReads = async () =>
     (await t.run((ctx) => ctx.db.query('auditLog').collect())).filter((row) => row.table === 'vaultItems');
