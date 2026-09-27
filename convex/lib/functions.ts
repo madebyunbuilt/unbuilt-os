@@ -15,10 +15,11 @@ import { auditedDatabase, type AuditActor } from './audit';
 import { type PortalPermission, type TeamPermission } from './permissions';
 import {
   authError,
-  type ClientPrincipal,
   getAuthSession,
   requireClientPrincipal,
   requireTeamPrincipal,
+  type ActionPrincipal,
+  type ClientPrincipal,
   type TeamPrincipal,
 } from './principals';
 
@@ -107,23 +108,43 @@ export const portalMutation = (permission: PortalPermission | null) =>
 /**
  * Actions have no database; they read and write through internal functions.
  *
- * Nothing uses this yet, and there is a catch when something does: an action's inferred types run back through
- * convex/_generated/api.d.ts, which includes the action's own module, and TypeScript gives up on the circle by quietly
- * widening every api.* result to a loose type. A public action needs explicit return types on itself and on every
- * function it calls. Where the work is heavy anyway, a teamMutation that checks the permission and schedules an
- * internalAction avoids the circle altogether: convex/documents.ts `send` does that.
+ * There is a catch: an action's inferred types run back through convex/_generated/api.d.ts, which includes the
+ * action's own module, and TypeScript resolves the circle by giving up on types across the codebase. A public action
+ * needs explicit return types on itself and on every function it calls. Where the work is heavy anyway, a teamMutation
+ * that checks the permission and schedules an internalAction avoids the circle: convex/documents.ts `send` does that.
+ *
+ * Annotating the boundaries includes this wrapper (studio, 2026-09-27): the customCtx below learns the caller from
+ * internal.principals.teamPrincipalForAction, and letting it infer that closes the circle on behalf of every action
+ * built here. Hence ActionPrincipal, written out by hand rather than taken from that query's return type.
+ *
+ * What a regression looks like, because it is nothing like a normal type error: `pnpm typecheck` reports several
+ * hundred errors in components nobody touched, each about a field that plainly exists — `Property 'read' does not
+ * exist on type '{ createdAt: number; }'` — because api.* results are truncated to one arbitrary field, while the
+ * action's own return type becomes `any`. Do not chase the reported files; look for an action whose types infer. A
+ * type-level assertion cannot catch this: everything downstream of the collapsed type is `any`, which satisfies
+ * every constraint, so the assertions pass while the build fails.
  */
-export const teamAction = (permission: TeamPermission) =>
+export const teamAction = (permission: TeamPermission | null) =>
   customAction(
     action,
-    customCtx(async (ctx) => {
-      const principal = await ctx.runQuery(internal.principals.teamPrincipalForAction, { permission });
-      return {
-        principal,
-        permissions: new Set(principal.permissions),
-        can: (key: TeamPermission) => principal.permissions.includes(key),
-      };
-    }),
+    customCtx(
+      async (
+        ctx,
+      ): Promise<{
+        principal: ActionPrincipal;
+        permissions: Set<TeamPermission>;
+        can: (key: TeamPermission) => boolean;
+      }> => {
+        const principal: ActionPrincipal = await ctx.runQuery(internal.principals.teamPrincipalForAction, {
+          permission: permission ?? undefined,
+        });
+        return {
+          principal,
+          permissions: new Set(principal.permissions),
+          can: (key: TeamPermission) => principal.permissions.includes(key),
+        };
+      },
+    ),
   );
 
 /**

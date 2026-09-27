@@ -38,6 +38,22 @@ export type TeamPrincipal = {
   session: AuthSession;
 };
 
+/**
+ * What an action knows about its caller. Written out rather than inferred from the query that returns it: inferring
+ * it closes a circle through the generated api types, and every api.* result in the codebase collapses to a loose
+ * type (see teamAction in lib/functions.ts).
+ */
+export type ActionPrincipal = {
+  memberId: Id<'teamMembers'>;
+  memberName: string;
+  authUserId: string;
+  sessionId: string;
+  signedInAt: number;
+  ip?: string;
+  roleKey: string;
+  permissions: TeamPermission[];
+};
+
 export type ClientPrincipal = {
   kind: 'client';
   contact: Doc<'contacts'>;

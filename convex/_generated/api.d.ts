@@ -48,6 +48,7 @@ import type * as lib_bills from "../lib/bills.js";
 import type * as lib_businessTime from "../lib/businessTime.js";
 import type * as lib_changeRequests from "../lib/changeRequests.js";
 import type * as lib_crm from "../lib/crm.js";
+import type * as lib_crypto from "../lib/crypto.js";
 import type * as lib_deals from "../lib/deals.js";
 import type * as lib_documentBlocks from "../lib/documentBlocks.js";
 import type * as lib_documentEmails from "../lib/documentEmails.js";
@@ -91,6 +92,7 @@ import type * as lib_time from "../lib/time.js";
 import type * as lib_timeOff from "../lib/timeOff.js";
 import type * as lib_timeOffFormat from "../lib/timeOffFormat.js";
 import type * as lib_validation from "../lib/validation.js";
+import type * as lib_vault from "../lib/vault.js";
 import type * as milestones from "../milestones.js";
 import type * as monitors from "../monitors.js";
 import type * as notifications from "../notifications.js";
@@ -131,6 +133,8 @@ import type * as teamInvites from "../teamInvites.js";
 import type * as tickets from "../tickets.js";
 import type * as time from "../time.js";
 import type * as timeOff from "../timeOff.js";
+import type * as vault from "../vault.js";
+import type * as vaultData from "../vaultData.js";
 import type * as vendors from "../vendors.js";
 
 import type {
@@ -180,6 +184,7 @@ declare const fullApi: ApiFromModules<{
   "lib/businessTime": typeof lib_businessTime;
   "lib/changeRequests": typeof lib_changeRequests;
   "lib/crm": typeof lib_crm;
+  "lib/crypto": typeof lib_crypto;
   "lib/deals": typeof lib_deals;
   "lib/documentBlocks": typeof lib_documentBlocks;
   "lib/documentEmails": typeof lib_documentEmails;
@@ -223,6 +228,7 @@ declare const fullApi: ApiFromModules<{
   "lib/timeOff": typeof lib_timeOff;
   "lib/timeOffFormat": typeof lib_timeOffFormat;
   "lib/validation": typeof lib_validation;
+  "lib/vault": typeof lib_vault;
   milestones: typeof milestones;
   monitors: typeof monitors;
   notifications: typeof notifications;
@@ -263,6 +269,8 @@ declare const fullApi: ApiFromModules<{
   tickets: typeof tickets;
   time: typeof time;
   timeOff: typeof timeOff;
+  vault: typeof vault;
+  vaultData: typeof vaultData;
   vendors: typeof vendors;
 }>;
 
