@@ -1,9 +1,21 @@
 import { v } from 'convex/values';
 import { type Doc, type Id } from './_generated/dataModel';
+import { type MutationCtx } from './_generated/server';
 import { appendAuditEntry } from './lib/audit';
 import { getClient, recordActivity, requirePermission, text } from './lib/crm';
-import { internalMutation, internalQuery, portalQuery, teamQuery } from './lib/functions';
-import { canSeeItem, itemsForClient, itemView, portalItemView, twoFactorVerifiedAt, vaultError } from './lib/vault';
+import { internalMutation, internalQuery, portalQuery, teamMutation, teamQuery } from './lib/functions';
+import { type TeamPrincipal } from './lib/principals';
+import {
+  canSeeItem,
+  itemsForClient,
+  itemView,
+  memberMaySeeItem,
+  portalItemView,
+  twoFactorVerifiedAt,
+  vaultError,
+} from './lib/vault';
+
+type Principal = { principal: TeamPrincipal };
 
 // The vault's queries and mutations (10-vault.md). Nothing here can decrypt anything: no key is reachable from a
 // query or a mutation, so there is no path by which a secret could leave through one. Sealing and opening happen in
@@ -16,6 +28,25 @@ const kind = v.union(
   v.literal('env_file'),
   v.literal('note'),
 );
+
+/**
+ * The item, if this member may see it at all. `vault.manage` is permission to edit the vault, not permission to see
+ * more of it, so scope is checked the same way a reveal checks it and a refusal says the same thing a missing item
+ * says. Anything else would let somebody off the project learn which credentials exist by trying to edit them.
+ */
+async function visibleItem(ctx: MutationCtx & Principal, itemId: Id<'vaultItems'>): Promise<Doc<'vaultItems'>> {
+  const item = await ctx.db.get('vaultItems', itemId);
+  if (!item || !(await canSeeItem(ctx, ctx.principal, item)))
+    throw vaultError('vault.notFound', 'That item is not here');
+  return item;
+}
+
+/** As above, and refusing an archived item: an archive is a record of what was, so only its status may still change. */
+async function editableItem(ctx: MutationCtx & Principal, itemId: Id<'vaultItems'>): Promise<Doc<'vaultItems'>> {
+  const item = await visibleItem(ctx, itemId);
+  if (item.status === 'archived') throw vaultError('vault.archived', 'Restore this item before editing it');
+  return item;
+}
 
 export const list = teamQuery(null)({
   args: { clientId: v.optional(v.id('clients')), projectId: v.optional(v.id('projects')) },
@@ -91,6 +122,99 @@ export const portalList = portalQuery('portal.vault.submit')({
   },
 });
 
+/**
+ * Everything about an item except the secret. `vault.manage` says who may edit, but it does not widen what they can
+ * see: an item they could not reveal is an item they cannot edit either, and it answers "not here" rather than
+ * admitting it exists. Changing the secret itself is convex/vault.ts `updateSecret`, which needs a key.
+ */
+export const update = teamMutation('vault.manage')({
+  args: {
+    itemId: v.id('vaultItems'),
+    label: v.optional(v.string()),
+    kind: v.optional(kind),
+    url: v.optional(v.string()),
+    projectId: v.optional(v.union(v.id('projects'), v.null())),
+    rotateByDate: v.optional(v.union(v.string(), v.null())),
+  },
+  handler: async (ctx, { itemId, ...changes }): Promise<null> => {
+    const item = await editableItem(ctx, itemId);
+    // A project the item is moved to has to belong to the same client, exactly as on the way in.
+    if (changes.projectId) {
+      const project = await ctx.db.get('projects', changes.projectId);
+      if (!project || project.clientId !== item.clientId) {
+        throw vaultError('vault.invalid', 'That project does not belong to this client');
+      }
+    }
+    await ctx.db.patch('vaultItems', itemId, {
+      ...(changes.label !== undefined ? { label: text(changes.label, 'Label', { required: true, max: 120 })! } : {}),
+      ...(changes.kind !== undefined ? { kind: changes.kind } : {}),
+      ...(changes.url !== undefined ? { url: text(changes.url, 'URL', { max: 500 }) } : {}),
+      // Null is how a screen says "off this project" and "no rotation date"; undefined means "leave it alone".
+      ...(changes.projectId !== undefined ? { projectId: changes.projectId ?? undefined } : {}),
+      ...(changes.rotateByDate !== undefined
+        ? { rotateByDate: changes.rotateByDate ?? undefined, rotationRemindedOn: undefined }
+        : {}),
+    });
+    return null;
+  },
+});
+
+/**
+ * Handover and archiving (10-vault.md, Lifecycle). Handed over means the client holds this now and the studio's copy is
+ * history; archived takes it out of every list and starts the retention clock. Archiving is not deleting: the ciphertext
+ * stays until the retention step removes it, so an item archived by mistake can come back.
+ */
+export const setStatus = teamMutation('vault.manage')({
+  args: {
+    itemId: v.id('vaultItems'),
+    status: v.union(v.literal('active'), v.literal('handed_over'), v.literal('archived')),
+  },
+  handler: async (ctx, { itemId, status }): Promise<null> => {
+    // Archived items are editable here and nowhere else: this is the one route back out of the archive.
+    const item = await visibleItem(ctx, itemId);
+    if (item.status === status) return null;
+    await ctx.db.patch('vaultItems', itemId, {
+      status,
+      archivedAt: status === 'archived' ? Date.now() : undefined,
+    });
+    await recordActivity(ctx, {
+      subject: { table: 'clients', id: item.clientId },
+      clientId: item.clientId,
+      type: 'system',
+      title:
+        status === 'handed_over'
+          ? `${item.label} handed over to the client`
+          : status === 'archived'
+            ? `${item.label} archived in the vault`
+            : `${item.label} restored in the vault`,
+      actor: { kind: 'team', id: ctx.principal.member._id },
+      meta: { vaultItemId: itemId },
+    });
+    return null;
+  },
+});
+
+/**
+ * Deleting an item removes the ciphertext, which is the only copy of the secret. The access log is kept: it is the
+ * record of who saw this credential while it existed, and deleting the item is not a reason to lose that.
+ */
+export const remove = teamMutation('vault.manage')({
+  args: { itemId: v.id('vaultItems') },
+  handler: async (ctx, { itemId }): Promise<null> => {
+    const item = await visibleItem(ctx, itemId);
+    await ctx.db.delete('vaultItems', itemId);
+    await recordActivity(ctx, {
+      subject: { table: 'clients', id: item.clientId },
+      clientId: item.clientId,
+      type: 'system',
+      title: `${item.label} deleted from the vault`,
+      actor: { kind: 'team', id: ctx.principal.member._id },
+      meta: { vaultItemId: itemId },
+    });
+    return null;
+  },
+});
+
 /** Everything the reveal action needs to decide, in one read, before any key is fetched. */
 export const forReveal = internalQuery({
   args: { itemId: v.id('vaultItems') },
@@ -111,32 +235,53 @@ export const mayReveal = internalQuery({
   ): Promise<{ allowed: boolean; reason: string; twoFactorVerifiedAt: number }> => {
     const item = await ctx.db.get('vaultItems', itemId);
     if (!item) return { allowed: false, reason: 'no such item', twoFactorVerifiedAt: 0 };
-
-    const member = await ctx.db.get('teamMembers', memberId);
-    const role = member ? await ctx.db.get('roles', member.roleId) : null;
-    const held = new Set(role?.permissions ?? []);
     const check = await ctx.db
       .query('twoFactorChecks')
       .withIndex('by_session', (q) => q.eq('sessionId', sessionId))
       .order('desc')
       .first();
-    const verifiedAt = check?.verifiedAt ?? 0;
+    return { ...(await memberMaySeeItem(ctx, memberId, item)), twoFactorVerifiedAt: check?.verifiedAt ?? 0 };
+  },
+});
 
-    if (held.has('vault.view.all')) return { allowed: true, reason: '', twoFactorVerifiedAt: verifiedAt };
-    if (!held.has('vault.view.assigned')) {
-      return { allowed: false, reason: 'no vault permission', twoFactorVerifiedAt: verifiedAt };
+/**
+ * Replacing the sealed fields on an item, after convex/vault.ts sealed them. Scope is re-checked here from the member
+ * id, because an action has no principal to hand on, and it uses the same rule a reveal uses.
+ */
+export const replaceSealed = internalMutation({
+  args: {
+    itemId: v.id('vaultItems'),
+    memberId: v.id('teamMembers'),
+    usernameCiphertext: v.optional(v.string()),
+    secretCiphertext: v.string(),
+    notesCiphertext: v.optional(v.string()),
+    iv: v.string(),
+    keyVersion: v.number(),
+  },
+  handler: async (ctx, { itemId, memberId, ...sealed }): Promise<null> => {
+    const item = await ctx.db.get('vaultItems', itemId);
+    if (!item) throw vaultError('vault.notFound', 'That item is not here');
+    if (!(await memberMaySeeItem(ctx, memberId, item)).allowed) {
+      throw vaultError('vault.notFound', 'That item is not here');
     }
-    if (!item.projectId) {
-      // An item held against the client as a whole has no project membership to stand on.
-      return { allowed: false, reason: 'not on a project', twoFactorVerifiedAt: verifiedAt };
-    }
-    const onProject = await ctx.db
-      .query('projectMembers')
-      .withIndex('by_project_member', (q) => q.eq('projectId', item.projectId!).eq('memberId', memberId))
-      .first();
-    return onProject
-      ? { allowed: true, reason: '', twoFactorVerifiedAt: verifiedAt }
-      : { allowed: false, reason: 'not on this project', twoFactorVerifiedAt: verifiedAt };
+    if (item.status === 'archived') throw vaultError('vault.archived', 'Restore this item before editing it');
+    await ctx.db.patch('vaultItems', itemId, {
+      ...sealed,
+      // A rotation satisfies the reminder, and the next date is set deliberately rather than guessed at.
+      rotateByDate: undefined,
+      rotationRemindedOn: undefined,
+      lastRotatedAt: Date.now(),
+      lastRotatedByMemberId: memberId,
+    });
+    await recordActivity(ctx, {
+      subject: { table: 'clients', id: item.clientId },
+      clientId: item.clientId,
+      type: 'system',
+      title: `${item.label} rotated in the vault`,
+      actor: { kind: 'team', id: memberId },
+      meta: { vaultItemId: itemId },
+    });
+    return null;
   },
 });
 

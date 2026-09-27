@@ -14,7 +14,10 @@ const APP_DIR = join(ROOT, 'app');
  * Paths that have no page yet, with the step that brings them. Anything else must resolve today, so this list is the
  * whole of what is knowingly ahead of the screens.
  */
-const NOT_BUILT_YET: Record<string, string> = {};
+const NOT_BUILT_YET: Record<string, string> = {
+  // The vault's screens are the last part of step 13; the rotation prompt that links here landed with the backend.
+  '/projects/:param/vault': 'step 13, vault screens',
+};
 
 function filesIn(dir: string, keep: (name: string) => boolean): string[] {
   return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {

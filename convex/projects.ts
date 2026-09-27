@@ -18,6 +18,7 @@ import {
   visibleProjectIds,
 } from './lib/projects';
 import { isIsoDate } from './lib/validation';
+import { promptRotationAfterLeaving } from './lib/vault';
 
 // Projects (06-projects.md). A project belongs to one client, has a manager who is always a member, and is created
 // blank, from a template, or when a deal is won. Budget used arrives with billing (expenses, bills, FX rates).
@@ -458,6 +459,8 @@ export async function removeFromProject(ctx: MutationCtx, projectId: Id<'project
   const row = await membership(ctx, projectId, memberId);
   if (!row) return false;
   await ctx.db.delete('projectMembers', row._id);
+  // Losing access is not the same as forgetting: the manager is asked to rotate whatever this person had revealed.
+  await promptRotationAfterLeaving(ctx, projectId, memberId);
   const tasks = await ctx.db
     .query('tasks')
     .withIndex('by_project_status', (q) => q.eq('projectId', projectId))

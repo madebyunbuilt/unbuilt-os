@@ -5,7 +5,7 @@ import { internal } from './_generated/api';
 import { type Id } from './_generated/dataModel';
 import { open, seal } from './lib/crypto';
 import { portalAction, teamAction } from './lib/functions';
-import { TWO_FACTOR_WINDOW_MS, REVEAL_VISIBLE_MS, vaultError } from './lib/vault';
+import { REVEAL_VISIBLE_MS, type SealedFields, TWO_FACTOR_WINDOW_MS, vaultError } from './lib/vault';
 
 // The only place a vault key is ever touched (10-vault.md, Storage). Everything else in the codebase handles
 // ciphertext it cannot read. A secret exists in plaintext here for the length of one action and is returned to the
@@ -18,6 +18,25 @@ const kind = v.union(
   v.literal('env_file'),
   v.literal('note'),
 );
+
+/**
+ * Seals the three fields that carry anything private, under one key version. Each gets its own random IV and its own
+ * authentication tag, as the spec requires; the IVs are stored joined in one field, positionally, so a row can carry
+ * all three. An empty username or note is left unsealed rather than sealed as an empty string, so `hasUsername` on a
+ * listing means what it says.
+ */
+function sealFields(fields: { secret: string; username?: string; notes?: string }): SealedFields {
+  const secret = seal(fields.secret);
+  const username = fields.username?.trim() ? seal(fields.username, secret.keyVersion) : undefined;
+  const notes = fields.notes?.trim() ? seal(fields.notes, secret.keyVersion) : undefined;
+  return {
+    usernameCiphertext: username?.ciphertext,
+    secretCiphertext: secret.ciphertext,
+    notesCiphertext: notes?.ciphertext,
+    iv: [secret.iv, username?.iv ?? '', notes?.iv ?? ''].join('.'),
+    keyVersion: secret.keyVersion,
+  };
+}
 
 /** Adding an item. It is sealed before the mutation that stores it is even called. */
 export const create = teamAction('vault.manage')({
@@ -33,29 +52,42 @@ export const create = teamAction('vault.manage')({
     rotateByDate: v.optional(v.string()),
   },
   handler: async (ctx, args): Promise<Id<'vaultItems'>> => {
-    const principal = ctx.principal;
     if (args.secret.trim().length === 0) throw vaultError('vault.invalid', 'There is no secret here to keep');
-    // A field at a time: each gets its own random IV and its own authentication tag, as the spec requires.
-    const sealedSecret = seal(args.secret);
-    const username = args.username?.trim() ? seal(args.username, sealedSecret.keyVersion) : undefined;
-    const notes = args.notes?.trim() ? seal(args.notes, sealedSecret.keyVersion) : undefined;
-
     return await ctx.runMutation(internal.vaultData.insertSealed, {
       clientId: args.clientId,
       projectId: args.projectId,
       label: args.label,
       kind: args.kind,
       url: args.url,
-      usernameCiphertext: username?.ciphertext,
-      secretCiphertext: sealedSecret.ciphertext,
-      notesCiphertext: notes?.ciphertext,
-      // Each sealed field kept its own IV; they are stored joined so one row can carry them all.
-      iv: [sealedSecret.iv, username?.iv ?? '', notes?.iv ?? ''].join('.'),
-      keyVersion: sealedSecret.keyVersion,
+      ...sealFields(args),
       rotateByDate: args.rotateByDate,
       submittedByKind: 'team',
-      submittedById: principal.memberId,
+      submittedById: ctx.principal.memberId,
     });
+  },
+});
+
+/**
+ * Changing the secret on an item that already exists — the ordinary end of a rotation, once the credential has been
+ * changed wherever it actually lives. The old ciphertext is replaced rather than kept beside the new one: a vault that
+ * held every previous password would be a worse thing to lose than one that holds the current one. Whoever rotated it
+ * is recorded, and the access log keeps who had seen the old value.
+ */
+export const updateSecret = teamAction('vault.manage')({
+  args: {
+    itemId: v.id('vaultItems'),
+    secret: v.string(),
+    username: v.optional(v.string()),
+    notes: v.optional(v.string()),
+  },
+  handler: async (ctx, args): Promise<null> => {
+    if (args.secret.trim().length === 0) throw vaultError('vault.invalid', 'There is no secret here to keep');
+    await ctx.runMutation(internal.vaultData.replaceSealed, {
+      itemId: args.itemId,
+      memberId: ctx.principal.memberId,
+      ...sealFields(args),
+    });
+    return null;
   },
 });
 
@@ -168,20 +200,13 @@ export const submitFromPortal = portalAction('portal.vault.submit')({
   },
   handler: async (ctx, args): Promise<Id<'vaultItems'>> => {
     if (args.secret.trim().length === 0) throw vaultError('vault.invalid', 'There is no secret here to keep');
-    const sealedSecret = seal(args.secret);
-    const username = args.username?.trim() ? seal(args.username, sealedSecret.keyVersion) : undefined;
-    const notes = args.notes?.trim() ? seal(args.notes, sealedSecret.keyVersion) : undefined;
     return await ctx.runMutation(internal.vaultData.insertSealed, {
       clientId: ctx.principal.clientId,
       projectId: args.projectId,
       label: args.label,
       kind: args.kind,
       url: args.url,
-      usernameCiphertext: username?.ciphertext,
-      secretCiphertext: sealedSecret.ciphertext,
-      notesCiphertext: notes?.ciphertext,
-      iv: [sealedSecret.iv, username?.iv ?? '', notes?.iv ?? ''].join('.'),
-      keyVersion: sealedSecret.keyVersion,
+      ...sealFields(args),
       submittedByKind: 'client',
       submittedById: ctx.principal.contactId,
     });

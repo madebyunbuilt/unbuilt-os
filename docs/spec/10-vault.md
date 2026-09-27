@@ -35,9 +35,21 @@ sending them in chat or email.
 
 - Items can have a `rotateByDate`; reminders go to the project manager 7 days before and on the date.
 - When a member leaves a project, the project manager is prompted to rotate credentials that member revealed (from the
-  access log).
+  access log). Revealed, not merely reachable: the prompt is a list of credentials to change, and padding it with items
+  nobody opened is how it starts being ignored. The prompt notifies and does not rotate anything, because the credential
+  lives in somebody else's system and has to be changed there first.
 - At handover, items can be marked handed over and archived; archived items are deleted after the retention period unless
   a legal hold is set.
+- Handed over says the client holds this credential now; the studio's copy still opens, because it is still the record of
+  what was handed over. Archived takes an item out of every list and starts the retention clock, and is not a delete: an
+  archived item can be restored. Nothing else about an archived item can be edited until it is, so an archive stays a
+  record of what was.
+- Changing the secret replaces the old ciphertext rather than keeping it beside the new one: a vault holding every
+  previous password would be a worse thing to lose than one holding the current one. It clears `rotateByDate`, since the
+  reminder has been answered, and records who rotated it and when.
+- `vault.manage` is permission to edit the vault, not permission to see more of it. An item a member could not reveal is
+  one they cannot edit, and the refusal says what a missing item says, so editing cannot be used to discover which
+  credentials exist.
 - Deleting an item removes the ciphertext; the access log is kept.
 
 ## Acceptance criteria
