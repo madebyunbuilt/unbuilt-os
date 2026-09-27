@@ -18,7 +18,7 @@ import { type Id } from '@/convex/_generated/dataModel';
 import { labelFor, SERVICE_LABELS } from '@/convex/lib/enquiries';
 import { formatBpsAsPercent, formatMoney } from '@/convex/lib/money';
 import { errorMessage } from '@/lib/convex-error';
-import { formatDay, stageTone } from '@/lib/crm-display';
+import { asTyped, formatDay, stageTone } from '@/lib/crm-display';
 
 export function DealDetail({ dealId, permissions }: { dealId: Id<'deals'>; permissions: string[] }) {
   const router = useRouter();
@@ -157,7 +157,7 @@ export function DealDetail({ dealId, permissions }: { dealId: Id<'deals'>; permi
               <dd>{deal.services.map((slug) => labelFor(SERVICE_LABELS, slug)).join(', ') || '—'}</dd>
               <dt className="text-muted-foreground">Source</dt>
               <dd>
-                {deal.source ?? '—'}
+                {asTyped(deal.source) ?? '—'}
                 {deal.enquiryId && permissions.includes('enquiries.view') && (
                   <>
                     {' · '}

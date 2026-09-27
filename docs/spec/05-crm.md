@@ -101,6 +101,14 @@
   portal, and no deals, projects, invoices or documents (each module adds its check). Otherwise the client is archived.
   Archived clients are hidden from the list unless filtered for. Contacts who never signed in can also be deleted;
   others are marked left.
+- **A country is chosen, not typed** (studio, 2026-09-27): a two-letter code typed by hand is a guess, and `SP` looks
+  like Spain while being no country at all — nothing would have said so. The stored value is still the code; the list
+  and the names come from `Intl`, so there is no table of translations to drift. A code is shown as its name, and one
+  that is not a country is shown exactly as it was stored rather than as "Unknown Region", so a person can see the
+  mistake and fix it.
+- **The figures on a client are asked for per permission**: somebody without `invoices.view` never sends the query,
+  and the card says the figure is not theirs to see rather than showing a blank. Money is totalled per currency and
+  shown side by side, never converted into one number.
 - **Billing details** (legal name, address, TIN, VAT treatment, WHT, default currency, payment terms) are edited with
   `invoices.update`: the Owner, Admins and Finance. Project managers edit the rest of the client and see billing details
   read-only.

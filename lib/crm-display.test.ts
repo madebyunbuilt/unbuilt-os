@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { clientStatus, fromMentionMarkup, mentionSegments, splitTags, toMentionMarkup } from './crm-display';
+import {
+  asTyped,
+  clientStatus,
+  countryName,
+  fromMentionMarkup,
+  mentionSegments,
+  splitTags,
+  toMentionMarkup,
+} from './crm-display';
 
 describe('crm display', () => {
   it('shows leads as not built yet and closed clients as muted', () => {
@@ -35,5 +43,29 @@ describe('crm display', () => {
       { kind: 'mention', name: 'Kemi Bello' },
       { kind: 'text', text: ' today' },
     ]);
+  });
+});
+
+describe('values a person has to read', () => {
+  it('names a country rather than showing its code', () => {
+    // NG in a column of readable fields looks like a mistake, or like a field nobody filled in properly.
+    expect(countryName('NG')).toBe('Nigeria');
+    expect(countryName('gb')).toBe('United Kingdom');
+    expect(countryName('US')).toBe('United States');
+  });
+
+  it('shows an unknown code as it was typed, rather than swallowing it', () => {
+    // Better somebody sees ZZ and corrects it than sees nothing and assumes the field is empty.
+    expect(countryName('ZZ')).toBe('ZZ');
+    expect(countryName(undefined)).toBeUndefined();
+  });
+
+  it('lifts the first letter of something somebody typed, and changes nothing else', () => {
+    expect(asTyped('referral')).toBe('Referral');
+    // The rest is theirs: a source of "referral from Bayo at Kuda" keeps its own words.
+    expect(asTyped('referral from Bayo at Kuda')).toBe('Referral from Bayo at Kuda');
+    expect(asTyped('LinkedIn')).toBe('LinkedIn');
+    expect(asTyped('  ')).toBeUndefined();
+    expect(asTyped(undefined)).toBeUndefined();
   });
 });
