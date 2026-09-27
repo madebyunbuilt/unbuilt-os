@@ -15,11 +15,19 @@ export const SENSITIVE_FIELDS: Partial<Record<TableNames, readonly string[]>> = 
   // Signers carry the hash of their emailed code, and six digits are quick to recover from a hash.
   signatureRequests: ['signers'],
   signingLinks: ['tokenHash'],
+  // Ciphertext is not plaintext, but an audit diff is the wrong place to accumulate copies of it, and an IV beside it
+  // tells a reader nothing they are entitled to. The label, kind and URL still show, so an edit is still legible.
+  vaultItems: ['usernameCiphertext', 'secretCiphertext', 'notesCiphertext', 'iv'],
 };
 
 export const REDACTED = '[redacted]';
 
-const APPEND_ONLY_TABLES: ReadonlySet<string> = new Set<TableNames>(['auditLog']);
+/**
+ * `vaultAccessLogs` joins the audit log here: the spec keeps the access log when the item it describes is deleted, so
+ * no team or portal mutation may edit or remove an entry. The internal mutation that writes one uses the plain
+ * database, which is the only door left.
+ */
+const APPEND_ONLY_TABLES: ReadonlySet<string> = new Set<TableNames>(['auditLog', 'vaultAccessLogs']);
 /**
  * Operational data that is not a change anyone makes to a record (the idle-timeout heartbeat, public rate-limit
  * counters): auditing it would bury the log. Still refused in append-only tables; nothing else skips the log.

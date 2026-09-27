@@ -20,6 +20,7 @@ import {
   requireTeamPrincipal,
   type ActionPrincipal,
   type ClientPrincipal,
+  type PortalActionPrincipal,
   type TeamPrincipal,
 } from './principals';
 
@@ -142,6 +143,34 @@ export const teamAction = (permission: TeamPermission | null) =>
           principal,
           permissions: new Set(principal.permissions),
           can: (key: TeamPermission) => principal.permissions.includes(key),
+        };
+      },
+    ),
+  );
+
+/**
+ * The portal's action, for the one thing a client does that needs a key: handing over a credential, which is encrypted
+ * before it is written. The client comes from the session, so a portal action never takes a clientId as an argument
+ * and cannot be pointed at another client's records. The return type is written out for the reason teamAction gives.
+ */
+export const portalAction = (permission: PortalPermission | null) =>
+  customAction(
+    action,
+    customCtx(
+      async (
+        ctx,
+      ): Promise<{
+        principal: PortalActionPrincipal;
+        permissions: Set<PortalPermission>;
+        can: (key: PortalPermission) => boolean;
+      }> => {
+        const principal: PortalActionPrincipal = await ctx.runQuery(internal.principals.clientPrincipalForAction, {
+          permission: permission ?? undefined,
+        });
+        return {
+          principal,
+          permissions: new Set(principal.permissions),
+          can: (key: PortalPermission) => principal.permissions.includes(key),
         };
       },
     ),

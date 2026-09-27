@@ -54,6 +54,18 @@ export type ActionPrincipal = {
   permissions: TeamPermission[];
 };
 
+/** The portal's equivalent, and written out for the same reason. A client action never takes its client as an argument. */
+export type PortalActionPrincipal = {
+  contactId: Id<'contacts'>;
+  contactName: string;
+  clientId: Id<'clients'>;
+  authUserId: string;
+  sessionId: string;
+  ip?: string;
+  roleKey: string;
+  permissions: PortalPermission[];
+};
+
 export type ClientPrincipal = {
   kind: 'client';
   contact: Doc<'contacts'>;

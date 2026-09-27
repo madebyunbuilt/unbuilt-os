@@ -1,8 +1,9 @@
 import { v } from 'convex/values';
 import { type Doc, type Id } from './_generated/dataModel';
+import { appendAuditEntry } from './lib/audit';
 import { getClient, recordActivity, requirePermission, text } from './lib/crm';
-import { internalMutation, internalQuery, teamQuery } from './lib/functions';
-import { canSeeItem, itemsForClient, itemView, twoFactorVerifiedAt, vaultError } from './lib/vault';
+import { internalMutation, internalQuery, portalQuery, teamQuery } from './lib/functions';
+import { canSeeItem, itemsForClient, itemView, portalItemView, twoFactorVerifiedAt, vaultError } from './lib/vault';
 
 // The vault's queries and mutations (10-vault.md). Nothing here can decrypt anything: no key is reachable from a
 // query or a mutation, so there is no path by which a secret could leave through one. Sealing and opening happen in
@@ -71,6 +72,22 @@ export const get = teamQuery(null)({
         })),
       ),
     };
+  },
+});
+
+/**
+ * What a client may see of their own vault: labels and dates for what they handed over, and never a value or a
+ * `hasUsername` hint. Items the studio holds about this client are not listed at all — only the client's own
+ * submissions — because the vault is the studio's record of credentials, not a shared folder.
+ */
+export const portalList = portalQuery('portal.vault.submit')({
+  args: {},
+  handler: async (ctx) => {
+    const items = await itemsForClient(ctx, ctx.principal.clientId);
+    return items
+      .filter((item) => item.submittedByKind === 'client' && item.status !== 'archived')
+      .sort((a, b) => b._creationTime - a._creationTime)
+      .map(portalItemView);
   },
 });
 
@@ -172,7 +189,14 @@ export const insertSealed = internalMutation({
   },
 });
 
-/** Every reveal, copy and refusal, written whether or not the secret was handed over. */
+/**
+ * Every reveal, copy and refusal, written whether or not the secret was handed over.
+ *
+ * A reveal and a copy also append to the audit log, which the spec asks for separately and for a different reader: the
+ * access log answers "who has seen this credential", and the audit log answers "what did this person do today". A
+ * refusal is not in the audit log, which records what happened to records; nothing happened, and the access log is
+ * where an attempt belongs. The entry is a `read` of the item and carries no diff, so it cannot carry a value.
+ */
 export const logAccess = internalMutation({
   args: {
     vaultItemId: v.id('vaultItems'),
@@ -181,12 +205,27 @@ export const logAccess = internalMutation({
     action: v.union(v.literal('reveal'), v.literal('copy'), v.literal('refused')),
     reason: v.optional(v.string()),
     ipAddress: v.optional(v.string()),
+    authUserId: v.optional(v.string()),
   },
   handler: async (ctx, args): Promise<null> => {
     const at = Date.now();
-    await ctx.db.insert('vaultAccessLogs', { ...args, at });
+    const { authUserId, ...logFields } = args;
+    await ctx.db.insert('vaultAccessLogs', { ...logFields, at });
     // Only a reveal that actually happened counts as the item having been seen.
     if (args.action === 'reveal') await ctx.db.patch('vaultItems', args.vaultItemId, { lastRevealedAt: at });
+    if (args.action === 'reveal' || args.action === 'copy') {
+      await appendAuditEntry(
+        ctx.db,
+        {
+          actorKind: 'team',
+          actorId: args.memberId,
+          authUserId,
+          permission: args.action === 'reveal' ? 'vault.reveal' : 'vault.copy',
+          ip: args.ipAddress,
+        },
+        { action: 'read', table: 'vaultItems', recordId: args.vaultItemId },
+      );
+    }
     return null;
   },
 });

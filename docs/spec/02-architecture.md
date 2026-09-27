@@ -104,20 +104,34 @@ permissions itself (see `03-auth-and-permissions.md`).
 
 Convex environment variables, set per deployment and never committed:
 
-| Variable                  | Purpose                                                                                                                                               |
-| ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `BETTER_AUTH_SECRET`      | Signs cookies and encrypts two-factor secrets. Different on every deployment                                                                          |
-| `AUTH_ALLOWED_HOSTS`      | Hostnames the app is served on, comma-separated, wildcards allowed. Defaults to localhost                                                             |
-| `RESEND_API_KEY`          | Sending-only Resend key. Separate keys per environment                                                                                                |
-| `APP_URL`                 | The team app's address for links in emails. Defaults to the first exact host in `AUTH_ALLOWED_HOSTS`                                                  |
-| `FILE_URL_SECRET`         | Signs short-lived file download links. At least 32 characters, different on every deployment                                                          |
-| `AUTH_EMAIL_FROM`         | Sender for sign-in emails. Defaults to Resend's test sender until the domain is verified                                                              |
-| `PORTAL_URL`              | The client portal's address for links in emails. Defaults to the first exact `portal.` host                                                           |
-| `TURNSTILE_SECRET_KEY`    | Cloudflare Turnstile secret for the enquiry endpoint. Without it every enquiry is refused (503). Development and staging use Cloudflare's test secret |
-| `ENQUIRY_ALLOWED_ORIGINS` | Origins allowed to post enquiries, comma-separated, `*` within a host label. Defaults to `https://unbuilt.studio`                                     |
+| Variable                   | Purpose                                                                                                                                               |
+| -------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `BETTER_AUTH_SECRET`       | Signs cookies and encrypts two-factor secrets. Different on every deployment                                                                          |
+| `AUTH_ALLOWED_HOSTS`       | Hostnames the app is served on, comma-separated, wildcards allowed. Defaults to localhost                                                             |
+| `RESEND_API_KEY`           | Sending-only Resend key. Separate keys per environment                                                                                                |
+| `APP_URL`                  | The team app's address for links in emails. Defaults to the first exact host in `AUTH_ALLOWED_HOSTS`                                                  |
+| `FILE_URL_SECRET`          | Signs short-lived file download links. At least 32 characters, different on every deployment                                                          |
+| `AUTH_EMAIL_FROM`          | Sender for sign-in emails. Defaults to Resend's test sender until the domain is verified                                                              |
+| `PORTAL_URL`               | The client portal's address for links in emails. Defaults to the first exact `portal.` host                                                           |
+| `TURNSTILE_SECRET_KEY`     | Cloudflare Turnstile secret for the enquiry endpoint. Without it every enquiry is refused (503). Development and staging use Cloudflare's test secret |
+| `ENQUIRY_ALLOWED_ORIGINS`  | Origins allowed to post enquiries, comma-separated, `*` within a host label. Defaults to `https://unbuilt.studio`                                     |
+| `PAY_LINK_SECRET`          | Signs the payment link in an invoice email, so any send derives the same link. Different on every deployment                                          |
+| `PAYSTACK_SECRET_KEY`      | Paystack secret key. Test keys outside production                                                                                                     |
+| `PAYSTACK_CURRENCIES`      | Currencies the Paystack account can charge, comma-separated. Defaults to `NGN`                                                                        |
+| `INBOUND_EMAIL_SECRET`     | Accepted on the inbound-email webhook when no Svix signature is present. Different on every deployment                                                |
+| `RESEND_WEBHOOK_SECRET`    | Svix signing secret for Resend webhooks. While unset, the endpoint falls back to `INBOUND_EMAIL_SECRET`                                               |
+| `VAULT_KEY_v<n>`           | A vault encryption key, 32 random bytes base64. **Never shared between deployments**, and old versions stay set until a rotation finishes             |
+| `VAULT_ACTIVE_KEY_VERSION` | Which `VAULT_KEY_v<n>` new secrets are written with                                                                                                   |
+| `EMAIL_FROM_<SENDER>`      | Overrides the From address for one sender (`EMAIL_FROM_SUPPORT`, `EMAIL_FROM_BILLING`, …). Optional                                                   |
+| `ALLOW_SAMPLE_DATA`        | Lets the seed script add sample records. Never set in production                                                                                      |
 
 Staging allows `unbuilt-os-pr-*.vercel.app`; production allows `os.unbuilt.studio`, `portal.unbuilt.studio` and
 `unbuilt-os.vercel.app`.
+
+Generated per deployment, and worth listing on their own because a shared value quietly defeats the point of each:
+`BETTER_AUTH_SECRET`, `FILE_URL_SECRET`, `PAY_LINK_SECRET`, `INBOUND_EMAIL_SECRET` and `VAULT_KEY_v<n>`. A vault key is
+the one that cannot be rotated casually: changing it without re-encrypting makes every stored secret unreadable, so
+production gets its own key before the first credential is written, and rotation goes through the rotation action.
 
 Seed script (`convex/seed.ts`, internal mutation) creates default roles, permission sets, an owner invite, Nigerian
 public holidays for the current and next year, default SLA policies, document templates, and sample data in
