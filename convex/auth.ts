@@ -15,6 +15,7 @@ import {
   expireIdleTeamSessions,
   magicLinkTwoFactor,
   type PrincipalKind,
+  recordSecondFactorChecks,
   secondFactorRules,
   TRUST_DEVICE_MAX_AGE_SECONDS,
 } from './lib/authPlugins';
@@ -127,6 +128,9 @@ export const createAuthOptions = (ctx: GenericCtx<DataModel>) => {
       ),
       magicLinkTwoFactor(principalKind),
       secondFactorRules(principalKind),
+      recordSecondFactorChecks(async (input) => {
+        await runner(ctx).runMutation(internal.authFlows.recordSecondFactor, input);
+      }),
       convex({ authConfig, jwt: { expirationSeconds: JWT_EXPIRATION_SECONDS } }),
     ],
   } satisfies BetterAuthOptions;

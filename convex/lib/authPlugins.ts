@@ -207,6 +207,45 @@ export function expireIdleTeamSessions(
 }
 
 /**
+ * Records that a session proved its second factor again, which is what reopens the vault's 15-minute window
+ * (10-vault.md, Access).
+ *
+ * Better Auth's own `/two-factor/verify-totp` is the verifier. Given a live session it checks the code against the
+ * stored secret, counts failures towards the account lockout and returns without disturbing the session — exactly a
+ * re-verification. Recording it here, from Better Auth's result, is the whole point: a mutation the page called after
+ * verifying would be a mutation anyone could call instead of verifying, and the gate would mean nothing.
+ *
+ * A sign-in challenge runs through the same endpoint and is recorded too. It does not have to be told apart, and the
+ * attempt to is what went wrong first: `newSession` is set either way, so the guard meant to skip sign-ins skipped
+ * everything. Recording both is also the truer statement — this session proved a second factor at this time — and the
+ * vault takes the later of that and the session's start, so a row at sign-in changes no decision.
+ */
+export function recordSecondFactorChecks(
+  record: (input: { authUserId: string; sessionId: string }) => Promise<void>,
+): BetterAuthPlugin {
+  return {
+    id: 'unbuilt-record-second-factor',
+    hooks: {
+      after: [
+        {
+          matcher: (context) => context.path === '/two-factor/verify-totp',
+          handler: createAuthMiddleware(async (ctx) => {
+            // After hooks run for failures too, where what came back is the error rather than a result.
+            if (ctx.context.returned instanceof APIError) return;
+            // The session this request leaves the person on, which is not always the one it arrived with: verifying can
+            // rotate the session, and getSessionFromCtx answers from before the endpoint ran. Recording the older id
+            // would pin the proof to a session the browser has already stopped using, and the vault would never see it.
+            const established = ctx.context.newSession ?? (await getSessionFromCtx(ctx));
+            if (!established?.session) return;
+            await record({ authUserId: established.user.id, sessionId: established.session.id });
+          }),
+        },
+      ],
+    },
+  };
+}
+
+/**
  * Better Auth checks emailed codes against a twoFactor record, where it also counts failures and locks accounts. Client
  * users never enrol an authenticator, so they get a record whose secret is random and never revealed.
  */

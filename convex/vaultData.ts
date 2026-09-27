@@ -320,7 +320,7 @@ export const sendRotationReminders = internalMutation({
         body: onTheDay
           ? `${item.label} was due to be changed on ${item.rotateByDate}. Change it where the credential lives, then update the vault.`
           : `${item.label} is due to be changed on ${item.rotateByDate}.`,
-        link: `/clients/${item.clientId}/vault`,
+        link: `/crm/clients/${item.clientId}/vault`,
       });
       await ctx.db.patch('vaultItems', item._id, { rotationRemindedOn: milestone });
       sent++;
