@@ -16,6 +16,9 @@ export const FAILURES_BEFORE_INCIDENT = 2;
 /** History is kept for 90 days (09-support-and-sla.md); the month's figure is stored on the SLA report for good. */
 export const CHECK_RETENTION_MS = 90 * 24 * 60 * 60 * 1000;
 
+/** The period an uptime figure covers on screen. The month's figure is stored on the SLA report for good. */
+export const UPTIME_WINDOW_MS = 30 * 24 * 60 * 60 * 1000;
+
 const DEFAULT_INTERVAL_MINUTES = 5;
 const DEFAULT_TIMEOUT_MS = 10_000;
 
@@ -50,9 +53,12 @@ async function getMonitor(ctx: QueryCtx | MutationCtx, monitorId: Id<'monitors'>
 
 /** Only somewhere a request can actually be sent, and never inside the studio's own network. */
 function checkedUrl(raw: string): string {
+  const typed = raw.trim();
   let url: URL;
   try {
-    url = new URL(raw.trim());
+    // Somebody typing glossup.com means https://glossup.com; making them type the scheme buys nothing. An explicit
+    // http:// is left alone, because that is a real choice about what is being watched.
+    url = new URL(/^[a-z][a-z0-9+.-]*:\/\//i.test(typed) ? typed : `https://${typed}`);
   } catch {
     throw monitorError('monitors.invalid', 'That is not a URL Unbuilt can check');
   }
@@ -112,9 +118,23 @@ export const get = teamQuery('monitors.manage')({
       .withIndex('by_monitor_started', (q) => q.eq('monitorId', monitorId))
       .order('desc')
       .take(20);
+
+    // Uptime over the last 30 days: passing checks against the checks that were actually made
+    // (09-support-and-sla.md). Paused time is absent because no check is recorded while paused, so it cannot count
+    // against the figure.
+    const since = Date.now() - UPTIME_WINDOW_MS;
+    const window = await ctx.db
+      .query('monitorChecks')
+      .withIndex('by_monitor_time', (q) => q.eq('monitorId', monitorId).gte('checkedAt', since))
+      .collect();
+    const passed = window.filter((check) => check.ok).length;
+
     return {
       ...view(monitor),
       clientName: (await ctx.db.get('clients', monitor.clientId))?.displayName ?? 'Unknown client',
+      // Absent rather than 100% when nothing has been checked yet: no checks is not a perfect record.
+      uptimeBps: window.length === 0 ? undefined : Math.round((passed / window.length) * 10_000),
+      checksInWindow: window.length,
       checks: checks.map((check) => ({
         id: check._id,
         checkedAt: check.checkedAt,
@@ -174,6 +194,74 @@ export const create = teamMutation('monitors.manage')({
       pausedAt: Date.now(),
       pausedMinutes: 0,
     });
+  },
+});
+
+/**
+ * Changing what is watched and how often. Everything but the client can move: a monitor's incidents and the tickets
+ * they raised belong to the client it was made for, so handing it to another one would falsify both — that is a new
+ * monitor, and the old one should be removed.
+ *
+ * A changed address keeps the history it already has. The figure then covers both, which is why the change is written
+ * to the client's timeline: somebody reading an odd month can see what happened.
+ */
+export const update = teamMutation('monitors.manage')({
+  args: {
+    monitorId: v.id('monitors'),
+    projectId: v.optional(v.id('projects')),
+    name: v.string(),
+    url: v.string(),
+    method: v.union(v.literal('GET'), v.literal('HEAD')),
+    expectedStatus: v.number(),
+    intervalMinutes: v.number(),
+    timeoutMs: v.number(),
+    production: v.boolean(),
+  },
+  handler: async (ctx, { monitorId, ...args }) => {
+    const monitor = await getMonitor(ctx, monitorId);
+    if (args.projectId) {
+      const project = await ctx.db.get('projects', args.projectId);
+      if (!project || project.clientId !== monitor.clientId) {
+        throw monitorError('monitors.invalid', "That project does not belong to this monitor's client");
+      }
+    }
+    if (args.intervalMinutes < 1 || args.intervalMinutes > 1440) {
+      throw monitorError('monitors.invalid', 'Check between once a minute and once a day');
+    }
+    if (args.timeoutMs < 1000 || args.timeoutMs > 60_000) {
+      throw monitorError('monitors.invalid', 'Give it between one and sixty seconds to answer');
+    }
+    const url = checkedUrl(args.url);
+    // A path or a scheme can change and still be the same site, so the history stays meaningful. A different host is
+    // a different thing being watched: keeping the old checks would make the uptime figure a blend of two sites, and
+    // that figure is stored on a client's SLA report for good.
+    if (new URL(url).hostname !== new URL(monitor.url).hostname) {
+      throw monitorError(
+        'monitors.differentSite',
+        `That is a different site. Watch ${new URL(url).hostname} with its own monitor, so the uptime figures stay about one site each.`,
+      );
+    }
+
+    await ctx.db.patch('monitors', monitorId, {
+      projectId: args.projectId,
+      name: text(args.name, 'Name', { required: true, max: 120 })!,
+      url,
+      method: args.method,
+      expectedStatus: args.expectedStatus,
+      intervalMinutes: args.intervalMinutes,
+      timeoutMs: args.timeoutMs,
+      production: args.production,
+    });
+
+    if (url !== monitor.url) {
+      await recordActivity(ctx, {
+        subject: { table: 'clients', id: monitor.clientId },
+        clientId: monitor.clientId,
+        type: 'system',
+        title: `Monitor ${monitor.name} now watches ${url}, was ${monitor.url}`,
+        actor: { kind: 'team', id: ctx.principal.member._id },
+      });
+    }
   },
 });
 

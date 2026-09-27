@@ -14,9 +14,7 @@ const APP_DIR = join(ROOT, 'app');
  * Paths that have no page yet, with the step that brings them. Anything else must resolve today, so this list is the
  * whole of what is knowingly ahead of the screens.
  */
-const NOT_BUILT_YET: Record<string, string> = {
-  '/support/monitors/:param': 'Monitor screens, step 12',
-};
+const NOT_BUILT_YET: Record<string, string> = {};
 
 function filesIn(dir: string, keep: (name: string) => boolean): string[] {
   return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
