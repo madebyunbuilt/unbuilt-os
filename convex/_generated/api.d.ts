@@ -9,6 +9,7 @@
  */
 
 import type * as activities from "../activities.js";
+import type * as assets from "../assets.js";
 import type * as auth from "../auth.js";
 import type * as authFlows from "../authFlows.js";
 import type * as billingChase from "../billingChase.js";
@@ -39,6 +40,7 @@ import type * as inboundEmail from "../inboundEmail.js";
 import type * as invoiceSending from "../invoiceSending.js";
 import type * as invoices from "../invoices.js";
 import type * as lateFees from "../lateFees.js";
+import type * as lib_assets from "../lib/assets.js";
 import type * as lib_audit from "../lib/audit.js";
 import type * as lib_authEmails from "../lib/authEmails.js";
 import type * as lib_authPlugins from "../lib/authPlugins.js";
@@ -139,6 +141,7 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   activities: typeof activities;
+  assets: typeof assets;
   auth: typeof auth;
   authFlows: typeof authFlows;
   billingChase: typeof billingChase;
@@ -169,6 +172,7 @@ declare const fullApi: ApiFromModules<{
   invoiceSending: typeof invoiceSending;
   invoices: typeof invoices;
   lateFees: typeof lateFees;
+  "lib/assets": typeof lib_assets;
   "lib/audit": typeof lib_audit;
   "lib/authEmails": typeof lib_authEmails;
   "lib/authPlugins": typeof lib_authPlugins;

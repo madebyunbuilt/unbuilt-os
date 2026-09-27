@@ -60,4 +60,10 @@ crons.interval('uptime checks', { minutes: 1 }, internal.monitors.runDue, {});
 // 03:30 Lagos: forget check history past the 90 days 09-support-and-sla.md keeps it for.
 crons.daily('forget old uptime checks', { hourUTC: 2, minuteUTC: 30 }, internal.monitors.forgetOldChecks, {});
 
+// 08:15 Lagos: renewal reminders at 60, 30, 14 and 7 days, and the invoice autoInvoice drafts from 30 days out.
+crons.daily('renewal reminders', { hourUTC: 7, minuteUTC: 15 }, internal.assets.remindRenewals, {});
+
+// 09:15 Lagos: anything past its renewal date that nobody has said is renewed. A lapsed domain gets worse each day.
+crons.daily('overdue renewals', { hourUTC: 8, minuteUTC: 15 }, internal.assets.alertOverdue, {});
+
 export default crons;

@@ -1486,6 +1486,47 @@ export default defineSchema({
     .index('by_assignee', ['assigneeMemberId'])
     .index('by_status', ['status']),
 
+  // Things the studio keeps alive for a client: domains, hosting, certificates, developer accounts, subscriptions
+  // (09-support-and-sla.md, Managed assets and renewals). What it costs the studio and what the client pays are kept
+  // apart, because they are different numbers in different currencies more often than not.
+  managedAssets: defineTable({
+    clientId: v.id('clients'),
+    projectId: v.optional(v.id('projects')),
+    type: v.union(
+      v.literal('domain'),
+      v.literal('hosting'),
+      v.literal('ssl'),
+      v.literal('app_store_account'),
+      v.literal('subscription'),
+      v.literal('other'),
+    ),
+    name: v.string(),
+    provider: v.string(),
+    // YYYY-MM-DD in the studio's timezone.
+    renewsOnDate: v.string(),
+    costMinor: v.number(),
+    costCurrency: currency,
+    // What the client is charged. Absent where the studio does not bill it on.
+    billPriceMinor: v.optional(v.number()),
+    billCurrency: v.optional(currency),
+    autoInvoice: v.boolean(),
+    // Which thresholds have already been sent for the current renewal date, so each fires once and no more. Cleared
+    // when the asset is renewed onto its next date.
+    remindersSent: v.array(v.number()),
+    // Set when autoInvoice has drafted this renewal's invoice, so it is drafted once.
+    renewalInvoiceId: v.optional(v.id('invoices')),
+    // Told the studio daily once the date has passed and nobody has said it was renewed.
+    overdueAlertedOn: v.optional(v.string()),
+    status: v.union(v.literal('active'), v.literal('cancelled'), v.literal('transferred')),
+    notes: v.optional(v.string()),
+    // Whoever put it on the studio's books. A renewal invoice raised by the cron is attributed to them, as a
+    // scheduled invoice and a late fee already are: an invoice nobody raised has nobody to ask about it.
+    createdByMemberId: v.id('teamMembers'),
+  })
+    .index('by_client', ['clientId'])
+    .index('by_status_renews', ['status', 'renewsOnDate'])
+    .index('by_project', ['projectId']),
+
   // Uptime monitoring (09-support-and-sla.md, Uptime monitoring). A monitor is a promise the studio makes to itself:
   // that somebody will know a site is down before the client rings to say so.
   monitors: defineTable({
