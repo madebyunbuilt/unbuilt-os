@@ -353,10 +353,18 @@ Indexes: `by_client_status`, `by_assignee_status`, `by_status_resolutionDue`.
 
 **vaultItems**
 `clientId` `projectId?` `label` `kind` (login, api_key, ssh_key, env_file, note) `url?` `usernameCiphertext?`
-`secretCiphertext` `notesCiphertext?` `iv` `keyVersion` `submittedByKind` `submittedById` `lastRevealedAt?`
-`rotateByDate?`. Plaintext never stored.
+`secretCiphertext` `notesCiphertext?` `iv` (one per sealed field, joined positionally) `keyVersion` `submittedByKind`
+`submittedById` `status` (active, handed_over, archived) `archivedAt?` `lastRevealedAt?` `rotateByDate?`
+`rotationRemindedOn?` `lastRotatedAt?` `lastRotatedByMemberId?`. Plaintext never stored.
 
-**vaultAccessLogs** — `vaultItemId` `memberId` `action` (reveal, copy, update, delete) `at` `ip` `userAgent`.
+**vaultAccessLogs** — `vaultItemId` `clientId` `memberId?` `action` (reveal, copy, refused) `reason?` `ipAddress?`
+`at`. Append-only: kept when the item it describes is deleted.
+
+The two logs a vault item appears in answer different questions, and an action belongs to exactly one of them. This log
+answers _who has seen this credential_, so it holds reveals, copies and **refused attempts** — an attempt is the part
+worth reading later, and the acceptance criteria require it. Editing, archiving and deleting an item are changes to a
+record, so they go to the `auditLog` like every other change, with the ciphertext and IV redacted. Duplicating them
+here would leave two half-histories instead of one of each.
 
 ## CMS
 

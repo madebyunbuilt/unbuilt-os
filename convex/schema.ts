@@ -1512,6 +1512,9 @@ export default defineSchema({
     // YYYY-MM-DD: the studio's own reminder to change this before it goes stale.
     rotateByDate: v.optional(v.string()),
     rotationRemindedOn: v.optional(v.string()),
+    // Who last changed the secret, and when. The old value is gone; this is what remains of the rotation.
+    lastRotatedAt: v.optional(v.number()),
+    lastRotatedByMemberId: v.optional(v.id('teamMembers')),
     lastRevealedAt: v.optional(v.number()),
     status: v.union(v.literal('active'), v.literal('handed_over'), v.literal('archived')),
     archivedAt: v.optional(v.number()),

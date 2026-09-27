@@ -249,6 +249,136 @@ describe('what a client may do', () => {
   });
 });
 
+describe('editing an item', () => {
+  it('changes what a list shows, without touching the secret', async () => {
+    const itemId = await addItem();
+    await pm.as.mutation(api.vaultData.update, { itemId, label: 'Hosting login (Vercel)', url: 'https://vercel.com' });
+    const one = await pm.as.query(api.vaultData.get, { itemId });
+    expect(one).toMatchObject({ label: 'Hosting login (Vercel)', url: 'https://vercel.com' });
+    // The secret is untouched by a metadata edit, which is the only way to know the edit went nowhere near it.
+    expect((await pm.as.action(api.vault.reveal, { itemId })).secret).toBe(SECRET);
+  });
+
+  it('refuses to move an item to another client’s project', async () => {
+    const itemId = await addItem();
+    const other = await createClientUser(t, roles.client_admin, { clientName: 'Bello', email: 'b@bello.com' });
+    const theirProject = await pm.as.mutation(api.projects.create, {
+      clientId: other.clientId,
+      name: 'Bello site',
+      type: 'web_platform',
+      billingModel: 'fixed',
+      currency: 'NGN',
+      startDate: '2026-09-01',
+    });
+    await expectCode(pm.as.mutation(api.vaultData.update, { itemId, projectId: theirProject }), 'vault.invalid');
+  });
+
+  it('will not let somebody edit an item they could not reveal', async () => {
+    const itemId = await addItem();
+    // A role with vault.manage still only reaches the items its view permission reaches.
+    const manager = await createTeamMember(t, roles.project_manager, { email: 'other@unbuilt.studio', name: 'Other' });
+    await t.run(async (ctx) => {
+      const item = (await ctx.db.query('vaultItems').collect())[0];
+      await ctx.db.patch('vaultItems', item._id, { projectId: undefined });
+    });
+    await expectCode(manager.as.mutation(api.vaultData.update, { itemId, label: 'Renamed' }), 'vault.notFound');
+  });
+
+  it('replaces the secret on a rotation and records who did it', async () => {
+    const itemId = await addItem({ rotateByDate: '2026-11-01' });
+    await pm.as.action(api.vault.updateSecret, {
+      itemId,
+      secret: 'a-brand-new-secret',
+      username: 'ops@unbuilt.studio',
+    });
+
+    const revealed = await pm.as.action(api.vault.reveal, { itemId });
+    expect(revealed.secret).toBe('a-brand-new-secret');
+    expect(revealed.username).toBe('ops@unbuilt.studio');
+    const stored = await t.run((ctx) => ctx.db.get('vaultItems', itemId));
+    expect(stored).toMatchObject({ lastRotatedByMemberId: pm.memberId, lastRotatedAt: Date.now() });
+    // The old ciphertext is gone, and the rotation date it satisfied is cleared rather than left to fire again.
+    expect(JSON.stringify(stored)).not.toContain(SECRET);
+    expect(stored).not.toHaveProperty('rotateByDate');
+  });
+});
+
+describe('handover, archiving and deleting', () => {
+  it('takes an archived item out of the list and lets it back in', async () => {
+    const itemId = await addItem();
+    await pm.as.mutation(api.vaultData.setStatus, { itemId, status: 'archived' });
+    expect(await pm.as.query(api.vaultData.list, { clientId })).toHaveLength(0);
+    expect((await t.run((ctx) => ctx.db.get('vaultItems', itemId)))!.archivedAt).toBe(Date.now());
+
+    await pm.as.mutation(api.vaultData.setStatus, { itemId, status: 'active' });
+    expect(await pm.as.query(api.vaultData.list, { clientId })).toHaveLength(1);
+  });
+
+  it('refuses to edit an archived item until it is restored', async () => {
+    const itemId = await addItem();
+    await pm.as.mutation(api.vaultData.setStatus, { itemId, status: 'archived' });
+    await expectCode(pm.as.mutation(api.vaultData.update, { itemId, label: 'Renamed' }), 'vault.archived');
+    await expectCode(pm.as.action(api.vault.updateSecret, { itemId, secret: 'new' }), 'vault.archived');
+  });
+
+  it('marks an item handed over without destroying it', async () => {
+    const itemId = await addItem();
+    await pm.as.mutation(api.vaultData.setStatus, { itemId, status: 'handed_over' });
+    expect((await pm.as.query(api.vaultData.get, { itemId }))!.status).toBe('handed_over');
+    // Handed over is a statement about who holds it now, not an instruction to forget it.
+    expect((await pm.as.action(api.vault.reveal, { itemId })).secret).toBe(SECRET);
+  });
+
+  it('keeps the access log when the item is deleted', async () => {
+    const itemId = await addItem();
+    await pm.as.action(api.vault.reveal, { itemId });
+    await pm.as.mutation(api.vaultData.remove, { itemId });
+
+    expect(await t.run((ctx) => ctx.db.get('vaultItems', itemId))).toBeNull();
+    // The record of who saw this credential outlives the credential.
+    const kept = await logs();
+    expect(kept).toHaveLength(1);
+    expect(kept[0]).toMatchObject({ action: 'reveal', vaultItemId: itemId });
+  });
+});
+
+describe('when somebody comes off a project', () => {
+  it('asks the manager to rotate what that person had revealed', async () => {
+    const itemId = await addItem({ label: 'Hosting login' });
+    await pm.as.mutation(api.projects.addProjectMember, { projectId, memberId: member.memberId });
+    await pm.as.action(api.vault.reveal, { itemId });
+    await member.as.action(api.vault.reveal, { itemId });
+
+    await pm.as.mutation(api.projects.removeProjectMember, { projectId, memberId: member.memberId });
+    const notifications = await t.run((ctx) =>
+      ctx.db
+        .query('notifications')
+        .filter((q) => q.eq(q.field('event'), 'vault.rotation.afterLeaving'))
+        .collect(),
+    );
+    expect(notifications).toHaveLength(1);
+    expect(notifications[0]).toMatchObject({ recipientId: pm.memberId });
+    expect(notifications[0].title).toBe('Rotate 1 credential on Glossup app');
+    expect(notifications[0].body).toContain('Hosting login');
+    // Never the value itself, in the one place a secret would be easiest to leak by accident.
+    expect(JSON.stringify(notifications)).not.toContain(SECRET);
+  });
+
+  it('says nothing when they never revealed anything', async () => {
+    await addItem();
+    await pm.as.mutation(api.projects.addProjectMember, { projectId, memberId: member.memberId });
+    await pm.as.mutation(api.projects.removeProjectMember, { projectId, memberId: member.memberId });
+    const notifications = await t.run((ctx) =>
+      ctx.db
+        .query('notifications')
+        .filter((q) => q.eq(q.field('event'), 'vault.rotation.afterLeaving'))
+        .collect(),
+    );
+    // A prompt for credentials nobody looked at is how a prompt starts being ignored.
+    expect(notifications).toHaveLength(0);
+  });
+});
+
 describe('the audit log', () => {
   const auditReads = async () =>
     (await t.run((ctx) => ctx.db.query('auditLog').collect())).filter((row) => row.table === 'vaultItems');
