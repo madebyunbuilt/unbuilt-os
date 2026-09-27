@@ -82,6 +82,7 @@ export function itemView(item: Doc<'vaultItems'>) {
     hasNotes: item.notesCiphertext !== undefined,
     submittedByKind: item.submittedByKind,
     rotateByDate: item.rotateByDate,
+    lastRotatedAt: item.lastRotatedAt,
     lastRevealedAt: item.lastRevealedAt,
     status: item.status,
     keyVersion: item.keyVersion,

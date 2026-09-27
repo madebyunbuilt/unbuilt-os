@@ -100,7 +100,7 @@ export const TEAM_NAVIGATION: readonly NavSection[] = [
       { label: 'SLA reports', href: '/support/reports', icon: 'chart', anyOf: ['sla.manage'], built: true },
       { label: 'Monitors', href: '/support/monitors', icon: 'activity', anyOf: ['monitors.manage'], built: true },
       { label: 'Renewals', href: '/support/assets', icon: 'clock', anyOf: ['assets.manage'], built: true },
-      { label: 'Vault', href: '/vault', icon: 'key', anyOf: ['vault.view.all', 'vault.view.assigned'], built: false },
+      { label: 'Vault', href: '/vault', icon: 'key', anyOf: ['vault.view.all', 'vault.view.assigned'], built: true },
     ],
   },
   {
@@ -146,6 +146,7 @@ export const PORTAL_NAVIGATION: readonly NavSection[] = [
       { label: 'Support', href: '/tickets', icon: 'lifebuoy', anyOf: ['portal.tickets.view'], built: true },
       { label: 'Reports', href: '/reports', icon: 'chart', anyOf: ['portal.reports.view'], built: true },
       { label: 'Colleagues', href: '/colleagues', icon: 'users', anyOf: ['portal.colleagues.manage'], built: true },
+      { label: 'Credentials', href: '/vault', icon: 'key', anyOf: ['portal.vault.submit'], built: true },
     ],
   },
 ];

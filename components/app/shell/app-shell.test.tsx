@@ -50,10 +50,17 @@ describe('AppShell', () => {
 
     expect(within(nav).getByRole('link', { name: 'Tickets' })).toHaveAttribute('href', '/support/tickets');
 
-    const vault = within(nav).getByText('Vault').closest('[aria-disabled]');
-    expect(vault).toHaveAttribute('aria-disabled', 'true');
-    expect(vault).toHaveTextContent('Not built yet');
-    expect(within(nav).queryByRole('link', { name: /Vault/ })).not.toBeInTheDocument();
+    expect(within(nav).getByRole('link', { name: 'Vault' })).toHaveAttribute('href', '/vault');
+  });
+
+  it('marks a module with no screens yet, and does not let it be followed', () => {
+    // Needs a role that can see one: everything a member can reach is built now, so this asks as an admin.
+    renderShell(permissionsOf('admin'));
+    const nav = screen.getAllByRole('navigation', { name: 'Main' })[0];
+    const website = within(nav).getByText('Website').closest('[aria-disabled]');
+    expect(website).toHaveAttribute('aria-disabled', 'true');
+    expect(website).toHaveTextContent('Not built yet');
+    expect(within(nav).queryByRole('link', { name: /Website/ })).not.toBeInTheDocument();
   });
 
   it('uses portal navigation on the portal', () => {

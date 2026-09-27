@@ -94,13 +94,15 @@ describe('the tab flags', () => {
     const client = new Map(CLIENT_TABS.map((tab) => [tab.segment, tab]));
     expect(client.get('tickets')?.built).toBe(true);
     expect(client.get('assets')?.built).toBe(true);
-    expect(new Map(PROJECT_TABS.map((tab) => [tab.segment, tab])).get('tickets')?.built).toBe(true);
+    expect(client.get('vault')?.built).toBe(true);
+    const projectTabs = new Map(PROJECT_TABS.map((tab) => [tab.segment, tab]));
+    expect(projectTabs.get('tickets')?.built).toBe(true);
+    expect(projectTabs.get('vault')?.built).toBe(true);
   });
 
   it('still says so about the ones that genuinely are not built', () => {
-    // Vault is step 13; Files, Updates and Handover have no page. Marking them built would be the worse lie.
+    // Files, Updates and Handover have no page. Marking them built would be the worse lie.
     const client = new Map(CLIENT_TABS.map((tab) => [tab.segment, tab]));
-    expect(client.get('vault')?.built).toBe(false);
     expect(client.get('files')?.built).toBe(false);
     const project = new Map(PROJECT_TABS.map((tab) => [tab.segment, tab]));
     expect(project.get('updates')?.built).toBe(false);
