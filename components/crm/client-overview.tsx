@@ -12,7 +12,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { api } from '@/convex/_generated/api';
 import { type Id } from '@/convex/_generated/dataModel';
 import { type Currency, formatMoney } from '@/convex/lib/money';
-import { CLIENT_STATUSES, type ClientStatus, clientStatus } from '@/lib/crm-display';
+import { CLIENT_STATUSES, asTyped, clientStatus, countryName, type ClientStatus } from '@/lib/crm-display';
 
 function Figure({ label, value, note }: { label: string; value?: string; note?: string }) {
   return (
@@ -27,17 +27,35 @@ function Figure({ label, value, note }: { label: string; value?: string; note?: 
   );
 }
 
-function openDealTotals(deals: { valueMinor: number; currency: Currency }[]) {
+/**
+ * Money added up per currency and shown side by side, never converted into one figure. A client billed in dollars
+ * and naira has two numbers; turning them into one would mean inventing an exchange rate and presenting the guess as
+ * a total.
+ */
+function totalsByCurrency(rows: { amountMinor: number; currency: Currency }[]) {
   const totals = new Map<Currency, number>();
-  for (const deal of deals) totals.set(deal.currency, (totals.get(deal.currency) ?? 0) + deal.valueMinor);
+  for (const row of rows) {
+    if (row.amountMinor === 0) continue;
+    totals.set(row.currency, (totals.get(row.currency) ?? 0) + row.amountMinor);
+  }
   return [...totals].map(([currency, total]) => formatMoney(total, currency)).join(' + ');
 }
+
+/** Everything that was actually billed: a draft was never sent, and a void or written-off invoice is not revenue. */
+const BILLED_STATUSES = new Set(['sent', 'viewed', 'partially_paid', 'paid', 'overdue']);
 
 export function ClientOverview({ clientId, permissions }: { clientId: Id<'clients'>; permissions: string[] }) {
   const client = useQuery(api.clients.get, { clientId });
   const contacts = useQuery(api.contacts.listForClient, { clientId });
   const canViewDeals = permissions.includes('deals.view');
   const deals = useQuery(api.deals.list, canViewDeals ? { clientId, status: 'open' } : 'skip');
+  // Each figure asks only what the viewer may see, so a role without invoices never sends the query at all.
+  const canViewInvoices = permissions.includes('invoices.view');
+  const invoices = useQuery(api.invoices.list, canViewInvoices ? { clientId, status: 'all' } : 'skip');
+  const canViewProjects = permissions.includes('projects.view.all') || permissions.includes('projects.view.assigned');
+  const projects = useQuery(api.projects.list, canViewProjects ? { clientId, status: 'open' } : 'skip');
+  const canViewTickets = permissions.includes('tickets.view.all') || permissions.includes('tickets.view.assigned');
+  const tickets = useQuery(api.tickets.forClient, canViewTickets ? { clientId } : 'skip');
 
   if (client === undefined) return <p className="text-muted-foreground">Loading…</p>;
   const primary = contacts?.find((contact) => contact.isPrimary);
@@ -53,13 +71,58 @@ export function ClientOverview({ clientId, permissions }: { clientId: Id<'client
             {canViewDeals && (
               <Figure
                 label={deals && deals.length > 0 ? `Open deals (${deals.length})` : 'Open deals'}
-                value={deals === undefined ? '…' : deals.length === 0 ? 'None' : openDealTotals(deals)}
+                value={
+                  deals === undefined
+                    ? '…'
+                    : deals.length === 0
+                      ? 'None'
+                      : totalsByCurrency(
+                          deals.map((deal) => ({ amountMinor: deal.valueMinor, currency: deal.currency })),
+                        )
+                }
               />
             )}
-            <Figure label="Lifetime billed" note="Arrives with billing" />
-            <Figure label="Outstanding balance" note="Arrives with billing" />
-            <Figure label="Active projects" note="Arrives with projects" />
-            <Figure label="Open tickets" note="Arrives with support" />
+            <Figure
+              label="Lifetime billed"
+              value={
+                canViewInvoices
+                  ? invoices === undefined
+                    ? '…'
+                    : totalsByCurrency(
+                        invoices
+                          .filter((invoice) => BILLED_STATUSES.has(invoice.status))
+                          .map((invoice) => ({ amountMinor: invoice.totals.totalMinor, currency: invoice.currency })),
+                      ) || 'Nothing yet'
+                  : undefined
+              }
+              note={canViewInvoices ? undefined : 'Invoices are not yours to see'}
+            />
+            <Figure
+              label="Outstanding balance"
+              value={
+                canViewInvoices
+                  ? invoices === undefined
+                    ? '…'
+                    : totalsByCurrency(
+                        invoices.map((invoice) => ({
+                          amountMinor: invoice.balanceMinor,
+                          currency: invoice.currency,
+                        })),
+                      ) || 'Nothing owed'
+                  : undefined
+              }
+              note={canViewInvoices ? undefined : 'Invoices are not yours to see'}
+            />
+            <Figure
+              label="Active projects"
+              value={canViewProjects ? (projects === undefined ? '…' : String(projects.length)) : undefined}
+              note={canViewProjects ? undefined : 'Projects are not yours to see'}
+            />
+            <Figure
+              label="Open tickets"
+              value={canViewTickets ? (tickets === undefined ? '…' : String(tickets.length)) : undefined}
+              note={canViewTickets ? undefined : 'Tickets are not yours to see'}
+            />
           </div>
         </section>
 
@@ -86,9 +149,21 @@ export function ClientOverview({ clientId, permissions }: { clientId: Id<'client
           <h2 id="about-heading" className="font-display text-lg font-bold">
             About
           </h2>
-          <dl className="grid grid-cols-[7rem_1fr] gap-x-3 gap-y-2 text-sm">
+          <dl className="grid grid-cols-[7rem_minmax(0,1fr)] gap-x-3 gap-y-2 text-sm">
             <dt className="text-muted-foreground">Primary contact</dt>
-            <dd>{primary ? `${primary.name} (${primary.email})` : 'None yet'}</dd>
+            <dd className="min-w-0">
+              {primary ? (
+                <>
+                  <span className="block">{primary.name}</span>
+                  {/* On its own line and breakable: an address is long, unbreakable, and was pushing out of the card. */}
+                  <a href={`mailto:${primary.email}`} className="block break-all text-muted-foreground underline">
+                    {primary.email}
+                  </a>
+                </>
+              ) : (
+                'None yet'
+              )}
+            </dd>
             <dt className="text-muted-foreground">Website</dt>
             <dd className="break-all">
               {client.website ? (
@@ -100,11 +175,11 @@ export function ClientOverview({ clientId, permissions }: { clientId: Id<'client
               )}
             </dd>
             <dt className="text-muted-foreground">Country</dt>
-            <dd>{client.country ?? '—'}</dd>
+            <dd className="min-w-0 break-words">{countryName(client.country) ?? '—'}</dd>
             <dt className="text-muted-foreground">Source</dt>
-            <dd>{client.source ?? '—'}</dd>
+            <dd className="min-w-0 break-words">{asTyped(client.source) ?? '—'}</dd>
             <dt className="text-muted-foreground">Tags</dt>
-            <dd>{client.tags.join(', ') || '—'}</dd>
+            <dd className="min-w-0 break-words">{client.tags.join(', ') || '—'}</dd>
             <dt className="text-muted-foreground">Client since</dt>
             <dd>{new Intl.DateTimeFormat('en-GB', { dateStyle: 'medium' }).format(client.createdAt)}</dd>
           </dl>

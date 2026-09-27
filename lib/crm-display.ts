@@ -143,3 +143,30 @@ export function mentionSegments(body: string): ({ kind: 'text'; text: string } |
   if (last < body.length) segments.push({ kind: 'text', text: body.slice(last) });
   return segments;
 }
+
+/**
+ * A country's name from its two-letter code, which is what the studio types and what nobody wants to read. An
+ * unknown code is shown as it was typed rather than swallowed: better a person sees "ZZ" and fixes it than sees
+ * nothing and assumes the field is empty.
+ */
+export function countryName(code: string | undefined): string | undefined {
+  if (!code) return undefined;
+  try {
+    // `fallback: 'code'` hands back what was typed for a code it does not know, rather than "Unknown Region", which
+    // tells a person nothing and hides their typo.
+    const name = new Intl.DisplayNames(['en-GB'], { type: 'region', fallback: 'code' }).of(code.toUpperCase());
+    return name === 'Unknown Region' ? code.toUpperCase() : (name ?? code);
+  } catch {
+    return code;
+  }
+}
+
+/**
+ * Something somebody typed, shown with a capital letter. The field is free text, so the words stay exactly as they
+ * were written — only the first letter is lifted, because "referral" in a column of proper nouns reads as a mistake.
+ */
+export function asTyped(value: string | undefined): string | undefined {
+  if (!value) return undefined;
+  const trimmed = value.trim();
+  return trimmed.length === 0 ? undefined : trimmed[0].toUpperCase() + trimmed.slice(1);
+}

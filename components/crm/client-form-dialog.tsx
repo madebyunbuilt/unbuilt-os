@@ -5,6 +5,7 @@ import { useMutation, useQuery } from 'convex/react';
 import { type ReactNode, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { z } from 'zod';
+import { COUNTRIES, isCountryCode } from '@/lib/countries';
 import { FormField } from '@/components/settings/form-field';
 import { Button } from '@/components/ui/button';
 import {
@@ -29,10 +30,11 @@ export const clientSchema = z.object({
   kind: z.enum(['company', 'individual']),
   industry: z.string().trim().max(60),
   website: z.string().trim().max(200),
+  // Chosen from a list rather than typed: SP looks like Spain and is not a country, and nothing would have said so.
   country: z
     .string()
     .trim()
-    .refine((value) => value === '' || /^[A-Za-z]{2}$/.test(value), 'Use a two-letter code, such as NG'),
+    .refine((value) => value === '' || isCountryCode(value), 'Choose a country from the list'),
   ownerMemberId: z.string(),
   source: z.string().trim().max(60),
   tags: z.string(),
@@ -164,13 +166,17 @@ export function ClientFormDialog({
             <FormField id="client-website" label="Website (optional)" error={errors.website?.message}>
               {(field) => <Input {...field} {...form.register('website')} placeholder="glossup.com" />}
             </FormField>
-            <FormField
-              id="client-country"
-              label="Country (optional)"
-              help="Two letters, such as NG"
-              error={errors.country?.message}
-            >
-              {(field) => <Input {...field} {...form.register('country')} maxLength={2} className="uppercase" />}
+            <FormField id="client-country" label="Country (optional)" error={errors.country?.message}>
+              {(field) => (
+                <NativeSelect {...field} {...form.register('country')}>
+                  <option value="">Not said</option>
+                  {COUNTRIES.map((country) => (
+                    <option key={country.code} value={country.code}>
+                      {country.name}
+                    </option>
+                  ))}
+                </NativeSelect>
+              )}
             </FormField>
             <FormField
               id="client-source"
