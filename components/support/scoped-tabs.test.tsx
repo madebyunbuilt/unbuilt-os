@@ -101,11 +101,16 @@ describe('the tab flags', () => {
   });
 
   it('still says so about the ones that genuinely are not built', () => {
-    // Files, Updates and Handover have no page. Marking them built would be the worse lie.
-    const client = new Map(CLIENT_TABS.map((tab) => [tab.segment, tab]));
-    expect(client.get('files')?.built).toBe(false);
+    // Updates and Handover have no page. Marking them built would be the worse lie.
     const project = new Map(PROJECT_TABS.map((tab) => [tab.segment, tab]));
     expect(project.get('updates')?.built).toBe(false);
     expect(project.get('handover')?.built).toBe(false);
+  });
+
+  it('offers no Files tab, which the studio decided against', () => {
+    // 18-open-questions.md: files live on the record they belong to, and search in step 17 is how they are found. An
+    // inert tab would go on advertising a decision that was made the other way.
+    expect(CLIENT_TABS.map((tab) => tab.segment)).not.toContain('files');
+    expect(PROJECT_TABS.map((tab) => tab.segment)).not.toContain('files');
   });
 });

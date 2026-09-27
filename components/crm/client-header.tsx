@@ -30,7 +30,6 @@ export const CLIENT_TABS: Tab[] = [
   { label: 'Tickets', segment: 'tickets', built: true, anyOf: ['tickets.view.all', 'tickets.view.assigned'] },
   { label: 'Vault', segment: 'vault', built: true, anyOf: ['vault.view.all', 'vault.view.assigned'] },
   { label: 'Assets', segment: 'assets', built: true, anyOf: ['assets.manage'] },
-  { label: 'Files', segment: 'files', built: false },
   { label: 'Activity', segment: 'activity', built: true },
   { label: 'Settings', segment: 'settings', built: true },
 ];
