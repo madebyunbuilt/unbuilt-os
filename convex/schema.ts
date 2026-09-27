@@ -1486,6 +1486,63 @@ export default defineSchema({
     .index('by_assignee', ['assigneeMemberId'])
     .index('by_status', ['status']),
 
+  // The credentials vault (10-vault.md). Labels, kind, URL and project are plaintext so items can be listed and
+  // searched without decrypting anything; every secret is ciphertext with its own IV and the version of the key that
+  // sealed it. No query returns a secret — only the reveal action, which runs in Node and writes an access log.
+  vaultItems: defineTable({
+    clientId: v.id('clients'),
+    projectId: v.optional(v.id('projects')),
+    label: v.string(),
+    kind: v.union(
+      v.literal('login'),
+      v.literal('api_key'),
+      v.literal('ssh_key'),
+      v.literal('env_file'),
+      v.literal('note'),
+    ),
+    url: v.optional(v.string()),
+    usernameCiphertext: v.optional(v.string()),
+    secretCiphertext: v.string(),
+    notesCiphertext: v.optional(v.string()),
+    // One IV per write, covering every field sealed in that write.
+    iv: v.string(),
+    keyVersion: v.number(),
+    submittedByKind: v.union(v.literal('team'), v.literal('client'), v.literal('system')),
+    submittedById: v.string(),
+    // YYYY-MM-DD: the studio's own reminder to change this before it goes stale.
+    rotateByDate: v.optional(v.string()),
+    rotationRemindedOn: v.optional(v.string()),
+    lastRevealedAt: v.optional(v.number()),
+    status: v.union(v.literal('active'), v.literal('handed_over'), v.literal('archived')),
+    archivedAt: v.optional(v.number()),
+  })
+    .index('by_client', ['clientId'])
+    .index('by_project', ['projectId'])
+    .index('by_status_rotate', ['status', 'rotateByDate'])
+    .searchIndex('search_label', { searchField: 'label', filterFields: ['clientId'] }),
+
+  // Kept when the item is not: who saw what, and when. Deleting an item removes the ciphertext, never this.
+  vaultAccessLogs: defineTable({
+    vaultItemId: v.id('vaultItems'),
+    clientId: v.id('clients'),
+    memberId: v.optional(v.id('teamMembers')),
+    action: v.union(v.literal('reveal'), v.literal('copy'), v.literal('refused')),
+    // Why a refusal was refused, so an attempt reads as an attempt rather than as a gap.
+    reason: v.optional(v.string()),
+    at: v.number(),
+    ipAddress: v.optional(v.string()),
+  })
+    .index('by_item', ['vaultItemId'])
+    .index('by_member', ['memberId'])
+    .index('by_client', ['clientId']),
+
+  // A second factor entered again during a session, for something a signed-in session alone should not open.
+  twoFactorChecks: defineTable({
+    sessionId: v.string(),
+    memberId: v.id('teamMembers'),
+    verifiedAt: v.number(),
+  }).index('by_session', ['sessionId']),
+
   // Things the studio keeps alive for a client: domains, hosting, certificates, developer accounts, subscriptions
   // (09-support-and-sla.md, Managed assets and renewals). What it costs the studio and what the client pays are kept
   // apart, because they are different numbers in different currencies more often than not.
