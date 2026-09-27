@@ -260,6 +260,8 @@
   front of them. The 29th of February renews on the 28th rather than slipping into March.
 - **`autoInvoice` needs a price to invoice**: an asset the studio does not bill on cannot be set to invoice
   automatically, and the price and its currency are given together or not at all.
+- **The list answers one question**: what is about to lapse. Soonest first, and something already past its date is the
+  loudest thing on the page, because every day it stays lapsed is worse than the last.
 - **A renewal invoice is attributed to whoever added the asset**, as a scheduled invoice and a late fee already are.
   An invoice nobody raised has nobody to ask about it.
 
