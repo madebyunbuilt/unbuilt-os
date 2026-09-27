@@ -75,3 +75,21 @@ export const linkAuthUser = internalMutation({
     return null;
   },
 });
+
+/**
+ * Remembers that this session entered an authenticator code, which reopens the vault's window for a reveal. Called only
+ * from the Better Auth hook that sees the verification succeed, never from a page.
+ */
+export const recordSecondFactor = internalMutation({
+  args: { authUserId: v.string(), sessionId: v.string() },
+  handler: async (ctx, { authUserId, sessionId }): Promise<null> => {
+    const member = await ctx.db
+      .query('teamMembers')
+      .withIndex('by_authUser', (q) => q.eq('authUserId', authUserId))
+      .unique();
+    // Only team members have an authenticator, and only their sessions can reach the vault.
+    if (!member) return null;
+    await ctx.db.insert('twoFactorChecks', { sessionId, memberId: member._id, verifiedAt: Date.now() });
+    return null;
+  },
+});

@@ -17,7 +17,7 @@ const APP_DIR = join(ROOT, 'app');
 const NOT_BUILT_YET: Record<string, string> = {
   // The vault's screens are the last part of step 13; the reminders that link here landed with the backend.
   '/projects/:param/vault': 'step 13, vault screens',
-  '/clients/:param/vault': 'step 13, vault screens',
+  '/crm/clients/:param/vault': 'step 13, vault screens',
 };
 
 function filesIn(dir: string, keep: (name: string) => boolean): string[] {

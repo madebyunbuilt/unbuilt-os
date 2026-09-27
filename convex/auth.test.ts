@@ -252,6 +252,52 @@ describe('team sign-in: magic link then TOTP', () => {
     );
     expect(next.cookieNames().some((name) => name.endsWith('session_token'))).toBe(false);
   });
+
+  /**
+   * Entering a code while already signed in is what reopens the vault's 15-minute window (10-vault.md, Access). The row
+   * is written from Better Auth's own verification, so what is checked here is that nothing but an accepted code
+   * produces one, and that it lands against the session that entered it.
+   */
+  it('records a second factor whenever a real code is accepted, against that session', async () => {
+    const browser = new Browser(t);
+    await signInWithMagicLink(browser, email);
+    const enabled = await browser.request('/api/auth/two-factor/enable', { method: 'POST', body: {} });
+    const { totpURI } = (await enabled.json()) as { totpURI: string };
+    const secret = new TextDecoder().decode(base32.decode(new URL(totpURI).searchParams.get('secret')!));
+    const totp = () => createOTP(secret, { digits: 6 }).totp();
+    const checks = async () => await t.run((ctx) => ctx.db.query('twoFactorChecks').collect());
+    expect(await checks()).toHaveLength(0);
+
+    // Confirming enrolment verifies a code on the session that already existed, which is itself a re-verification.
+    expect(
+      (await browser.request('/api/auth/two-factor/verify-totp', { method: 'POST', body: { code: await totp() } }))
+        .status,
+    ).toBe(200);
+    expect(await checks()).toHaveLength(1);
+    // Against the session the request leaves the person on, not the one it arrived with: verifying can rotate the
+    // session, and a row pinned to the old id would be a row the vault never finds.
+    const { sessions } = await sessionsFor(t, email);
+    expect((await checks())[0]).toMatchObject({ sessionId: sessions.at(-1)!._id });
+
+    // A wrong code records nothing: the after hook sees the failure, not a result.
+    expect(
+      (await browser.request('/api/auth/two-factor/verify-totp', { method: 'POST', body: { code: '000000' } })).status,
+    ).toBe(401);
+    expect(await checks()).toHaveLength(1);
+
+    // A right one, later in the same session, records another against the session then in use.
+    expect(
+      (await browser.request('/api/auth/two-factor/verify-totp', { method: 'POST', body: { code: await totp() } }))
+        .status,
+    ).toBe(200);
+    expect(await checks()).toHaveLength(2);
+    expect((await checks()).at(-1)).toMatchObject({ sessionId: (await sessionsFor(t, email)).sessions.at(-1)!._id });
+
+    // A sign-in challenge runs through the same endpoint and is recorded too; it is not told apart, and does not need
+    // to be. Only three verifications fit in one test: Better Auth rate-limits the endpoint, and the clock is frozen.
+    const dayo = await t.run((ctx) => ctx.db.query('teamMembers').first());
+    expect((await checks()).every((check) => check.memberId === dayo!._id)).toBe(true);
+  });
 });
 
 describe('client sign-in: magic link then an emailed code on new devices', () => {
