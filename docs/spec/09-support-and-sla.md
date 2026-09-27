@@ -58,6 +58,13 @@
     and the notifications behave identically whichever door the client came through. One rule rather than two that
     could drift.
   - **Email says nothing about urgency**, so an emailed ticket starts at P3 and is raised by hand from there.
+  - **The studio's own mail never opens a ticket** (studio, 2026-09-27): anything from the sending domain in
+    `AUTH_EMAIL_FROM`, from a robot mailbox (`noreply`, `mailer-daemon`, `postmaster` and the like) on any domain, or
+    from one of the studio's own people. Two reasons, and the second is the serious one. A support address that
+    answers its own studio is a loop waiting to happen; and asking Unbuilt OS for a sign-in link at the support
+    address would deliver that link into a ticket, which anybody holding `tickets.view.all` could then use. A bounce
+    is a failure to tell somebody about, not a client with a problem. Refused mail is recorded on its webhook event
+    as `ignored`, with the reason, so a missing email can be traced rather than simply vanishing.
   - The quoted thread beneath a reply is trimmed, so a ticket shows what was written this time.
   - **A link keeps its address** (studio, 2026-09-25). Mail clients routinely send a plain-text part with the words
     but not the addresses, leaving "click here" pointing at nothing, so where the HTML holds a link the text has lost,

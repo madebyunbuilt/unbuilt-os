@@ -66,6 +66,13 @@ afterEach(() => {
 const arrive = async (email: Partial<Parameters<typeof deliverArgs>[0]> = {}) =>
   await t.mutation(internal.inboundEmail.deliver, { email: deliverArgs(email) });
 
+/** Arrives and is expected to become, or join, a ticket. */
+const arriveAsTicket = async (email: Partial<Parameters<typeof deliverArgs>[0]> = {}) => {
+  const result = await arrive(email);
+  expect(result.ticketId, `expected a ticket, was ignored: ${result.ignored ?? ''}`).not.toBeNull();
+  return { ...result, ticketId: result.ticketId! };
+};
+
 function deliverArgs(
   overrides: Partial<{ messageId: string; from: string; fromName: string; subject: string; body: string }>,
 ) {
@@ -125,7 +132,7 @@ describe('reading what arrived', () => {
 
 describe('an email from somebody the studio knows', () => {
   it('opens a ticket against their client, with what they promised', async () => {
-    const { ticketId } = await arrive();
+    const { ticketId } = await arriveAsTicket();
     const ticket = (await t.run((ctx) => ctx.db.get('tickets', ticketId)))!;
     expect(ticket).toMatchObject({
       clientId: ada.clientId,
@@ -142,12 +149,12 @@ describe('an email from somebody the studio knows', () => {
   });
 
   it('threads a reply onto the ticket its subject names', async () => {
-    const { ticketId } = await arrive();
+    const { ticketId } = await arriveAsTicket();
     const number = (await t.run((ctx) => ctx.db.get('tickets', ticketId)))!.number;
     await pm.as.mutation(api.tickets.reply, { ticketId, body: 'Which card?', visibility: 'public' });
     await pm.as.mutation(api.tickets.setStatus, { ticketId, status: 'pending_client' });
 
-    const result = await arrive({ subject: `Re: [${number}] Checkout is down`, body: 'A Visa card.' });
+    const result = await arriveAsTicket({ subject: `Re: [${number}] Checkout is down`, body: 'A Visa card.' });
     expect(result).toMatchObject({ ticketId, isNew: false });
     expect(await tickets()).toHaveLength(1);
     // Their answer starts the studio's clock again, exactly as a portal reply would.
@@ -157,19 +164,19 @@ describe('an email from somebody the studio knows', () => {
   });
 
   it('will not let a number in a subject line reach another client’s ticket', async () => {
-    const { ticketId } = await arrive();
+    const { ticketId } = await arriveAsTicket();
     const number = (await t.run((ctx) => ctx.db.get('tickets', ticketId)))!.number;
     // Somebody else quoting the number gets their own ticket, not a seat at this one.
-    const result = await arrive({ from: 'stranger@example.com', subject: `Re: [${number}] give me this` });
+    const result = await arriveAsTicket({ from: 'stranger@example.com', subject: `Re: [${number}] give me this` });
     expect(result.ticketId).not.toBe(ticketId);
     expect((await t.run((ctx) => ctx.db.get('tickets', result.ticketId)))!.needsTriage).toBe(true);
   });
 
   it('opens a new ticket when the old one was closed, rather than talking into a closed thread', async () => {
-    const { ticketId } = await arrive();
+    const { ticketId } = await arriveAsTicket();
     const number = (await t.run((ctx) => ctx.db.get('tickets', ticketId)))!.number;
     await pm.as.mutation(api.tickets.setStatus, { ticketId, status: 'closed' });
-    const result = await arrive({ subject: `Re: ${number} it is back`, body: 'It is back.' });
+    const result = await arriveAsTicket({ subject: `Re: ${number} it is back`, body: 'It is back.' });
     expect(result.isNew).toBe(true);
     expect((await t.run((ctx) => ctx.db.get('tickets', result.ticketId)))!.reopenedFromTicketId).toBe(ticketId);
   });
@@ -177,7 +184,7 @@ describe('an email from somebody the studio knows', () => {
 
 describe('an email from somebody the studio does not know', () => {
   it('still becomes a ticket, flagged for somebody to say who it is from', async () => {
-    const { ticketId } = await arrive({ from: 'nobody@example.com', subject: 'Are you taking work?' });
+    const { ticketId } = await arriveAsTicket({ from: 'nobody@example.com', subject: 'Are you taking work?' });
     const ticket = (await t.run((ctx) => ctx.db.get('tickets', ticketId)))!;
     expect(ticket).toMatchObject({ needsTriage: true, fromEmail: 'nobody@example.com', channel: 'email' });
     // No client at all: there is nobody to attach it to until somebody says who wrote in.
@@ -188,7 +195,7 @@ describe('an email from somebody the studio does not know', () => {
   });
 
   it('tells the people who work tickets that it needs somebody', async () => {
-    await arrive({ from: 'nobody@example.com' });
+    await arriveAsTicket({ from: 'nobody@example.com' });
     const told = (await t.run((ctx) => ctx.db.query('notifications').collect())).filter(
       (n) => n.event === 'ticket.triage',
     );
@@ -197,19 +204,23 @@ describe('an email from somebody the studio does not know', () => {
   });
 
   it('reaches no client at all while it waits', async () => {
-    await arrive({ from: 'nobody@example.com' });
+    await arriveAsTicket({ from: 'nobody@example.com' });
     expect(await ada.as.query(api.portalTickets.list, {})).toEqual([]);
   });
 
   it('lets them carry on the thread they started', async () => {
-    const { ticketId } = await arrive({ from: 'nobody@example.com' });
+    const { ticketId } = await arriveAsTicket({ from: 'nobody@example.com' });
     const number = (await t.run((ctx) => ctx.db.get('tickets', ticketId)))!.number;
-    const result = await arrive({ from: 'nobody@example.com', subject: `Re: ${number}`, body: 'Anybody there?' });
+    const result = await arriveAsTicket({
+      from: 'nobody@example.com',
+      subject: `Re: ${number}`,
+      body: 'Anybody there?',
+    });
     expect(result).toMatchObject({ ticketId, isNew: false });
   });
 
   it('is promised from when the email arrived once somebody says whose it is', async () => {
-    const { ticketId } = await arrive({ from: 'nobody@example.com' });
+    const { ticketId } = await arriveAsTicket({ from: 'nobody@example.com' });
     // Picked up two days later. The promise runs from the email, not from the moment somebody got round to it.
     await travelTo('2026-10-14T10:00:00');
     await pm.as.mutation(api.tickets.triage, { ticketId, clientId: ada.clientId, requesterContactId: ada.contactId });
@@ -226,7 +237,7 @@ describe('an email from somebody the studio does not know', () => {
 
   it('refuses a contact who belongs to somebody else, and a ticket that needs no triage', async () => {
     const other = await createClientUser(t, roles.client_admin, { clientName: 'Qravit', email: 'bola@qravit.com' });
-    const { ticketId } = await arrive({ from: 'nobody@example.com' });
+    const { ticketId } = await arriveAsTicket({ from: 'nobody@example.com' });
     await expectCode(
       pm.as.mutation(api.tickets.triage, {
         ticketId,
@@ -235,7 +246,7 @@ describe('an email from somebody the studio does not know', () => {
       }),
       'tickets.invalid',
     );
-    const known = await arrive();
+    const known = await arriveAsTicket();
     await expectCode(
       pm.as.mutation(api.tickets.triage, { ticketId: known.ticketId, clientId: ada.clientId }),
       'tickets.invalid',
@@ -246,7 +257,7 @@ describe('an email from somebody the studio does not know', () => {
 describe('an email whose body has to be fetched', () => {
   it('raises the ticket anyway when Resend will not give us the words', async () => {
     // Resend's webhook carries an id and no body; a fetch that fails must not swallow somebody's request for help.
-    const { ticketId } = await arrive({
+    const { ticketId } = await arriveAsTicket({
       body: '(Unbuilt could not read this email. Resend id abc-123.)',
       subject: 'Payments are failing',
     });
@@ -257,7 +268,7 @@ describe('an email whose body has to be fetched', () => {
   });
 
   it('reads an email from somebody unknown as theirs, never as the studio’s own words', async () => {
-    const { ticketId } = await arrive({ from: 'nobody@example.com' });
+    const { ticketId } = await arriveAsTicket({ from: 'nobody@example.com' });
     const ticket = (await pm.as.query(api.tickets.get, { ticketId }))!;
     // A system message would read as Unbuilt in the portal once the ticket is placed.
     expect(ticket.messages[0].authorKind).toBe('client');
@@ -335,5 +346,54 @@ describe('who is allowed to post mail in', () => {
     // An hour old: signed properly once, but too late to be replayed now.
     const stale = timestamp - 3600;
     expect((await post(headers(stale, await sign(stale)), body)).status).toBe(401);
+  });
+});
+
+describe('mail that must never become a ticket', () => {
+  /** The studio sends as notifications@unbuilt.studio, so unbuilt.studio is its own domain. */
+  beforeEach(() => {
+    vi.stubEnv('AUTH_EMAIL_FROM', 'Unbuilt OS <notifications@unbuilt.studio>');
+  });
+
+  it('refuses the studio’s own mail, which is how a sign-in link would land in a ticket', async () => {
+    const result = await arrive({
+      from: 'notifications@unbuilt.studio',
+      subject: 'Your Unbuilt OS sign-in link',
+      body: 'Use the button below to sign in.',
+    });
+    expect(result.ticketId).toBeNull();
+    expect(result.ignored).toBe("the studio's own domain");
+    expect(await tickets()).toHaveLength(0);
+  });
+
+  it('refuses a robot mailbox, so a bounce is not read as a client with a problem', async () => {
+    for (const from of ['noreply@example.com', 'MAILER-DAEMON@example.com', 'postmaster@example.com']) {
+      const result = await arrive({ from, subject: 'Delivery failed' });
+      expect(result.ignored, from).toBe('a robot mailbox');
+    }
+    expect(await tickets()).toHaveLength(0);
+  });
+
+  it('refuses one of the studio’s own people writing in', async () => {
+    const result = await arrive({ from: 'tobi@unbuilt.studio', subject: 'Can somebody look at this' });
+    // Caught by the domain first; the team-member rule is what covers a studio address on another domain.
+    expect(result.ticketId).toBeNull();
+  });
+
+  it('says where an ignored email went, rather than dropping it silently', async () => {
+    await t.mutation(internal.inboundEmail.recordEvent, { messageId: 'own-1', payload: '{}' });
+    await t.mutation(internal.inboundEmail.deliver, {
+      email: { messageId: 'own-1', from: 'noreply@unbuilt.studio', subject: 'Renews in 3 days', body: 'x' },
+    });
+    const event = await t.run(async (ctx) =>
+      (await ctx.db.query('webhookEvents').collect()).find((row) => row.eventId === 'own-1'),
+    );
+    expect(event).toMatchObject({ status: 'ignored' });
+    expect(event!.error).toContain("the studio's own domain");
+  });
+
+  it('still lets a real client through', async () => {
+    const { ticketId } = await arriveAsTicket({ from: 'ada@glossup.com' });
+    expect(ticketId).toBeDefined();
   });
 });

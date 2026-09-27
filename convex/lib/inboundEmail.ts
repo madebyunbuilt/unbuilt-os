@@ -174,3 +174,37 @@ export function readableBody(mail: { text?: string; html?: string }): string | n
   }
   return source ? htmlToText(source) : null;
 }
+
+/** Mailboxes that are never a person asking for help, whatever domain they are on. */
+const ROBOT_MAILBOXES = [
+  'noreply',
+  'no-reply',
+  'donotreply',
+  'do-not-reply',
+  'mailer-daemon',
+  'postmaster',
+  'bounce',
+  'bounces',
+];
+
+/**
+ * Why a message must not become a ticket, or null when it may.
+ *
+ * A support address that answers its own studio is a loop waiting to happen, and worse: ask Unbuilt OS for a sign-in
+ * link at the support address and the link itself would arrive as a ticket that anybody who can read tickets could
+ * use. Mail from the studio's own domain is therefore never support, and nor is anything from a robot mailbox — a
+ * bounce is a failure to tell somebody about, not a client with a problem.
+ */
+export function refuseSender(from: string, ownDomain: string | undefined): string | null {
+  const [mailbox, domain] = from.toLowerCase().split('@');
+  if (!domain) return 'not an address';
+  if (ownDomain && domain === ownDomain.toLowerCase()) return "the studio's own domain";
+  if (ROBOT_MAILBOXES.includes(mailbox)) return 'a robot mailbox';
+  return null;
+}
+
+/** The domain the studio sends from, taken from the same setting the from line uses. */
+export function ownSendingDomain(from: string | undefined): string | undefined {
+  const match = (from ?? '').match(/@([^>\s]+)>?\s*$/);
+  return match ? match[1].replace(/>$/, '').toLowerCase() : undefined;
+}

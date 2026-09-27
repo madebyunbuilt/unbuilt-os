@@ -1,7 +1,14 @@
 import { v } from 'convex/values';
 import { internal } from './_generated/api';
 import { internalAction, internalMutation, publicHttp } from './lib/functions';
-import { normalise, readableBody, ticketNumberIn, withoutQuotedReply } from './lib/inboundEmail';
+import {
+  normalise,
+  ownSendingDomain,
+  readableBody,
+  refuseSender,
+  ticketNumberIn,
+  withoutQuotedReply,
+} from './lib/inboundEmail';
 import { activeMembersWith, notifyTeamMembers } from './lib/notify';
 import { openTicket, recordClientReply } from './tickets';
 
@@ -153,6 +160,27 @@ export const deliver = internalMutation({
   args: { email: emailArg },
   handler: async (ctx, { email }) => {
     const now = Date.now();
+
+    // The studio's own mail, a robot mailbox, or one of its own people: none of these is a client asking for help,
+    // and the first would put a sign-in link into a ticket anybody who can read tickets could use.
+    const refused =
+      refuseSender(email.from, ownSendingDomain(process.env.AUTH_EMAIL_FROM)) ??
+      ((await ctx.db
+        .query('teamMembers')
+        .withIndex('by_email', (q) => q.eq('email', email.from))
+        .first())
+        ? 'somebody at the studio'
+        : null);
+    if (refused) {
+      // Recorded rather than silently dropped: somebody looking for a missing email should find where it went.
+      const event = await ctx.db
+        .query('webhookEvents')
+        .withIndex('by_provider_event', (q) => q.eq('provider', 'inbound_email').eq('eventId', email.messageId))
+        .first();
+      if (event) await ctx.db.patch('webhookEvents', event._id, { status: 'ignored', error: `From ${refused}` });
+      return { ticketId: null, reopened: false, isNew: false, ignored: refused as string | undefined };
+    }
+
     const said = withoutQuotedReply(email.body);
 
     const contact = (
@@ -179,7 +207,7 @@ export const deliver = internalMutation({
         : existing.clientId === undefined && existing.fromEmail === email.from);
 
     if (existing && theirs) {
-      return await recordClientReply(ctx, {
+      const joined = await recordClientReply(ctx, {
         ticket: existing,
         body: said,
         contactId: contact?._id,
@@ -187,6 +215,7 @@ export const deliver = internalMutation({
         channel: 'email',
         now,
       });
+      return { ...joined, ignored: undefined as string | undefined };
     }
 
     const ticketId = await openTicket(ctx, {
@@ -209,6 +238,6 @@ export const deliver = internalMutation({
         link: `/support/tickets/${ticketId}`,
       });
     }
-    return { ticketId, reopened: false, isNew: true };
+    return { ticketId, reopened: false, isNew: true, ignored: undefined as string | undefined };
   },
 });
