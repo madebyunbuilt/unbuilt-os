@@ -16,6 +16,9 @@ export const FAILURES_BEFORE_INCIDENT = 2;
 /** History is kept for 90 days (09-support-and-sla.md); the month's figure is stored on the SLA report for good. */
 export const CHECK_RETENTION_MS = 90 * 24 * 60 * 60 * 1000;
 
+/** The period an uptime figure covers on screen. The month's figure is stored on the SLA report for good. */
+export const UPTIME_WINDOW_MS = 30 * 24 * 60 * 60 * 1000;
+
 const DEFAULT_INTERVAL_MINUTES = 5;
 const DEFAULT_TIMEOUT_MS = 10_000;
 
@@ -112,9 +115,23 @@ export const get = teamQuery('monitors.manage')({
       .withIndex('by_monitor_started', (q) => q.eq('monitorId', monitorId))
       .order('desc')
       .take(20);
+
+    // Uptime over the last 30 days: passing checks against the checks that were actually made
+    // (09-support-and-sla.md). Paused time is absent because no check is recorded while paused, so it cannot count
+    // against the figure.
+    const since = Date.now() - UPTIME_WINDOW_MS;
+    const window = await ctx.db
+      .query('monitorChecks')
+      .withIndex('by_monitor_time', (q) => q.eq('monitorId', monitorId).gte('checkedAt', since))
+      .collect();
+    const passed = window.filter((check) => check.ok).length;
+
     return {
       ...view(monitor),
       clientName: (await ctx.db.get('clients', monitor.clientId))?.displayName ?? 'Unknown client',
+      // Absent rather than 100% when nothing has been checked yet: no checks is not a perfect record.
+      uptimeBps: window.length === 0 ? undefined : Math.round((passed / window.length) * 10_000),
+      checksInWindow: window.length,
       checks: checks.map((check) => ({
         id: check._id,
         checkedAt: check.checkedAt,

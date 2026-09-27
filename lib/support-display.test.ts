@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { compliance, lateness, monthLabel } from './support-display';
+import { ago, compliance, lateness, monthLabel, uptime } from './support-display';
 
 // How an SLA report reads (09-support-and-sla.md). A client reads these numbers as a judgement on the studio, so
 // what they cannot mean matters as much as what they do.
@@ -25,5 +25,28 @@ describe('a report’s figures in words', () => {
     expect(lateness(480)).toBe('1 business day late');
     expect(lateness(60)).toBe('1 hour late');
     expect(lateness(960)).toBe('2 business days late');
+  });
+});
+
+describe('how a monitor reads', () => {
+  it('does not call an unchecked monitor perfect', () => {
+    expect(uptime(undefined)).toBe('Not checked yet');
+    expect(uptime(10_000)).toBe('100.00%');
+  });
+
+  it('keeps the decimals that matter near the top', () => {
+    // The difference between these two is the whole reason for measuring.
+    expect(uptime(9990)).toBe('99.90%');
+    expect(uptime(9999)).toBe('99.99%');
+    // Far from the top, a decimal place is enough.
+    expect(uptime(8750)).toBe('87.5%');
+  });
+
+  it('says how long ago in words', () => {
+    const now = Date.parse('2026-10-12T12:00:00Z');
+    expect(ago(now - 30_000, now)).toBe('just now');
+    expect(ago(now - 12 * 60_000, now)).toBe('12 minutes ago');
+    expect(ago(now - 3 * 60 * 60_000, now)).toBe('3 hours ago');
+    expect(ago(undefined, now)).toBe('never');
   });
 });

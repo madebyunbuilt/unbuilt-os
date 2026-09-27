@@ -98,7 +98,7 @@ export const TEAM_NAVIGATION: readonly NavSection[] = [
         built: true,
       },
       { label: 'SLA reports', href: '/support/reports', icon: 'chart', anyOf: ['sla.manage'], built: true },
-      { label: 'Monitors', href: '/support/monitors', icon: 'activity', anyOf: ['monitors.manage'], built: false },
+      { label: 'Monitors', href: '/support/monitors', icon: 'activity', anyOf: ['monitors.manage'], built: true },
       { label: 'Vault', href: '/vault', icon: 'key', anyOf: ['vault.view.all', 'vault.view.assigned'], built: false },
     ],
   },

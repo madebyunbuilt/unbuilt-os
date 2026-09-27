@@ -137,3 +137,36 @@ export function lateness(minutes: number): string {
 }
 
 export const TARGET_LABEL = { firstResponse: 'First reply', resolution: 'Resolution' } as const;
+
+export type MonitorStatus = 'up' | 'down' | 'paused';
+
+/** Where a monitor stands, in words a person can act on. */
+export function monitorStatus(status: MonitorStatus): { label: string; tone: StatusTone } {
+  switch (status) {
+    case 'up':
+      return { label: 'Answering', tone: 'built' };
+    case 'down':
+      return { label: 'Down', tone: 'attention' };
+    case 'paused':
+      return { label: 'Not being checked', tone: 'muted' };
+  }
+}
+
+/**
+ * Uptime as a percentage. Absent when nothing has been checked yet, which is not the same as a perfect record — the
+ * same distinction the SLA report makes about a priority nothing came up under.
+ */
+export function uptime(bps: number | undefined): string {
+  if (bps === undefined) return 'Not checked yet';
+  const percent = bps / 100;
+  // Two decimals near the top, because the difference between 99.9% and 100% is the whole point of measuring.
+  return `${percent >= 99 ? percent.toFixed(2) : percent.toFixed(1)}%`;
+}
+
+/** How long ago something happened, roughly: "just now", "12 minutes ago", "3 hours ago". */
+export function ago(at: number | undefined, now: number): string {
+  if (at === undefined) return 'never';
+  const ms = now - at;
+  if (ms < 90_000) return 'just now';
+  return `${gapInWords(ms)} ago`;
+}

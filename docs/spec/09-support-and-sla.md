@@ -219,6 +219,12 @@
   include it.
 - **The recovery message is public on the ticket**, because it was the client's own site that was down and the ticket
   is where they will look.
+- **Whatever is down comes first** on the studio's list, then whatever is not being checked, then the rest. Ordering by
+  name would bury the one thing on the page that needs somebody.
+- **A monitor that has never been checked shows no uptime figure**, not 100%: no checks is not a perfect record. The
+  same distinction the SLA report makes about a priority nothing came up under.
+- **Uptime is shown to two decimals near the top** (99.90%, 99.99%), because the difference between those is the whole
+  reason for measuring, and to one further down where it is not.
 
 ## Managed assets and renewals
 
