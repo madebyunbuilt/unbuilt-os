@@ -58,22 +58,18 @@
     and the notifications behave identically whichever door the client came through. One rule rather than two that
     could drift.
   - **Email says nothing about urgency**, so an emailed ticket starts at P3 and is raised by hand from there.
-  - **The studio's own mail never opens a ticket** (studio, 2026-09-27): anything from the sending domain in
-    `AUTH_EMAIL_FROM`, from a robot mailbox (`noreply`, `mailer-daemon`, `postmaster` and the like) on any domain, or
-    from one of the studio's own people. Two reasons, and the second is the serious one. A support address that
-    answers its own studio is a loop waiting to happen; and asking Unbuilt OS for a sign-in link at the support
-    address would deliver that link into a ticket, which anybody holding `tickets.view.all` could then use. A bounce
-    is a failure to tell somebody about, not a client with a problem. Refused mail is recorded on its webhook event
-    as `ignored`, with the reason, so a missing email can be traced rather than simply vanishing.
-  - The quoted thread beneath a reply is trimmed, so a ticket shows what was written this time.
-  - **A link keeps its address** (studio, 2026-09-25). Mail clients routinely send a plain-text part with the words
-    but not the addresses, leaving "click here" pointing at nothing, so where the HTML holds a link the text has lost,
-    the message is rendered from the HTML instead, as `the checkout step (https://…)`. Gmail rewrites every link
-    through its own redirector, in the text part as well as the HTML, and those are unwrapped back to where they
-    actually go: a ticket should show the client's own page, not `google.com/url?q=`.
-  - **A message stays text all the way to the screen** (studio, 2026-09-25): links are made clickable when the thread
-    is rendered, by React, on both surfaces. The HTML a client's mail client sent is never stored and never rendered
-    — doing so would let anybody who can email support put script or styling into the studio's own app.
+  - **Unbuilt OS's own mail never opens a ticket** (studio, 2026-09-27), nor does a robot mailbox (`noreply`,
+    `mailer-daemon`, `postmaster` and the like) on any domain. Two reasons, the second serious: a support address that
+    answers its own system is a loop, and asking Unbuilt OS for a sign-in link at the support address would deliver
+    that link into a ticket, which anybody holding `tickets.view.all` could then use. A bounce is a delivery failure
+    to act on, not a client with a problem. The refused addresses come from the same setting the from line uses, so a
+    sender added later cannot be forgotten here. Refused mail is recorded on its webhook event as `ignored`, with the
+    reason, so a missing email can be traced rather than vanishing.
+  - **Somebody at the studio emailing support raises a ticket** (studio, 2026-09-27), attributed to them, exactly as
+    though they had taken the call. The line is between the studio's system and the studio's people, not between
+    domains: refusing a member's email would lose the very work somebody bothered to report. It still needs triage,
+    because an email cannot say which client it is about, and the notification names who sent it so whoever places it
+    knows who to ask.
   - **A ticket awaiting triage has no client**, and therefore no policy and no promise: it is never late, and it
     reaches no client in the portal, because every portal query is scoped by client. Placing it works the promise out
     **from when the email arrived**, not from when somebody got round to it — an email that sat unread for three days

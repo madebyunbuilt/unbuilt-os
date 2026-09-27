@@ -1,14 +1,8 @@
 import { v } from 'convex/values';
 import { internal } from './_generated/api';
 import { internalAction, internalMutation, publicHttp } from './lib/functions';
-import {
-  normalise,
-  ownSendingDomain,
-  readableBody,
-  refuseSender,
-  ticketNumberIn,
-  withoutQuotedReply,
-} from './lib/inboundEmail';
+import { normalise, readableBody, refuseSender, ticketNumberIn, withoutQuotedReply } from './lib/inboundEmail';
+import { senderFor } from './lib/senders';
 import { activeMembersWith, notifyTeamMembers } from './lib/notify';
 import { openTicket, recordClientReply } from './tickets';
 
@@ -76,6 +70,14 @@ export const inboundEmailWebhook = publicHttp(async (ctx, request) => {
   } catch {
     return new Response('Bad body', { status: 400 });
   }
+  // Resend sends every kind of email event to a webhook that asks for them, and a sent email carries a from, a to and
+  // a subject exactly as a received one does. Without this, everything Unbuilt OS posts — and everything else sharing
+  // the account — comes back as a support ticket. Absent is allowed, because not every provider labels its payload.
+  const type = (payload as { type?: unknown })?.type;
+  if (typeof type === 'string' && type !== 'email.received') {
+    return new Response(`ignored ${type}`, { status: 200 });
+  }
+
   const email = normalise(payload);
   // Nothing anybody could act on. Answered 200 so the provider stops resending it.
   if (!email) return new Response('ignored', { status: 200 });
@@ -163,14 +165,11 @@ export const deliver = internalMutation({
 
     // The studio's own mail, a robot mailbox, or one of its own people: none of these is a client asking for help,
     // and the first would put a sign-in link into a ticket anybody who can read tickets could use.
-    const refused =
-      refuseSender(email.from, ownSendingDomain(process.env.AUTH_EMAIL_FROM)) ??
-      ((await ctx.db
-        .query('teamMembers')
-        .withIndex('by_email', (q) => q.eq('email', email.from))
-        .first())
-        ? 'somebody at the studio'
-        : null);
+    // Taken from the same place the from line comes from, so a sender added later cannot be forgotten here.
+    const systemAddresses = (['notifications', 'billing', 'support'] as const).map(
+      (sender) => senderFor(sender).match(/<([^>]+)>/)?.[1] ?? senderFor(sender),
+    );
+    const refused = refuseSender(email.from, systemAddresses);
     if (refused) {
       // Recorded rather than silently dropped: somebody looking for a missing email should find where it went.
       const event = await ctx.db
@@ -189,6 +188,16 @@ export const deliver = internalMutation({
         .withIndex('by_email', (q) => q.eq('email', email.from))
         .collect()
     ).find((row) => row.status === 'active');
+
+    // Somebody at the studio writing in is raising a ticket on a client's behalf, the way they would by phone. It
+    // still needs triage, because an email cannot say which client it is about.
+    const member = contact
+      ? null
+      : await ctx.db
+          .query('teamMembers')
+          .withIndex('by_email', (q) => q.eq('email', email.from))
+          .first();
+    const fromStudio = member?.status === 'active' ? member : null;
 
     const number = ticketNumberIn(email.subject);
     const existing = number
@@ -226,6 +235,7 @@ export const deliver = internalMutation({
       priority: 'p3',
       channel: 'email',
       requesterContactId: contact?._id,
+      raisedByMemberId: fromStudio?._id,
       fromEmail: contact ? undefined : email.from,
       needsTriage: contact ? undefined : true,
       now,
@@ -233,7 +243,9 @@ export const deliver = internalMutation({
     if (!contact) {
       await notifyTeamMembers(ctx, await activeMembersWith(ctx, 'tickets.manage'), {
         event: 'ticket.triage',
-        title: 'Email from somebody the studio does not know',
+        title: fromStudio
+          ? `${fromStudio.name} raised a ticket by email`
+          : 'Email from somebody the studio does not know',
         body: `${email.from}: ${email.subject}`,
         link: `/support/tickets/${ticketId}`,
       });

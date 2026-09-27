@@ -315,6 +315,37 @@ describe('who is allowed to post mail in', () => {
     expect((await post({ authorization: `Bearer ${secret}` })).status).toBe(401);
   });
 
+  it('ignores an email the studio sent, which is not inbound mail at all', async () => {
+    vi.stubEnv('INBOUND_EMAIL_SECRET', secret);
+    // Resend posts every event a webhook subscribes to, and a sent email carries a from, a to and a subject exactly
+    // as a received one does. Reading one as inbound turns everything the studio posts into a support ticket.
+    const body = JSON.stringify({
+      type: 'email.sent',
+      data: { from: 'Unbuilt OS <notifications@unbuilt.studio>', to: ['ada@glossup.com'], subject: 'Your invoice' },
+    });
+    const response = await post({ authorization: `Bearer ${secret}` }, body);
+    expect(response.status).toBe(200);
+    expect(await t.run((ctx) => ctx.db.query('tickets').collect())).toHaveLength(0);
+    // Not even recorded: it was never ours to act on.
+    expect(await t.run((ctx) => ctx.db.query('webhookEvents').collect())).toHaveLength(0);
+  });
+
+  it('ignores a delivery event too', async () => {
+    vi.stubEnv('INBOUND_EMAIL_SECRET', secret);
+    for (const type of ['email.delivered', 'email.bounced', 'email.opened', 'email.complained']) {
+      const body = JSON.stringify({ type, data: { from: 'a@b.com', to: ['c@d.com'], subject: 'x' } });
+      expect((await post({ authorization: `Bearer ${secret}` }, body)).status).toBe(200);
+    }
+    expect(await t.run((ctx) => ctx.db.query('tickets').collect())).toHaveLength(0);
+  });
+
+  it('still accepts a payload with no type, for a provider that does not label them', async () => {
+    vi.stubEnv('INBOUND_EMAIL_SECRET', secret);
+    const body = JSON.stringify({ From: 'ada@glossup.com', Subject: 'Help', TextBody: 'It broke' });
+    expect((await post({ authorization: `Bearer ${secret}` }, body)).status).toBe(200);
+    expect(await t.run((ctx) => ctx.db.query('webhookEvents').collect())).toHaveLength(1);
+  });
+
   it('takes a correctly signed delivery, and refuses one signed for another moment', async () => {
     const raw = 'whsec_c2VjcmV0LXRoaW5n';
     vi.stubEnv('RESEND_WEBHOOK_SECRET', raw);
@@ -362,7 +393,7 @@ describe('mail that must never become a ticket', () => {
       body: 'Use the button below to sign in.',
     });
     expect(result.ticketId).toBeNull();
-    expect(result.ignored).toBe("the studio's own domain");
+    expect(result.ignored).toBe('Unbuilt OS itself');
     expect(await tickets()).toHaveLength(0);
   });
 
@@ -374,10 +405,31 @@ describe('mail that must never become a ticket', () => {
     expect(await tickets()).toHaveLength(0);
   });
 
-  it('refuses one of the studio’s own people writing in', async () => {
-    const result = await arrive({ from: 'tobi@unbuilt.studio', subject: 'Can somebody look at this' });
-    // Caught by the domain first; the team-member rule is what covers a studio address on another domain.
-    expect(result.ticketId).toBeNull();
+  it('lets somebody at the studio raise a ticket by email, on a client’s behalf', async () => {
+    // mk@ writing in about a client's site being down is what a support address is for. Refusing it would lose the
+    // very work somebody bothered to report.
+    const { ticketId } = await arriveAsTicket({
+      from: 'tobi@unbuilt.studio',
+      subject: 'Glossup checkout is down',
+      body: 'A client rang about it.',
+    });
+    const ticket = (await t.run((ctx) => ctx.db.get('tickets', ticketId)))!;
+    expect(ticket).toMatchObject({ raisedByMemberId: pm.memberId, channel: 'email', needsTriage: true });
+    // An email cannot say which client, so somebody still places it.
+    expect(ticket).not.toHaveProperty('clientId');
+  });
+
+  it('says who at the studio raised it, so triage knows who to ask', async () => {
+    await arriveAsTicket({ from: 'tobi@unbuilt.studio', subject: 'Something is wrong' });
+    const told = (await t.run((ctx) => ctx.db.query('notifications').collect())).filter(
+      (n) => n.event === 'ticket.triage',
+    );
+    expect(told[0].title).toBe('Tobi Ade raised a ticket by email');
+  });
+
+  it('still refuses the support address writing to itself', async () => {
+    const result = await arrive({ from: 'support@unbuilt.studio', subject: 'Loop' });
+    expect(result.ignored).toBe('Unbuilt OS itself');
   });
 
   it('says where an ignored email went, rather than dropping it silently', async () => {
@@ -389,7 +441,7 @@ describe('mail that must never become a ticket', () => {
       (await ctx.db.query('webhookEvents').collect()).find((row) => row.eventId === 'own-1'),
     );
     expect(event).toMatchObject({ status: 'ignored' });
-    expect(event!.error).toContain("the studio's own domain");
+    expect(event!.error).toContain('a robot mailbox');
   });
 
   it('still lets a real client through', async () => {
