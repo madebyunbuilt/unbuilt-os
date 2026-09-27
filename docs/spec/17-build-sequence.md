@@ -24,7 +24,10 @@ and pull request (or several), merged when its definition of done is met.
 2. **Team** — members, invites, onboarding checklist, rates, time off, holidays.
 3. **CRM** — enquiries (with the public endpoint), clients, contacts, pipeline and deals, activity timeline, rate card.
 4. **Projects** — templates, projects, members and scope, milestones, deliverables and versions, comments, tasks, time
-   tracking and approval.
+   tracking and approval. **Client status updates and handover are specified in `06-projects.md` and were left out of
+   this list** (studio, 2026-09-27); their permissions (`updates.send`, `handover.manage`) and the `handoverStatus`
+   field were built here, and the tabs have sat marked "not built yet" ever since. They belong with communications in
+   step 15, where an update is something a client is actually sent.
 5. **Documents** — templates and clauses, variables, versions, PDF rendering, document chain, sending, view tracking,
    expiry.
 6. **E-signatures** — signature requests, signing ceremony, certificate, countersignature, verification.
@@ -44,7 +47,8 @@ and pull request (or several), merged when its definition of done is met.
     and deploy hook, site content endpoint, project-to-case-study, website migration import. Also portal terms
     acceptance, carried over from step 10: the legal pages built here are what a client is being asked to accept.
 15. **Communications** — Resend templates and webhook, WhatsApp templates, opt-in, status webhook, the full event
-    catalogue, preferences.
+    catalogue, preferences. Also **client status updates and project handover** from `06-projects.md`, carried over
+    from step 4: both are things a client is sent, so they want the sending to exist first.
 16. **Calendar and intake** — Google Calendar OAuth, meetings, booking pages, intake forms.
 17. **Reports, search and dashboards** — aggregates, role dashboards, every report, exports. Also the rest of the
     command palette (studio, 2026-09-26): search across records, the quick actions `14-platform.md` names, and the
