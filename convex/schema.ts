@@ -1504,7 +1504,7 @@ export default defineSchema({
     usernameCiphertext: v.optional(v.string()),
     secretCiphertext: v.string(),
     notesCiphertext: v.optional(v.string()),
-    // One IV per write, covering every field sealed in that write.
+    // One IV per sealed field, joined: each field is encrypted on its own, so none shares an IV with another.
     iv: v.string(),
     keyVersion: v.number(),
     submittedByKind: v.union(v.literal('team'), v.literal('client'), v.literal('system')),

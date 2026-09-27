@@ -189,21 +189,96 @@ describe('the second factor', () => {
 });
 
 describe('what a client may do', () => {
-  it('has its submission encrypted before anything writes it down', async () => {
-    const itemId = await t.action(internal.vault.submitFromPortal, {
-      clientId,
+  const submit = async (as: typeof ada, overrides: object = {}) =>
+    await as.as.action(api.vault.submitFromPortal, {
       label: 'Analytics login',
       kind: 'login',
       secret: 'client-typed-this',
-      contactId: ada.contactId,
+      ...overrides,
     });
+
+  it('has its submission encrypted before anything writes it down', async () => {
+    const itemId = await submit(ada);
     const stored = await t.run((ctx) => ctx.db.get('vaultItems', itemId));
     expect(JSON.stringify(stored)).not.toContain('client-typed-this');
-    expect(stored).toMatchObject({ submittedByKind: 'client', submittedById: ada.contactId });
+    expect(stored).toMatchObject({ submittedByKind: 'client', submittedById: ada.contactId, clientId });
   });
 
   it('is not offered the studio’s vault queries at all', async () => {
     await addItem();
     await expectCode(ada.as.query(api.vaultData.list, { clientId }), 'auth.forbidden');
+  });
+
+  it('sees its own submissions as labels and dates, and nothing the studio holds', async () => {
+    await addItem({ label: 'Hosting login' });
+    await submit(ada, { label: 'Analytics login' });
+    const listed = await ada.as.query(api.vaultData.portalList, {});
+    expect(listed.map((item) => item.label)).toEqual(['Analytics login']);
+    // Not even the shape hints at a value, so there is nothing to ask for. Checked as "no key outside this set"
+    // rather than an exact list, because Convex omits a field that was never given one.
+    const allowed = ['id', 'label', 'kind', 'url', 'submittedAt', 'status'];
+    expect(Object.keys(listed[0]).filter((key) => !allowed.includes(key))).toEqual([]);
+  });
+
+  it('cannot submit into another client, and cannot see what they submitted', async () => {
+    const bello = await createClientUser(t, roles.client_admin, { clientName: 'Bello Foods', email: 'b@bello.com' });
+    await submit(ada, { label: 'Ada’s analytics' });
+    await submit(bello, { label: 'Bello’s analytics' });
+
+    // There is no clientId argument to aim at another client, so the only question is what each one is given back.
+    const theirs = await bello.as.query(api.vaultData.portalList, {});
+    expect(theirs.map((item) => item.label)).toEqual(['Bello’s analytics']);
+    const stored = await t.run((ctx) => ctx.db.query('vaultItems').collect());
+    expect(stored.find((item) => item.label === 'Bello’s analytics')!.clientId).toBe(bello.clientId);
+  });
+
+  it('refuses a client whose role cannot submit', async () => {
+    // Both seeded portal roles may submit, so the role that may not has to be made here.
+    const readOnly = await t.run((ctx) =>
+      ctx.db.insert('roles', {
+        key: 'custom_portal_reader',
+        name: 'Portal reader',
+        kind: 'client',
+        permissions: ['portal.projects.view'],
+        isSystem: false,
+        description: '',
+      }),
+    );
+    const viewer = await createClientUser(t, readOnly, { clientName: 'Quiet Co', email: 'q@quiet.com' });
+    await expectCode(submit(viewer), 'auth.forbidden');
+  });
+});
+
+describe('the audit log', () => {
+  const auditReads = async () =>
+    (await t.run((ctx) => ctx.db.query('auditLog').collect())).filter((row) => row.table === 'vaultItems');
+
+  it('records one entry for a reveal and one for a copy, alongside the access log', async () => {
+    const itemId = await addItem();
+    const beforeReveal = (await auditReads()).length;
+    await pm.as.action(api.vault.reveal, { itemId });
+    const afterReveal = await auditReads();
+    expect(afterReveal).toHaveLength(beforeReveal + 1);
+    expect(afterReveal.at(-1)).toMatchObject({ action: 'read', recordId: itemId, actorId: pm.memberId });
+
+    await pm.as.action(api.vault.recordCopy, { itemId });
+    expect(await auditReads()).toHaveLength(beforeReveal + 2);
+  });
+
+  it('keeps a refusal out of the audit log, where the access log already has it', async () => {
+    const itemId = await addItem();
+    const before = (await auditReads()).length;
+    await expectCode(member.as.action(api.vault.reveal, { itemId }), 'vault.notFound');
+    expect(await auditReads()).toHaveLength(before);
+    expect(await logs()).toHaveLength(1);
+  });
+
+  it('never carries a secret in a diff, however the item was written', async () => {
+    await addItem({ notes: 'the recovery codes are in the safe' });
+    const all = await t.run((ctx) => ctx.db.query('auditLog').collect());
+    const asText = JSON.stringify(all);
+    expect(asText).not.toContain(SECRET);
+    expect(asText).not.toContain('recovery codes');
+    expect(asText).not.toContain('studio@unbuilt.studio');
   });
 });

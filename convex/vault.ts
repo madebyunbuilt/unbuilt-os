@@ -4,7 +4,7 @@ import { v } from 'convex/values';
 import { internal } from './_generated/api';
 import { type Id } from './_generated/dataModel';
 import { open, seal } from './lib/crypto';
-import { internalAction, teamAction } from './lib/functions';
+import { portalAction, teamAction } from './lib/functions';
 import { TWO_FACTOR_WINDOW_MS, REVEAL_VISIBLE_MS, vaultError } from './lib/vault';
 
 // The only place a vault key is ever touched (10-vault.md, Storage). Everything else in the codebase handles
@@ -82,6 +82,7 @@ export const reveal = teamAction(null)({
         action: 'refused',
         reason,
         ipAddress: principal.ip,
+        authUserId: principal.authUserId,
       });
       throw vaultError(code, message);
     };
@@ -122,6 +123,7 @@ export const reveal = teamAction(null)({
       memberId: principal.memberId,
       action: 'reveal',
       ipAddress: principal.ip,
+      authUserId: principal.authUserId,
     });
     return value;
   },
@@ -143,15 +145,19 @@ export const recordCopy = teamAction(null)({
       memberId: principal.memberId,
       action: 'copy',
       ipAddress: principal.ip,
+      authUserId: principal.authUserId,
     });
     return null;
   },
 });
 
-/** Sealing a credential a client submitted. It is encrypted here, before anything writes it down. */
-export const submitFromPortal = internalAction({
+/**
+ * A client handing a credential over (10-vault.md, Access). It is encrypted here, in the first thing that touches it,
+ * so the plaintext never reaches a mutation. The client and the contact come from the session: there is no clientId
+ * argument to point at somebody else's records, and `projectId` is checked against the client before the row is written.
+ */
+export const submitFromPortal = portalAction('portal.vault.submit')({
   args: {
-    clientId: v.id('clients'),
     projectId: v.optional(v.id('projects')),
     label: v.string(),
     kind,
@@ -159,14 +165,14 @@ export const submitFromPortal = internalAction({
     username: v.optional(v.string()),
     secret: v.string(),
     notes: v.optional(v.string()),
-    contactId: v.id('contacts'),
   },
   handler: async (ctx, args): Promise<Id<'vaultItems'>> => {
+    if (args.secret.trim().length === 0) throw vaultError('vault.invalid', 'There is no secret here to keep');
     const sealedSecret = seal(args.secret);
     const username = args.username?.trim() ? seal(args.username, sealedSecret.keyVersion) : undefined;
     const notes = args.notes?.trim() ? seal(args.notes, sealedSecret.keyVersion) : undefined;
     return await ctx.runMutation(internal.vaultData.insertSealed, {
-      clientId: args.clientId,
+      clientId: ctx.principal.clientId,
       projectId: args.projectId,
       label: args.label,
       kind: args.kind,
@@ -177,7 +183,7 @@ export const submitFromPortal = internalAction({
       iv: [sealedSecret.iv, username?.iv ?? '', notes?.iv ?? ''].join('.'),
       keyVersion: sealedSecret.keyVersion,
       submittedByKind: 'client',
-      submittedById: args.contactId,
+      submittedById: ctx.principal.contactId,
     });
   },
 });
