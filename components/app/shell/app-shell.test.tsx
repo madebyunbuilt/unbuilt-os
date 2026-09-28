@@ -54,13 +54,14 @@ describe('AppShell', () => {
   });
 
   it('marks a module with no screens yet, and does not let it be followed', () => {
-    // Needs a role that can see one: everything a member can reach is built now, so this asks as an admin.
+    // Needs a role that can see one: everything a member can reach is built now, so this asks as an admin. Website
+    // moved off this list when the CMS screens landed; Reports is what is left, until step 17.
     renderShell(permissionsOf('admin'));
     const nav = screen.getAllByRole('navigation', { name: 'Main' })[0];
-    const website = within(nav).getByText('Website').closest('[aria-disabled]');
-    expect(website).toHaveAttribute('aria-disabled', 'true');
-    expect(website).toHaveTextContent('Not built yet');
-    expect(within(nav).queryByRole('link', { name: /Website/ })).not.toBeInTheDocument();
+    const reports = within(nav).getByText('Reports').closest('[aria-disabled]');
+    expect(reports).toHaveAttribute('aria-disabled', 'true');
+    expect(reports).toHaveTextContent('Not built yet');
+    expect(within(nav).queryByRole('link', { name: /Reports/ })).not.toBeInTheDocument();
   });
 
   it('uses portal navigation on the portal', () => {
