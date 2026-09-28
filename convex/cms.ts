@@ -66,8 +66,13 @@ const workFields = {
   shots: v.array(shot),
 };
 
+/**
+ * Empty means nobody has chosen yet, which is how a case study starts: from the new-work dialog, and from a project,
+ * where guessing one of five illustrations would be a guess that looks deliberate. Publishing is what insists on it
+ * (see publishBlockers), so this only refuses a value that is filled in and is not one the website can draw.
+ */
 function assertArt(art: string): string {
-  if (!(WORK_ART as readonly string[]).includes(art)) {
+  if (art !== '' && !(WORK_ART as readonly string[]).includes(art)) {
     throw cmsError('cms.art', `The website can only draw ${WORK_ART.join(', ')}. Adding one needs a website change.`);
   }
   return art;

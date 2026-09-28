@@ -170,6 +170,19 @@ describe('what stops something being published', () => {
   it('refuses artwork the website cannot draw', async () => {
     await expectCode(editor.as.mutation(api.cms.createWork, work({ art: 'something-new' })), 'cms.art');
   });
+
+  it('accepts a case study that has not chosen its artwork yet, and blocks publishing it', async () => {
+    // How one starts, from the new-work dialog and from a project: empty means nobody has chosen, not a bad value.
+    const workId = await editor.as.mutation(api.cms.createWork, work({ art: '' }));
+    await editor.as.mutation(api.cms.recordClientPermission, { workId, granted: true });
+    const said = await blockers(workId);
+    expect(said.some((message) => message.includes('artwork'))).toBe(true);
+    await expectCode(editor.as.mutation(api.cmsPublish.publish, { table: 'works', id: workId }), 'cms.blocked');
+
+    // And choosing one clears it.
+    await editor.as.mutation(api.cms.updateWork, { workId, ...work({ art: 'glossup' }) });
+    expect(await blockers(workId)).toEqual([]);
+  });
 });
 
 describe('drafts and the live website', () => {
