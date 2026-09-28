@@ -387,6 +387,12 @@ body[], list?[] }` `status`.
 **siteSettings** (single row) — `name` `url` `email` `phone` `socials[] { name, handle, href }` `timeZone`
 `statusText` (e.g. "Taking new work") `seoDefaults`.
 
+Every content type above also carries `draftUpdatedAt` and an optional `published` snapshot. The named fields are the
+working copy that editing changes; `published` is the copy the website is served, written only by publishing. One row
+with a status alone cannot do both: editing a live page would change what the next build fetches before anybody pressed
+publish, and restoring an old revision would put it on the website at once. `draftUpdatedAt` later than `publishedAt`
+is how a screen knows an item is live with unpublished changes.
+
 **contentRevisions** — `target { table, id }` `snapshot` `editedBy` `editedAt`.
 
 **publishes** — `requestedBy` `requestedAt` `deployHookCalledAt?` `status` `changes[]`.
