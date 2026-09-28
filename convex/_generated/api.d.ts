@@ -20,6 +20,7 @@ import type * as changeRequests from "../changeRequests.js";
 import type * as clauses from "../clauses.js";
 import type * as clients from "../clients.js";
 import type * as cms from "../cms.js";
+import type * as cmsPublish from "../cmsPublish.js";
 import type * as comments from "../comments.js";
 import type * as contacts from "../contacts.js";
 import type * as credits from "../credits.js";
@@ -158,6 +159,7 @@ declare const fullApi: ApiFromModules<{
   clauses: typeof clauses;
   clients: typeof clients;
   cms: typeof cms;
+  cmsPublish: typeof cmsPublish;
   comments: typeof comments;
   contacts: typeof contacts;
   credits: typeof credits;

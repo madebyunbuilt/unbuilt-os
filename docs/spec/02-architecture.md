@@ -124,6 +124,7 @@ Convex environment variables, set per deployment and never committed:
 | `VAULT_ACTIVE_KEY_VERSION` | Which `VAULT_KEY_v<n>` new secrets are written with                                                                                                   |
 | `EMAIL_FROM_<SENDER>`      | Overrides the From address for one sender (`EMAIL_FROM_SUPPORT`, `EMAIL_FROM_BILLING`, …). Optional                                                   |
 | `ALLOW_SAMPLE_DATA`        | Lets the seed script add sample records. Never set in production                                                                                      |
+| `WEBSITE_DEPLOY_HOOK_URL`  | The website's Vercel deploy hook, called when content is published. Without it, publishing succeeds and records that the website was not rebuilt      |
 
 Staging allows `unbuilt-os-pr-*.vercel.app`; production allows `os.unbuilt.studio`, `portal.unbuilt.studio` and
 `unbuilt-os.vercel.app`.
