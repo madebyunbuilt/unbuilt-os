@@ -178,6 +178,55 @@ describe('what comes back', () => {
   });
 });
 
+describe('images', () => {
+  const withShot = async (file: { width?: number; height?: number }) => {
+    const storageId = await t.run((ctx) => ctx.storage.store(new Blob(['bytes'], { type: 'image/png' })));
+    const fileId = await t.run((ctx) =>
+      ctx.db.insert('files', {
+        storageId: storageId as Id<'_storage'>,
+        name: 'shot.png',
+        mimeType: 'image/png',
+        sizeBytes: 5,
+        sha256: 'abc',
+        owner: { table: 'works', id: 'w' },
+        visibility: 'internal',
+        uploadedByKind: 'team',
+        uploadedById: editor.memberId,
+        ...file,
+      }),
+    );
+    const workId = await editor.as.mutation(
+      api.cms.createWork,
+      work({ shots: [{ fileId, alt: 'The product list', caption: 'Products', frame: 'phone' }] }),
+    );
+    await editor.as.mutation(api.cms.recordClientPermission, { workId, granted: true });
+    await editor.as.mutation(api.cmsPublish.publish, { table: 'works', id: workId });
+    return siteContent.parse(await (await ask()).json());
+  };
+
+  it('carries the pixel size when it is known, so the page can reserve the space', async () => {
+    const body = await withShot({ width: 7, height: 3 });
+    expect(body.works[0].shots[0]).toMatchObject({ alt: 'The product list', frame: 'phone', width: 7, height: 3 });
+  });
+
+  it('leaves the size out when it was never read, rather than guessing one', async () => {
+    const body = await withShot({});
+    const [shot] = body.works[0].shots;
+    expect(shot.alt).toBe('The product list');
+    expect(shot).not.toHaveProperty('width');
+  });
+
+  it('leaves out an image whose file is gone, rather than a broken URL', async () => {
+    const body = await withShot({ width: 7, height: 3 });
+    expect(body.works[0].shots).toHaveLength(1);
+    await t.run(async (ctx) => {
+      const file = (await ctx.db.query('files').collect())[0];
+      await ctx.db.delete('files', file._id);
+    });
+    expect(siteContent.parse(await (await ask()).json()).works[0].shots).toHaveLength(0);
+  });
+});
+
 describe('previewing a draft', () => {
   const tokenFor = async (table: string, id: string) =>
     (await editor.as.mutation(api.siteContent.previewToken, { table, id })).token;

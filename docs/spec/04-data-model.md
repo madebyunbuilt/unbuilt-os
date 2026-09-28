@@ -408,9 +408,10 @@ is how a screen knows an item is live with unpublished changes.
 **messageLog** — `channel` (email, whatsapp) `to` `template` `subject?` `clientId?` `relatedTo { table, id }?`
 `providerMessageId` `status` (queued, sent, delivered, opened, bounced, failed) `events[]` `sentAt`.
 
-**files** — `storageId` `name` `mimeType` `sizeBytes` `sha256` (hex) `owner { table, id }` `clientId?` `projectId?`
-`visibility` (internal, client) `uploadedByKind` (team, client, system) `uploadedById`. Indexes: `by_owner`,
-`by_client`, `by_storage`.
+**files** — `storageId` `name` `mimeType` `sizeBytes` `sha256` (hex) `width?` `height?` `owner { table, id }`
+`clientId?` `projectId?` `visibility` (internal, client) `uploadedByKind` (team, client, system) `uploadedById`.
+Indexes: `by_owner`, `by_client`, `by_storage`. Width and height are read from an image's header after the upload is
+recorded, and are absent for anything that is not an image or whose header could not be read.
 
 **auditLog** — `actorKind` (team, client, system) `actorId?` `authUserId?` `permission?` `action` (insert, update,
 delete, read) `table` `recordId` `diff { before?, after? }` (changed fields only, sensitive fields redacted) `ip?`

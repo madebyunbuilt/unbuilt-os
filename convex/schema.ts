@@ -71,6 +71,10 @@ export default defineSchema({
     sizeBytes: v.number(),
     // Hex SHA-256 of the stored bytes, from Convex storage.
     sha256: v.string(),
+    // Pixel size, read from the header after an image is recorded (convex/lib/imageSize.ts). Absent for anything that
+    // is not an image, and for an image whose header could not be read; the website lays those out without it.
+    width: v.optional(v.number()),
+    height: v.optional(v.number()),
     owner: v.object({ table: v.string(), id: v.string() }),
     clientId: v.optional(v.id('clients')),
     projectId: v.optional(v.string()),

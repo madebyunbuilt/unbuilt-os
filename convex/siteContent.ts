@@ -85,6 +85,8 @@ async function image(ctx: QueryCtx, source: ImageSource) {
     alt: source.alt,
     ...(source.caption ? { caption: source.caption } : {}),
     ...(source.frame ? { frame: source.frame } : {}),
+    // Present when the header could be read at upload, so the website can reserve the space before the image loads.
+    ...(file.width !== undefined && file.height !== undefined ? { width: file.width, height: file.height } : {}),
   };
 }
 

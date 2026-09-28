@@ -66,6 +66,7 @@ import type * as lib_financeEmails from "../lib/financeEmails.js";
 import type * as lib_functions from "../lib/functions.js";
 import type * as lib_holidays from "../lib/holidays.js";
 import type * as lib_hosts from "../lib/hosts.js";
+import type * as lib_imageSize from "../lib/imageSize.js";
 import type * as lib_inboundEmail from "../lib/inboundEmail.js";
 import type * as lib_invoiceEmails from "../lib/invoiceEmails.js";
 import type * as lib_invoices from "../lib/invoices.js";
@@ -207,6 +208,7 @@ declare const fullApi: ApiFromModules<{
   "lib/functions": typeof lib_functions;
   "lib/holidays": typeof lib_holidays;
   "lib/hosts": typeof lib_hosts;
+  "lib/imageSize": typeof lib_imageSize;
   "lib/inboundEmail": typeof lib_inboundEmail;
   "lib/invoiceEmails": typeof lib_invoiceEmails;
   "lib/invoices": typeof lib_invoices;
