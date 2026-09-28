@@ -3,6 +3,9 @@ import userEvent from '@testing-library/user-event';
 import { ConvexError } from 'convex/values';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ContentList } from './content-list';
+import { NewContent } from './new-content';
+import { PostEditor } from './post-editor';
+import { SettingsEditor } from './settings-editor';
 import { PublishBar } from './publish-bar';
 import { SeoFields } from './seo-fields';
 import { WorkEditor } from './work-editor';
@@ -291,5 +294,105 @@ describe('the list', () => {
   it('says there is nothing rather than showing an empty table', () => {
     render(<ContentList table="works" />);
     expect(screen.getByText(/No case studies yet/)).toBeInTheDocument();
+  });
+});
+
+describe('an insight that publishes itself', () => {
+  const post = (overrides: object = {}) => ({
+    _id: 'i1',
+    slug: 'why-fast',
+    title: 'Why fast matters',
+    excerpt: 'Because people leave.',
+    body: [{ kind: 'paragraph', text: 'They do.' }],
+    tags: ['performance'],
+    seo: { title: '', description: '' },
+    authorMemberId: 'm1',
+    status: 'draft',
+    unpublishedChanges: false,
+    blockers: [],
+    revisions: [],
+    ...overrides,
+  });
+
+  it('offers a date, and schedules it', async () => {
+    state.queries['cms.get'] = post();
+    render(<PostEditor postId={'i1' as never} />);
+    await user().type(screen.getByLabelText('Publish it later'), '2026-11-01T09:00');
+    await user().click(screen.getByRole('button', { name: 'Schedule' }));
+    await waitFor(() => expect(state.mutations['cmsPublish.schedulePost']).toHaveBeenCalled());
+  });
+
+  it('will not let it be scheduled while something is missing', () => {
+    state.queries['cms.get'] = post({ blockers: [{ field: 'title', message: 'An SEO title is needed' }] });
+    render(<PostEditor postId={'i1' as never} />);
+    expect(screen.getByRole('button', { name: 'Schedule' })).toBeDisabled();
+    // Said rather than left as a disabled button somebody has to guess about.
+    expect(screen.getByText(/has to be filled in before this can be scheduled/)).toBeInTheDocument();
+  });
+
+  it('says when it is going out, and offers to call it off', async () => {
+    state.queries['cms.get'] = post({ status: 'scheduled', publishAt: Date.parse('2026-11-01T09:00:00Z') });
+    render(<PostEditor postId={'i1' as never} />);
+    expect(screen.getByText(/Goes out on its own/)).toBeInTheDocument();
+    await user().click(screen.getByRole('button', { name: 'Cancel that' }));
+    await waitFor(() => expect(state.mutations['cmsPublish.unschedulePost']).toHaveBeenCalledWith({ postId: 'i1' }));
+  });
+
+  it('offers no date once it is already out', () => {
+    state.queries['cms.get'] = post({ status: 'published' });
+    render(<PostEditor postId={'i1' as never} />);
+    expect(screen.queryByLabelText('Publish it later')).not.toBeInTheDocument();
+  });
+});
+
+describe('starting something new', () => {
+  it('takes the address from the name, and stops once it is edited', async () => {
+    render(<NewContent table="posts" />);
+    await user().click(screen.getByRole('button', { name: /New insight/ }));
+    await user().type(screen.getByLabelText('Name'), 'Why fast matters');
+    expect(screen.getByLabelText('Address')).toHaveValue('why-fast-matters');
+
+    await user().clear(screen.getByLabelText('Address'));
+    await user().type(screen.getByLabelText('Address'), 'speed');
+    await user().type(screen.getByLabelText('Name'), ' more');
+    // Once somebody has chosen an address, the name no longer moves it under them.
+    expect(screen.getByLabelText('Address')).toHaveValue('speed');
+  });
+});
+
+describe('site settings', () => {
+  const settings = {
+    _id: 's1',
+    name: 'Unbuilt Studio',
+    url: 'https://unbuilt.studio',
+    email: 'hello@unbuilt.studio',
+    phone: '',
+    socials: [],
+    timeZone: 'Africa/Lagos',
+    statusText: 'Taking new work',
+    seoDefaults: { title: 'Unbuilt Studio', description: 'We build things.' },
+    deployBatchSeconds: 60,
+  };
+
+  it('explains why publishing waits at all', () => {
+    state.queries['cms.settings'] = settings;
+    render(<SettingsEditor canManage />);
+    expect(screen.getByText(/so a run of changes becomes one rebuild instead of one each/)).toBeInTheDocument();
+    expect(screen.getByLabelText('Wait before rebuilding')).toHaveValue(60);
+  });
+
+  it('shows the details without letting somebody who may not change them edit', () => {
+    state.queries['cms.settings'] = settings;
+    render(<SettingsEditor canManage={false} />);
+    expect(screen.getByLabelText('Name')).toBeDisabled();
+    expect(screen.queryByRole('button', { name: 'Save' })).not.toBeInTheDocument();
+    // The window is a studio setting, so it is not even shown to somebody who cannot set it.
+    expect(screen.queryByLabelText('Wait before rebuilding')).not.toBeInTheDocument();
+  });
+
+  it('says plainly when the row is missing rather than rendering an empty form', () => {
+    state.queries['cms.settings'] = null;
+    render(<SettingsEditor canManage />);
+    expect(screen.getByText(/have not been set up on this deployment/)).toBeInTheDocument();
   });
 });

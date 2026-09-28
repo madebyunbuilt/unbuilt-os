@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { RequirePermission } from '@/components/app/require-permission';
-import { CONTENT_LABELS, CONTENT_TABLES } from '@/lib/cms-display';
+import { CONTENT_LABELS, CONTENT_TABLES, SETTINGS_CARD } from '@/lib/cms-display';
 import { getViewer } from '@/lib/viewer';
 
 export const metadata: Metadata = { title: 'Website' };
@@ -30,6 +30,12 @@ export default async function CmsPage() {
               </Link>
             </li>
           ))}
+          <li>
+            <Link href={SETTINGS_CARD.href} className="block rounded-lg border p-4 hover:bg-muted/50">
+              <p className="font-medium">{SETTINGS_CARD.label}</p>
+              <p className="text-sm text-muted-foreground">{SETTINGS_CARD.blurb}</p>
+            </Link>
+          </li>
         </ul>
       </div>
     </RequirePermission>
