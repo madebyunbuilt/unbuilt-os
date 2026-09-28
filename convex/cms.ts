@@ -338,6 +338,10 @@ export function publishBlockers(table: PublishableTable, doc: Record<string, unk
   }
   if (Array.isArray(doc.shots)) problems.push(...imageProblems(doc.shots as { alt: string }[]));
 
+  if (table === 'works' && !(WORK_ART as readonly string[]).includes(String(doc.art ?? ''))) {
+    // Left empty by a draft made from a project, because the website draws a fixed set and guessing one is a guess.
+    problems.push({ field: 'image', message: `Choose the artwork for this case study: ${WORK_ART.join(', ')}` });
+  }
   if (table === 'works' && doc.clientPermission === undefined) {
     problems.push({
       field: 'image',

@@ -48,6 +48,17 @@ export function assertSlug(slug: string): string {
   return trimmed;
 }
 
+/** A slug from a title: lowercase words joined by hyphens, and nothing else. Accents are stripped, not transliterated. */
+export function slugify(text: string): string {
+  return text
+    .normalize('NFKD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 80);
+}
+
 /**
  * Two published pages cannot share a slug, and neither can two drafts: a draft with a taken slug is a page that cannot
  * be published, and finding that out at publish time is finding out too late.

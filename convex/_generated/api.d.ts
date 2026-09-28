@@ -16,6 +16,7 @@ import type * as billingChase from "../billingChase.js";
 import type * as billingSchedules from "../billingSchedules.js";
 import type * as bills from "../bills.js";
 import type * as businessHours from "../businessHours.js";
+import type * as caseStudy from "../caseStudy.js";
 import type * as changeRequests from "../changeRequests.js";
 import type * as clauses from "../clauses.js";
 import type * as clients from "../clients.js";
@@ -158,6 +159,7 @@ declare const fullApi: ApiFromModules<{
   billingSchedules: typeof billingSchedules;
   bills: typeof bills;
   businessHours: typeof businessHours;
+  caseStudy: typeof caseStudy;
   changeRequests: typeof changeRequests;
   clauses: typeof clauses;
   clients: typeof clients;
