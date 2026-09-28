@@ -1732,4 +1732,156 @@ export default defineSchema({
     fileIds: v.array(v.id('files')),
     createdAt: v.number(),
   }).index('by_ticket', ['ticketId']),
+  // The public website's content (13-cms-and-website.md). The OS is the source; the website fetches published content at
+  // build time. Every type is a draft until somebody with cms.publish says otherwise, and every save leaves a revision.
+  //
+  // Each row carries two copies. The fields are the working copy, which is what editing changes. `published` is the copy
+  // the website is served, written only by publishing. They are kept apart because one row with a status cannot do both:
+  // editing a live page would change what the next build fetches before anybody pressed publish, and restoring an old
+  // revision would put it on the website immediately. `draftUpdatedAt` against `publishedAt` is how a screen knows an
+  // item is live and has unpublished changes.
+
+  works: defineTable({
+    slug: v.string(),
+    name: v.string(),
+    // The variants drawn in the website's own code. A new one needs a website change, so the CMS says so rather than
+    // offering a free text field that would render as nothing.
+    art: v.string(),
+    listLine: v.string(),
+    listDetail: v.string(),
+    seo: v.object({ title: v.string(), description: v.string() }),
+    summary: v.string(),
+    meta: v.object({ client: v.string(), year: v.string(), role: v.string(), status: v.string() }),
+    stack: v.array(v.string()),
+    link: v.optional(v.object({ href: v.string(), label: v.string() })),
+    brief: v.array(v.string()),
+    hardPart: v.array(v.string()),
+    built: v.array(v.string()),
+    results: v.optional(v.array(v.string())),
+    shots: v.array(
+      v.object({
+        fileId: v.optional(v.id('files')),
+        alt: v.string(),
+        caption: v.string(),
+        frame: v.union(v.literal('phone'), v.literal('desktop'), v.literal('wide')),
+      }),
+    ),
+    order: v.number(),
+    status: v.union(v.literal('draft'), v.literal('published')),
+    projectId: v.optional(v.id('projects')),
+    // A case study is the client's story as much as the studio's, so publishing waits for them to say yes.
+    clientPermission: v.optional(
+      v.object({ grantedAt: v.number(), contactId: v.optional(v.id('contacts')), note: v.optional(v.string()) }),
+    ),
+    publishedAt: v.optional(v.number()),
+    draftUpdatedAt: v.number(),
+    published: v.optional(v.any()),
+  })
+    .index('by_slug', ['slug'])
+    .index('by_status', ['status', 'order'])
+    .index('by_project', ['projectId']),
+
+  servicePages: defineTable({
+    slug: v.string(),
+    name: v.string(),
+    short: v.string(),
+    long: v.string(),
+    stack: v.array(v.string()),
+    deliverables: v.array(v.string()),
+    seo: v.object({ title: v.string(), description: v.string() }),
+    body: v.array(v.any()),
+    order: v.number(),
+    status: v.union(v.literal('draft'), v.literal('published')),
+    publishedAt: v.optional(v.number()),
+    draftUpdatedAt: v.number(),
+    published: v.optional(v.any()),
+  })
+    .index('by_slug', ['slug'])
+    .index('by_status', ['status', 'order']),
+
+  posts: defineTable({
+    slug: v.string(),
+    title: v.string(),
+    excerpt: v.string(),
+    body: v.array(v.any()),
+    coverFileId: v.optional(v.id('files')),
+    authorMemberId: v.id('teamMembers'),
+    tags: v.array(v.string()),
+    seo: v.object({ title: v.string(), description: v.string() }),
+    // Scheduled sits between draft and published: written, approved, and waiting for its date.
+    status: v.union(v.literal('draft'), v.literal('scheduled'), v.literal('published')),
+    publishAt: v.optional(v.number()),
+    publishedAt: v.optional(v.number()),
+    draftUpdatedAt: v.number(),
+    published: v.optional(v.any()),
+  })
+    .index('by_slug', ['slug'])
+    .index('by_status', ['status', 'publishAt']),
+
+  legalPages: defineTable({
+    slug: v.string(),
+    title: v.string(),
+    intro: v.string(),
+    sheet: v.string(),
+    updatedDate: v.string(),
+    sections: v.array(
+      v.object({ heading: v.string(), body: v.array(v.string()), list: v.optional(v.array(v.string())) }),
+    ),
+    status: v.union(v.literal('draft'), v.literal('published')),
+    publishedAt: v.optional(v.number()),
+    draftUpdatedAt: v.number(),
+    published: v.optional(v.any()),
+  })
+    .index('by_slug', ['slug'])
+    .index('by_status', ['status']),
+
+  testimonials: defineTable({
+    quote: v.string(),
+    authorName: v.string(),
+    authorRole: v.string(),
+    clientId: v.optional(v.id('clients')),
+    workId: v.optional(v.id('works')),
+    // A quote goes on the public website, so the client's approval is recorded before it can be published.
+    approvedByClientAt: v.optional(v.number()),
+    status: v.union(v.literal('draft'), v.literal('published')),
+    publishedAt: v.optional(v.number()),
+    draftUpdatedAt: v.number(),
+    published: v.optional(v.any()),
+  })
+    .index('by_status', ['status'])
+    .index('by_work', ['workId']),
+
+  // One row. Created by the seed and edited in place, never added to.
+  siteSettings: defineTable({
+    name: v.string(),
+    url: v.string(),
+    email: v.string(),
+    phone: v.string(),
+    socials: v.array(v.object({ name: v.string(), handle: v.string(), href: v.string() })),
+    timeZone: v.string(),
+    statusText: v.string(),
+    seoDefaults: v.object({ title: v.string(), description: v.string() }),
+    draftUpdatedAt: v.number(),
+    publishedAt: v.optional(v.number()),
+    published: v.optional(v.any()),
+  }),
+
+  // A snapshot per save, so any version can be restored as a new draft. Append-only: the history of what was written is
+  // not something an edit may rewrite.
+  contentRevisions: defineTable({
+    target: v.object({ table: v.string(), id: v.string() }),
+    snapshot: v.any(),
+    editedBy: v.id('teamMembers'),
+    editedAt: v.number(),
+  }).index('by_target', ['target.table', 'target.id']),
+
+  publishes: defineTable({
+    requestedBy: v.id('teamMembers'),
+    requestedAt: v.number(),
+    deployHookCalledAt: v.optional(v.number()),
+    status: v.union(v.literal('pending'), v.literal('deployed'), v.literal('failed')),
+    // What went out in this deploy, for reading back later: one line per item published, unpublished or deleted.
+    changes: v.array(v.object({ table: v.string(), id: v.string(), label: v.string(), action: v.string() })),
+    error: v.optional(v.string()),
+  }).index('by_status', ['status', 'requestedAt']),
 });

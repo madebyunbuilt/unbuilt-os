@@ -51,6 +51,30 @@ async function seedOrgSettings(db: Db) {
   return { created: 1 };
 }
 
+/**
+ * The website's own details, as one row that is edited in place (13-cms-and-website.md). Seeded rather than left empty
+ * because the CMS edits this row and cannot create it, and the values are the studio's current site.
+ */
+async function seedSiteSettings(db: Db) {
+  if (await db.query('siteSettings').first()) return { created: 0 };
+  await db.insert('siteSettings', {
+    name: 'Unbuilt Studio',
+    url: 'https://unbuilt.studio',
+    email: 'hello@unbuilt.studio',
+    phone: '',
+    socials: [],
+    timeZone: 'Africa/Lagos',
+    statusText: 'Taking new work',
+    seoDefaults: {
+      title: 'Unbuilt Studio',
+      description:
+        'Unbuilt Studio designs and builds software for companies that need the hard parts done properly: mobile apps, web platforms and the systems behind them.',
+    },
+    draftUpdatedAt: Date.now(),
+  });
+  return { created: 1 };
+}
+
 async function seedBusinessHours(db: Db) {
   const existing = await db
     .query('businessHours')
@@ -267,6 +291,7 @@ export const run = internalMutation({
     const roles = await seedRoles(db);
     const orgSettings = await seedOrgSettings(db);
     const businessHours = await seedBusinessHours(db);
+    const siteSettings = await seedSiteSettings(db);
     const holidays = await ensureSeededHolidays(db, [year, year + 1]);
     const slaPolicies = await seedSlaPolicies(db, businessHours.id);
     const pipeline = await seedPipeline(db);
@@ -284,6 +309,7 @@ export const run = internalMutation({
         roles: roles.created,
         orgSettings: orgSettings.created,
         businessHours: businessHours.created,
+        siteSettings: siteSettings.created,
         holidays: holidays.created,
         slaPolicies: slaPolicies.created,
         pipeline: pipeline.created,

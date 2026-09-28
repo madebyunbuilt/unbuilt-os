@@ -23,6 +23,9 @@ files) are a separate PR in the website repo, described below.
 
 - `cms.edit` edits drafts; `cms.publish` publishes.
 - Every save writes a `contentRevisions` snapshot; any revision can be restored as a new draft.
+- Editing never changes what the website is served. Each item keeps its working copy in its own fields and the published
+  copy in `published`, which only publishing writes. So a live page can be edited, or an old revision restored onto it,
+  and the website goes on serving what was last published until somebody publishes again.
 - **SEO fields are required to publish**: title under 44 characters (the website appends " | Unbuilt Studio"), description
   of 140 to 160 characters, a slug of lowercase words and hyphens. Show live character counts.
 - **Images**: uploaded to Convex storage, with alt text required. Case study shots keep the `frame` option (phone,
