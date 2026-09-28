@@ -8,7 +8,8 @@ import {
   signedDownloadUrl,
   verifyDownloadSignature,
 } from './lib/files';
-import { internalMutation, internalQuery, portalQuery, publicHttp, teamQuery } from './lib/functions';
+import { imageSize } from './lib/imageSize';
+import { internalAction, internalMutation, internalQuery, portalQuery, publicHttp, teamQuery } from './lib/functions';
 import { authError } from './lib/principals';
 
 // Download links (14-platform.md, Files). Reading a file is decided by FILE_ACCESS in convex/lib/files.ts for the
@@ -103,5 +104,38 @@ export const cleanupOrphanUploads = internalMutation({
       await ctx.scheduler.runAfter(0, internal.files.cleanupOrphanUploads, { cursor: page.continueCursor, minAgeMs });
     }
     return { deleted };
+  },
+});
+
+/**
+ * Reads an image's pixel size from its header and records it (13-cms-and-website.md, Content endpoint). Scheduled by
+ * recordUpload, because the bytes are only reachable from an action.
+ *
+ * Every failure here is quiet on purpose: a file that cannot be measured is still a perfectly good file, and losing an
+ * upload over a header this could not parse would be the worse outcome.
+ */
+export const measureImage = internalAction({
+  args: { fileId: v.id('files') },
+  handler: async (ctx, { fileId }): Promise<null> => {
+    const file = await ctx.runQuery(internal.files.fileForDownload, { fileId });
+    if (!file) return null;
+    const blob = await ctx.storage.get(file.storageId);
+    if (!blob) return null;
+    // Only the header is needed, and every format this reads puts the size in the first bytes.
+    const head = new Uint8Array(await blob.slice(0, 64).arrayBuffer());
+    const size = imageSize(head);
+    if (!size) return null;
+    await ctx.runMutation(internal.files.recordImageSize, { fileId, ...size });
+    return null;
+  },
+});
+
+export const recordImageSize = internalMutation({
+  args: { fileId: v.id('files'), width: v.number(), height: v.number() },
+  handler: async (ctx, { fileId, width, height }): Promise<null> => {
+    const file = await ctx.db.get('files', fileId);
+    if (!file) return null;
+    await ctx.db.patch('files', fileId, { width, height });
+    return null;
   },
 });

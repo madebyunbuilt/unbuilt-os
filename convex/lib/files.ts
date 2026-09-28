@@ -1,4 +1,5 @@
 import { ConvexError } from 'convex/values';
+import { internal } from '../_generated/api';
 import { type Doc, type Id, type TableNames } from '../_generated/dataModel';
 import { type MutationCtx, type QueryCtx } from '../_generated/server';
 import { type ClientPrincipal, type TeamPrincipal } from './principals';
@@ -156,6 +157,11 @@ export async function recordUpload(
     uploadedByKind: args.uploadedBy.kind,
     uploadedById: args.uploadedBy.id,
   });
+  // Reading the pixel size needs the bytes, which a mutation cannot fetch, so it follows as its own step. An image
+  // without dimensions is usable everywhere; only the website's layout is poorer for it, so this never blocks a save.
+  if (mimeType.startsWith('image/') && mimeType !== 'image/svg+xml') {
+    await ctx.scheduler.runAfter(0, internal.files.measureImage, { fileId });
+  }
   return { ok: true, fileId };
 }
 

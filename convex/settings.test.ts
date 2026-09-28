@@ -217,6 +217,44 @@ describe('logo and file downloads', () => {
     return `${parsed.pathname}${parsed.search}`;
   };
 
+  it('reads the logo’s pixel size from its header, so a page can reserve the space', async () => {
+    // A real 7 by 3 PNG, not a signature with bytes after it: the point is that the header is genuinely parsed.
+    const real = Uint8Array.from(
+      Buffer.from(
+        'iVBORw0KGgoAAAANSUhEUgAAAAcAAAADCAIAAADQoYKSAAAAAXNSR0IArs4c6QAAAERlWElmTU0AKgAAAAgAAYdpAAQAAAABAAAA' +
+          'GgAAAAAAA6ABAAMAAAABAAEAAKACAAQAAAABAAAAB6ADAAQAAAABAAAAAwAAAAAk1nmWAAAAQ0lEQVQIHRWKoREAMQjAoH9XjhEQ' +
+          'VUzQYVkNjWMBBPJpZJIPAIjonMPMVYWIYx733sx0dzNT1TGvzCsia629d0R09w/YRRFdE+YUoQAAAABJRU5ErkJggg==',
+        'base64',
+      ),
+    );
+    const admin = await createTeamMember(t, roles.admin, { email: 'admin@unbuilt.studio' });
+    const result = await admin.as.mutation(api.settings.setLogo, {
+      storageId: await store(real, 'image/png'),
+      name: 'logo.png',
+      contentType: 'image/png',
+    });
+    if (!result?.ok) throw new Error('Upload failed');
+
+    // Measuring follows the upload as its own step, because a mutation cannot read the bytes.
+    expect(await t.run((ctx) => ctx.db.get('files', result.fileId))).not.toHaveProperty('width');
+    vi.useFakeTimers();
+    await t.finishAllScheduledFunctions(vi.runAllTimers);
+    vi.useRealTimers();
+    expect(await t.run((ctx) => ctx.db.get('files', result.fileId))).toMatchObject({ width: 7, height: 3 });
+  });
+
+  it('records no size for an image it cannot read, and keeps the file', async () => {
+    const admin = await createTeamMember(t, roles.admin, { email: 'admin@unbuilt.studio' });
+    const fileId = await logo(admin.as);
+    vi.useFakeTimers();
+    await t.finishAllScheduledFunctions(vi.runAllTimers);
+    vi.useRealTimers();
+    // PNG here is a signature with junk after it: unreadable, and that is not a reason to lose the upload.
+    const file = await t.run((ctx) => ctx.db.get('files', fileId));
+    expect(file).not.toHaveProperty('width');
+    expect(file).not.toBeNull();
+  });
+
   it('uploads a logo, records its hash, and serves it through a signed link', async () => {
     const admin = await createTeamMember(t, roles.admin, { email: 'admin@unbuilt.studio' });
     expect(await admin.as.mutation(api.settings.generateLogoUploadUrl, {})).toMatch(/^https?:\/\//);
