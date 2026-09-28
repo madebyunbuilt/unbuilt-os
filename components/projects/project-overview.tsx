@@ -3,6 +3,7 @@
 import { useQuery } from 'convex/react';
 import Link from 'next/link';
 import { type ReactNode } from 'react';
+import { CaseStudyAction } from '@/components/projects/case-study-action';
 import { Timeline } from '@/components/crm/timeline';
 import { ToneBadge } from '@/components/team/status-badge';
 import { api } from '@/convex/_generated/api';
@@ -88,7 +89,10 @@ export function ProjectOverview({ projectId, permissions }: { projectId: Id<'pro
         </div>
 
         <div className="space-y-4">
-          <h2 className="font-display text-xl font-bold">Details</h2>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h2 className="font-display text-xl font-bold">Details</h2>
+            {permissions.includes('cms.edit') && <CaseStudyAction projectId={projectId} />}
+          </div>
           <dl className="space-y-3 rounded-lg border p-4 text-sm">
             <div>
               <dt className="text-muted-foreground">Dates</dt>

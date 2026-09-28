@@ -308,6 +308,8 @@ function rowView(table: CmsTable, doc: Doc<'works' | 'servicePages' | 'posts' | 
     table,
     label: labelOf(table, doc),
     slug: 'slug' in doc ? doc.slug : undefined,
+    // Lets a project say whether it already has a case study, rather than drafting a second one to find out.
+    projectId: 'projectId' in doc ? doc.projectId : undefined,
     status: doc.status,
     publishedAt: doc.publishedAt,
     draftUpdatedAt: doc.draftUpdatedAt,
