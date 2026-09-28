@@ -1,4 +1,5 @@
 import { ConvexError } from 'convex/values';
+import { internal } from '../_generated/api';
 import { type Doc, type Id } from '../_generated/dataModel';
 import { type MutationCtx, type QueryCtx } from '../_generated/server';
 
@@ -172,3 +173,61 @@ export function isCmsTable(value: string): value is CmsTable {
 }
 
 export type AnyContentDoc = Doc<'works'> | Doc<'servicePages'> | Doc<'posts'> | Doc<'legalPages'> | Doc<'testimonials'>;
+
+/**
+ * Joins the deploy that is already waiting, or starts one. The window belongs to the first publish and is not reset by
+ * later ones, so a run of publishes becomes a single build rather than a queue of them.
+ */
+export async function queueDeploy(
+  ctx: MutationCtx,
+  memberId: Id<'teamMembers'>,
+  change: { table: string; id: string; label: string; action: string },
+): Promise<Id<'publishes'>> {
+  const pending = await ctx.db
+    .query('publishes')
+    .withIndex('by_status', (q) => q.eq('status', 'pending'))
+    .first();
+  if (pending) {
+    await ctx.db.patch('publishes', pending._id, { changes: [...pending.changes, change] });
+    return pending._id;
+  }
+
+  const publishId = await ctx.db.insert('publishes', {
+    requestedBy: memberId,
+    requestedAt: Date.now(),
+    status: 'pending',
+    changes: [change],
+  });
+  const settings = await ctx.db.query('siteSettings').unique();
+  await ctx.scheduler.runAfter(deployBatchMs(settings?.deployBatchSeconds), internal.cmsPublish.runDeploy, {
+    publishId,
+  });
+  return publishId;
+}
+
+/**
+ * Takes something off the website because the permission it rested on has been withdrawn, and asks for the rebuild
+ * that removes it. Withdrawing approval and leaving the thing published would be the worst of both: the client has
+ * said no, the website still says yes, and nothing on screen admits it.
+ */
+export async function unpublishInPlace(
+  ctx: MutationCtx,
+  table: PublishableTable,
+  id: string,
+  doc: { status: string },
+  memberId: Id<'teamMembers'>,
+  label: string,
+): Promise<boolean> {
+  if (doc.status !== 'published') return false;
+  await ctx.db.patch(
+    table,
+    ctx.db.normalizeId(table, id) as never,
+    {
+      status: 'draft',
+      published: undefined,
+      publishedAt: undefined,
+    } as never,
+  );
+  await queueDeploy(ctx, memberId, { table, id, label, action: 'unpublished' });
+  return true;
+}

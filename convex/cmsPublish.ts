@@ -11,6 +11,7 @@ import {
   editableFields,
   labelOf,
   type PublishableTable,
+  queueDeploy,
 } from './lib/cms';
 import { internalAction, internalMutation, teamMutation, teamQuery } from './lib/functions';
 
@@ -18,37 +19,6 @@ import { internalAction, internalMutation, teamMutation, teamQuery } from './lib
 // `published` field and asks for a deploy; the website is static and fetches that copy at build time.
 
 const contentTable = v.union(...CONTENT_TABLES.map((name) => v.literal(name)));
-
-/**
- * Joins the deploy that is already waiting, or starts one. The window belongs to the first publish and is not reset by
- * later ones, so a run of publishes becomes a single build rather than a queue of them.
- */
-async function queueDeploy(
-  ctx: MutationCtx,
-  memberId: Id<'teamMembers'>,
-  change: { table: string; id: string; label: string; action: string },
-): Promise<Id<'publishes'>> {
-  const pending = await ctx.db
-    .query('publishes')
-    .withIndex('by_status', (q) => q.eq('status', 'pending'))
-    .first();
-  if (pending) {
-    await ctx.db.patch('publishes', pending._id, { changes: [...pending.changes, change] });
-    return pending._id;
-  }
-
-  const publishId = await ctx.db.insert('publishes', {
-    requestedBy: memberId,
-    requestedAt: Date.now(),
-    status: 'pending',
-    changes: [change],
-  });
-  const settings = await ctx.db.query('siteSettings').unique();
-  await ctx.scheduler.runAfter(deployBatchMs(settings?.deployBatchSeconds), internal.cmsPublish.runDeploy, {
-    publishId,
-  });
-  return publishId;
-}
 
 /** Copies the draft into the copy the website reads. The only place that field is written. */
 async function publishDoc(

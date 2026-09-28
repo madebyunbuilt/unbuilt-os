@@ -15,6 +15,7 @@ import {
   recordRevision,
   seoProblems,
   type SeoProblem,
+  unpublishInPlace,
   WORK_ART,
 } from './lib/cms';
 import { internalQuery, teamMutation, teamQuery } from './lib/functions';
@@ -109,10 +110,18 @@ export const recordClientPermission = teamMutation('cms.edit')({
     note: v.optional(v.string()),
     granted: v.boolean(),
   },
-  handler: async (ctx, { workId, contactId, note, granted }): Promise<null> => {
-    return await saveDraft(ctx, 'works', workId, {
+  handler: async (ctx, { workId, contactId, note, granted }): Promise<{ cameDown: boolean }> => {
+    const work = await ctx.db.get('works', workId);
+    if (!work) throw cmsError('cms.notFound', 'That content is not here');
+    await saveDraft(ctx, 'works', workId, {
       clientPermission: granted ? { grantedAt: Date.now(), contactId, note } : undefined,
     });
+    // Permission withdrawn is permission withdrawn: a published case study comes off the website rather than staying
+    // up while the record says the client has not agreed to it.
+    const cameDown = granted
+      ? false
+      : await unpublishInPlace(ctx, 'works', workId, work, ctx.principal.member._id, labelOf('works', work));
+    return { cameDown };
   },
 });
 
@@ -238,12 +247,28 @@ export const createTestimonial = teamMutation('cms.edit')({
 
 export const updateTestimonial = teamMutation('cms.edit')({
   args: { testimonialId: v.id('testimonials'), approved: v.optional(v.boolean()), ...testimonialFields },
-  handler: async (ctx, { testimonialId, approved, ...changes }): Promise<null> => {
-    return await saveDraft(ctx, 'testimonials', testimonialId, {
+  handler: async (ctx, { testimonialId, approved, ...changes }): Promise<{ cameDown: boolean }> => {
+    const testimonial = await ctx.db.get('testimonials', testimonialId);
+    if (!testimonial) throw cmsError('cms.notFound', 'That content is not here');
+    await saveDraft(ctx, 'testimonials', testimonialId, {
       ...changes,
       // Somebody's words on the public website: the client's approval is recorded, and publishing checks for it.
       ...(approved === undefined ? {} : { approvedByClientAt: approved ? Date.now() : undefined }),
     });
+    // Taking approval back takes the quote off the website. Leaving it up would mean the client has said no and the
+    // site still says yes, with nothing on screen admitting it.
+    const cameDown =
+      approved === false
+        ? await unpublishInPlace(
+            ctx,
+            'testimonials',
+            testimonialId,
+            testimonial,
+            ctx.principal.member._id,
+            labelOf('testimonials', testimonial),
+          )
+        : false;
+    return { cameDown };
   },
 });
 
@@ -297,6 +322,35 @@ export const list = teamQuery('cms.view')({
     return rows
       .sort((a, b) => ('order' in a && 'order' in b ? a.order - b.order : b.draftUpdatedAt - a.draftUpdatedAt))
       .map((row) => rowView(table, row));
+  },
+});
+
+/**
+ * Testimonials, in full. Every other type has a page of its own, so its list only needs a label; a quote is short
+ * enough that the list is the whole screen, and a list of "Quote from John Doe" says nothing about the quote.
+ */
+export const testimonials = teamQuery('cms.view')({
+  args: {},
+  handler: async (ctx) => {
+    const rows = await ctx.db.query('testimonials').collect();
+    return await Promise.all(
+      rows
+        .sort((a, b) => b.draftUpdatedAt - a.draftUpdatedAt)
+        .map(async (row) => ({
+          id: row._id,
+          quote: row.quote,
+          authorName: row.authorName,
+          authorRole: row.authorRole,
+          status: row.status,
+          approvedByClientAt: row.approvedByClientAt,
+          unpublishedChanges: hasUnpublishedChanges(row),
+          clientName: row.clientId ? ((await ctx.db.get('clients', row.clientId))?.displayName ?? null) : null,
+          workName: row.workId ? ((await ctx.db.get('works', row.workId))?.name ?? null) : null,
+          workId: row.workId,
+          clientId: row.clientId,
+          blockers: publishBlockers('testimonials', row),
+        })),
+    );
   },
 });
 

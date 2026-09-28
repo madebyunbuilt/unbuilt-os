@@ -57,6 +57,10 @@ files) are a separate PR in the website repo, described below.
   client agreed to.
 - The case study stays a draft until the client's permission to publish is recorded (checkbox with date and contact).
   Publishing without it is blocked.
+- Taking that permission back takes a published case study **off the website**, and asks for the rebuild that removes
+  it. The same holds for a testimonial whose approval is withdrawn. Leaving it up would mean the client has said no and
+  the site still says yes, with nothing on screen admitting it. The screen says so before it happens, because approval
+  and publication being linked is not obvious.
 
 ## Publishing
 

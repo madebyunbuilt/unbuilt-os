@@ -298,14 +298,21 @@ export function WorkEditor({ workId }: { workId: Id<'works'> }) {
             <p className="text-sm">
               Recorded. {work.clientPermission.note ? `“${work.clientPermission.note}”` : 'No note.'}
             </p>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => void recordPermission({ workId, granted: false })}
-            >
-              Take it back
-            </Button>
+            <ConfirmDialog
+              trigger={
+                <Button variant="outline" size="sm">
+                  Take it back
+                </Button>
+              }
+              title="Take back the client’s permission?"
+              description={
+                work.status === 'published'
+                  ? 'This case study is on the website. Taking the permission back takes it down at the next rebuild, because the client has not agreed to it being there.'
+                  : 'It cannot be published again until the client gives permission.'
+              }
+              confirmLabel={work.status === 'published' ? 'Take it back and take it down' : 'Take it back'}
+              onConfirm={async () => await recordPermission({ workId, granted: false })}
+            />
           </div>
         ) : (
           <PermissionForm workId={workId} />

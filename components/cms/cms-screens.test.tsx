@@ -6,6 +6,7 @@ import { ContentList } from './content-list';
 import { NewContent } from './new-content';
 import { PostEditor } from './post-editor';
 import { SettingsEditor } from './settings-editor';
+import { Testimonials } from './testimonials';
 import { PublishBar } from './publish-bar';
 import { SeoFields } from './seo-fields';
 import { WorkEditor } from './work-editor';
@@ -32,7 +33,7 @@ vi.mock('next/navigation', () => ({
 }));
 vi.mock('@/convex/_generated/api', () => {
   const functions = (name: string) => new Proxy({}, { get: (_, fn: string) => ({ _name: `${name}.${fn}` }) });
-  return { api: Object.fromEntries(['cms', 'cmsPublish', 'siteContent'].map((n) => [n, functions(n)])) };
+  return { api: Object.fromEntries(['cms', 'cmsPublish', 'siteContent', 'clients'].map((n) => [n, functions(n)])) };
 });
 
 const work = (overrides: object = {}) => ({
@@ -394,5 +395,60 @@ describe('site settings', () => {
     state.queries['cms.settings'] = null;
     render(<SettingsEditor canManage />);
     expect(screen.getByText(/have not been set up on this deployment/)).toBeInTheDocument();
+  });
+});
+
+describe('quotes', () => {
+  const quote = (overrides: object = {}) => ({
+    id: 'q1',
+    quote: 'They shipped it, and it works.',
+    authorName: 'John Doe',
+    authorRole: 'Founder',
+    status: 'draft',
+    approvedByClientAt: undefined,
+    unpublishedChanges: false,
+    clientName: 'Glossup',
+    workName: 'Glossup shop',
+    workId: 'w1',
+    clientId: 'c1',
+    blockers: [{ field: 'image', message: 'The client has not approved this quote yet' }],
+    ...overrides,
+  });
+
+  it('shows the quote itself, and who it is about', () => {
+    state.queries['cms.testimonials'] = [quote()];
+    render(<Testimonials />);
+    // The thing somebody came to this screen to read, rather than "Quote from John Doe".
+    expect(screen.getByText(/They shipped it, and it works/)).toBeInTheDocument();
+    expect(screen.getByText(/John Doe, Founder — Glossup · Glossup shop/)).toBeInTheDocument();
+  });
+
+  it('will not publish one the client has not approved', () => {
+    state.queries['cms.testimonials'] = [quote()];
+    render(<Testimonials />);
+    expect(screen.getByRole('button', { name: 'Publish' })).toBeDisabled();
+    expect(screen.getByText('The client has not approved this yet.')).toBeInTheDocument();
+  });
+
+  it('warns that taking approval back takes a published quote off the website', async () => {
+    state.queries['cms.testimonials'] = [quote({ status: 'published', approvedByClientAt: Date.now(), blockers: [] })];
+    render(<Testimonials />);
+    await user().click(screen.getByRole('button', { name: 'Take that back' }));
+    // The consequence is stated before it happens, because it is not obvious that approval and publication are linked.
+    expect(await screen.findByText(/takes it down at the next rebuild/)).toBeInTheDocument();
+    await user().click(screen.getByRole('button', { name: 'Take it back and take it down' }));
+    await waitFor(() =>
+      expect(state.mutations['cms.updateTestimonial']).toHaveBeenCalledWith(
+        expect.objectContaining({ testimonialId: 'q1', approved: false }),
+      ),
+    );
+  });
+
+  it('does not threaten to take down something that was never up', async () => {
+    state.queries['cms.testimonials'] = [quote({ approvedByClientAt: Date.now(), blockers: [] })];
+    render(<Testimonials />);
+    await user().click(screen.getByRole('button', { name: 'Take that back' }));
+    expect(await screen.findByText(/cannot be published again until the client approves it/)).toBeInTheDocument();
+    expect(screen.queryByText(/takes it down at the next rebuild/)).not.toBeInTheDocument();
   });
 });
