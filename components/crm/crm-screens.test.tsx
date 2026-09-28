@@ -158,15 +158,14 @@ describe('ClientList', () => {
 });
 
 describe('ClientHeader', () => {
-  it('links built tabs, keeps others inert, and offers editing only with clients.update', () => {
+  it('links built tabs, hides what the role cannot see, and offers editing only with clients.update', () => {
     state.pathname = '/crm/clients/c1/contacts';
     const { unmount } = render(<ClientHeader clientId={'c1' as never} permissions={PM} />);
     const nav = screen.getByRole('navigation', { name: 'Client sections' });
     expect(within(nav).getByRole('link', { name: 'Contacts' })).toHaveAttribute('aria-current', 'page');
     expect(within(nav).getByRole('link', { name: 'Overview' })).not.toHaveAttribute('aria-current');
-    // Files has no page of its own yet, so it stays visible and inert.
-    expect(within(nav).queryByRole('link', { name: 'Files' })).not.toBeInTheDocument();
-    expect(within(nav).getByText('Files')).toHaveAttribute('aria-disabled', 'true');
+    // No Files tab at all: the studio decided against one (18-open-questions.md), so it is gone rather than inert.
+    expect(within(nav).queryByText('Files')).not.toBeInTheDocument();
     // Invoices show only to roles that can see them.
     expect(within(nav).queryByText('Invoices and payments')).not.toBeInTheDocument();
     // Vault shows only to roles that can see vault items, and tickets only to roles that can see tickets.

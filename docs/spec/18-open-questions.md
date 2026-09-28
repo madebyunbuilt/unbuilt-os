@@ -28,8 +28,6 @@ these.
 | Transfer safeguards for processors outside Nigeria                                                                                       | Listed in the privacy notice                         |
 | Portal terms and privacy notice text                                                                                                     | Draft legal pages in the CMS                         |
 
-| Whether a client or a project needs a Files tab of its own | Not built; every file already lives on the record it belongs to, and a second place to look for one may be worse than none |
-
 ## For the studio
 
 | Question                                                                 | Default in the build                                                                   |
@@ -45,6 +43,32 @@ these.
 | Which email address receives the website enquiry acknowledgement replies | `hello@unbuilt.studio`                                                                 |
 | Brand assets for PWA icons and PDFs                                      | From the existing brand kit                                                            |
 | Custom domains `os.unbuilt.studio` and `portal.unbuilt.studio`           | Assumed; set up DNS once `unbuilt.studio` moves to the new Vercel setup                |
+| Whether a client or a project needs a Files tab of its own               | **Decided 2026-09-27:** no, see below                                                  |
+
+### No Files tab on a client or a project
+
+**Decided 2026-09-27** (studio, to the builder's recommendation). The question turned out to be two:
+
+_Finding a file somebody knows exists_ is what search in `17` is for, and a file's name is searchable content. A tab
+built for this now would be half replaced by that search, and a second place to look is worse than one, because neither
+place holds everything.
+
+_Storing a file that belongs to no record_ is a real gap and stays open. Every file is owned by a record, and its
+permissions come from that owner (`FILE_ACCESS` in `convex/lib/files.ts`, where a table with no rule is readable by
+nobody). A client's brand kit, fonts or supplied copy own no record: deliverables are outputs and documents are
+contracts. Today those arrive by email, which is what this replaces.
+
+It is not built now because the cost is not the screen. It is a new sharing surface for `clients` and `projects` as file
+owners, a default for per-file client visibility where the safe choice makes the feature useless and the useful choice is
+the leak, and retention and legal hold behaviour — which is `18`'s own work in the build sequence. All three land
+together there, by which time use will have shown whether anyone needs it.
+
+**Revisit at step 18**, or sooner if clients start being asked to email assets. The piece to pull forward first is the
+portal upload page: `portal.vault.submit`'s neighbour `portal.files.upload` already exists and is used only for ticket
+attachments, and a client sending an asset can hang off the client record without a Files tab existing at all.
+
+The inert "Files" tab has been removed from the client and project pages. Leaving it visible advertised something the
+studio had decided against.
 
 ### The overpaid card payment
 

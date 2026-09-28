@@ -57,7 +57,6 @@ export const PROJECT_TABS: Tab[] = [
     built: true,
     anyOf: ['invoices.view', 'schedules.manage', 'retainers.manage'],
   },
-  { label: 'Files', segment: 'files', built: false },
   { label: 'Vault', segment: 'vault', built: true, anyOf: ['vault.view.all', 'vault.view.assigned'] },
   { label: 'Tickets', segment: 'tickets', built: true, anyOf: ['tickets.view.all', 'tickets.view.assigned'] },
   { label: 'Updates', segment: 'updates', built: false },
