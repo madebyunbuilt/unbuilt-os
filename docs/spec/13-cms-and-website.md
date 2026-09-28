@@ -38,13 +38,23 @@ files) are a separate PR in the website repo, described below.
 
 ## From project to case study
 
-- When a project's handover completes, create a draft work pre-filled with:
+- When a project's handover completes, create a draft work. It can also be drafted by hand from the project, which is
+  what happens today: handover lands in step 15, and `caseStudy.draftOnHandover` is what it will call. Drafting twice
+  hands back the draft that exists rather than making a second, so a handover reopened and completed again is safe.
+- Pre-filled with:
   - name, client and year
   - role (from project members)
   - stack (from project type and links)
   - summary (from the SOW's scope)
   - screenshots (from the final deliverable versions)
   - `projectId` link
+- What it fills in is what the OS already knows and nobody should retype. What it leaves empty is what only a writer
+  can supply: the hook, the brief, the hard part, the SEO, image alt text, and the artwork — which is one of a fixed set
+  the website can draw, so guessing one would be a guess. Each of those blocks publishing until it is filled in, so an
+  empty field reads as an invitation to write rather than as finished work.
+- Screenshots come from the version the client **approved**, not whatever was uploaded last, and images only.
+- The summary comes from a SOW that was actually sent. A draft SOW is what somebody was thinking; a sent one is what the
+  client agreed to.
 - The case study stays a draft until the client's permission to publish is recorded (checkbox with date and contact).
   Publishing without it is blocked.
 
