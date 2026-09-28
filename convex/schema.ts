@@ -1861,6 +1861,9 @@ export default defineSchema({
     timeZone: v.string(),
     statusText: v.string(),
     seoDefaults: v.object({ title: v.string(), description: v.string() }),
+    // How long publishing waits before calling the deploy hook, so a run of publishes becomes one build. Operational,
+    // not content: the site content endpoint names the fields it serves and never this one.
+    deployBatchSeconds: v.optional(v.number()),
     draftUpdatedAt: v.number(),
     publishedAt: v.optional(v.number()),
     published: v.optional(v.any()),
@@ -1879,7 +1882,9 @@ export default defineSchema({
     requestedBy: v.id('teamMembers'),
     requestedAt: v.number(),
     deployHookCalledAt: v.optional(v.number()),
-    status: v.union(v.literal('pending'), v.literal('deployed'), v.literal('failed')),
+    // `deploying` is the claim: a deploy is started by one writer winning a transaction, so an immediate deploy and the
+    // waiting one cannot both call the hook for the same batch.
+    status: v.union(v.literal('pending'), v.literal('deploying'), v.literal('deployed'), v.literal('failed')),
     // What went out in this deploy, for reading back later: one line per item published, unpublished or deleted.
     changes: v.array(v.object({ table: v.string(), id: v.string(), label: v.string(), action: v.string() })),
     error: v.optional(v.string()),

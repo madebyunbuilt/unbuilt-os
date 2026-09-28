@@ -14,6 +14,22 @@ export const SEO_DESCRIPTION_MAX = 160;
 export const IMAGE_WARN_BYTES = 500 * 1024;
 export const IMAGE_MAX_BYTES = 5 * 1024 * 1024;
 
+/**
+ * How long a publish waits before the deploy hook is called, so a run of publishes becomes one build (13, Publishing).
+ *
+ * The timer is set by the first publish and is not reset by later ones: later publishes join the batch that is already
+ * waiting. Resetting would batch a burst more tightly, but somebody publishing every 50 seconds would never deploy at
+ * all, which is the worse failure. The cost is that the website can be a window behind, and the publish row records
+ * what went out in each deploy so that is readable afterwards.
+ */
+export const DEFAULT_DEPLOY_BATCH_SECONDS = 60;
+
+/** Clamped, because this is a setting: a window of 0 would deploy per keystroke and an hour would look broken. */
+export function deployBatchMs(seconds: number | undefined): number {
+  const value = seconds ?? DEFAULT_DEPLOY_BATCH_SECONDS;
+  return Math.min(Math.max(Math.round(value), 5), 15 * 60) * 1000;
+}
+
 /** The case study illustrations the website's own code can draw. A new one needs a website change, not a CMS entry. */
 export const WORK_ART = ['glossup', 'qravit', 'orrery', 'commit', 'pr'] as const;
 
