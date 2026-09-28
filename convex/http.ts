@@ -5,6 +5,7 @@ import { download } from './files';
 import * as paying from './paying';
 import { inboundEmailWebhook } from './inboundEmail';
 import { paystackWebhook } from './paystackWebhook';
+import { siteContentEndpoint } from './siteContent';
 import * as signing from './signing';
 
 const http = httpRouter();
@@ -14,6 +15,9 @@ authComponent.registerRoutes(http, createAuth);
 
 // Signed, short-lived file downloads (convex/files.ts).
 http.route({ path: '/files/download', method: 'GET', handler: download });
+
+// The published content the website builds from (13-cms-and-website.md, Content endpoint).
+http.route({ path: '/public/site-content', method: 'GET', handler: siteContentEndpoint });
 
 // The website's enquiry form (13-cms-and-website.md, Enquiries).
 http.route({ path: '/public/enquiries', method: 'POST', handler: submit });
