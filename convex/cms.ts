@@ -15,8 +15,10 @@ import {
   recordRevision,
   seoProblems,
   type SeoProblem,
+  unpublishInPlace,
   WORK_ART,
 } from './lib/cms';
+import { recordUpload } from './lib/files';
 import { internalQuery, teamMutation, teamQuery } from './lib/functions';
 import { type TeamPrincipal } from './lib/principals';
 
@@ -46,6 +48,91 @@ async function saveDraft<T extends PublishableTable>(
   return null;
 }
 
+// Images ---------------------------------------------------------------------------------------------------------------
+
+/** An upload URL for a CMS image. What actually landed is checked afterwards, in recordCmsImage. */
+export const generateImageUploadUrl = teamMutation('cms.edit')({
+  args: {},
+  handler: async (ctx): Promise<string> => await ctx.storage.generateUploadUrl(),
+});
+
+/**
+ * Records an uploaded image against the content it belongs to. Published content is public by definition, so the file
+ * is marked client-visible: it is served to the website and to whoever reads it there.
+ */
+export const recordCmsImage = teamMutation('cms.edit')({
+  args: {
+    storageId: v.id('_storage'),
+    name: v.string(),
+    contentType: v.string(),
+    table: v.union(v.literal('works'), v.literal('posts')),
+    id: v.string(),
+  },
+  handler: async (ctx, { storageId, name, contentType, table, id }) => {
+    const docId = ctx.db.normalizeId(table, id);
+    if (!docId || !(await ctx.db.get(table, docId))) throw cmsError('cms.notFound', 'That content is not here');
+
+    const result = await recordUpload(ctx, {
+      storageId,
+      name,
+      contentType,
+      context: 'image',
+      owner: { table, id },
+      visibility: 'client',
+      uploadedBy: { kind: 'team', id: ctx.principal.member._id },
+    });
+    if (!result.ok) return result;
+    return { ok: true as const, fileId: result.fileId, url: await ctx.storage.getUrl(storageId) };
+  },
+});
+
+/** Links for images already recorded, so an editor can show what is there. */
+export const imageUrls = teamQuery('cms.view')({
+  args: { fileIds: v.array(v.id('files')) },
+  handler: async (ctx, { fileIds }): Promise<Record<string, string>> => {
+    const entries: [string, string][] = [];
+    for (const fileId of fileIds) {
+      const file = await ctx.db.get('files', fileId);
+      const url = file ? await ctx.storage.getUrl(file.storageId) : null;
+      if (url) entries.push([fileId, url]);
+    }
+    return Object.fromEntries(entries);
+  },
+});
+
+/**
+ * The images already delivered on the project a case study came from, so a screenshot that exists in the OS is not
+ * uploaded a second time. Only what the client approved: a later unapproved upload is not what was delivered.
+ */
+export const projectImages = teamQuery('cms.view')({
+  args: { workId: v.id('works') },
+  handler: async (ctx, { workId }) => {
+    const work = await ctx.db.get('works', workId);
+    if (!work?.projectId) return [];
+
+    const deliverables = await ctx.db
+      .query('deliverables')
+      .withIndex('by_project', (q) => q.eq('projectId', work.projectId!))
+      .collect();
+
+    const images = [];
+    for (const deliverable of deliverables.filter((row) => row.status === 'approved')) {
+      const version = deliverable.approvedVersion ?? deliverable.currentVersion;
+      const final = await ctx.db
+        .query('deliverableVersions')
+        .withIndex('by_deliverable_version', (q) => q.eq('deliverableId', deliverable._id).eq('version', version))
+        .first();
+      for (const fileId of final?.fileIds ?? []) {
+        const file = await ctx.db.get('files', fileId);
+        if (!file?.mimeType.startsWith('image/')) continue;
+        const url = await ctx.storage.getUrl(file.storageId);
+        if (url) images.push({ fileId, url, name: file.name, deliverable: deliverable.title });
+      }
+    }
+    return images;
+  },
+});
+
 // Works ---------------------------------------------------------------------------------------------------------------
 
 const workFields = {
@@ -65,8 +152,13 @@ const workFields = {
   shots: v.array(shot),
 };
 
+/**
+ * Empty means nobody has chosen yet, which is how a case study starts: from the new-work dialog, and from a project,
+ * where guessing one of five illustrations would be a guess that looks deliberate. Publishing is what insists on it
+ * (see publishBlockers), so this only refuses a value that is filled in and is not one the website can draw.
+ */
 function assertArt(art: string): string {
-  if (!(WORK_ART as readonly string[]).includes(art)) {
+  if (art !== '' && !(WORK_ART as readonly string[]).includes(art)) {
     throw cmsError('cms.art', `The website can only draw ${WORK_ART.join(', ')}. Adding one needs a website change.`);
   }
   return art;
@@ -109,10 +201,18 @@ export const recordClientPermission = teamMutation('cms.edit')({
     note: v.optional(v.string()),
     granted: v.boolean(),
   },
-  handler: async (ctx, { workId, contactId, note, granted }): Promise<null> => {
-    return await saveDraft(ctx, 'works', workId, {
+  handler: async (ctx, { workId, contactId, note, granted }): Promise<{ cameDown: boolean }> => {
+    const work = await ctx.db.get('works', workId);
+    if (!work) throw cmsError('cms.notFound', 'That content is not here');
+    await saveDraft(ctx, 'works', workId, {
       clientPermission: granted ? { grantedAt: Date.now(), contactId, note } : undefined,
     });
+    // Permission withdrawn is permission withdrawn: a published case study comes off the website rather than staying
+    // up while the record says the client has not agreed to it.
+    const cameDown = granted
+      ? false
+      : await unpublishInPlace(ctx, 'works', workId, work, ctx.principal.member._id, labelOf('works', work));
+    return { cameDown };
   },
 });
 
@@ -238,12 +338,28 @@ export const createTestimonial = teamMutation('cms.edit')({
 
 export const updateTestimonial = teamMutation('cms.edit')({
   args: { testimonialId: v.id('testimonials'), approved: v.optional(v.boolean()), ...testimonialFields },
-  handler: async (ctx, { testimonialId, approved, ...changes }): Promise<null> => {
-    return await saveDraft(ctx, 'testimonials', testimonialId, {
+  handler: async (ctx, { testimonialId, approved, ...changes }): Promise<{ cameDown: boolean }> => {
+    const testimonial = await ctx.db.get('testimonials', testimonialId);
+    if (!testimonial) throw cmsError('cms.notFound', 'That content is not here');
+    await saveDraft(ctx, 'testimonials', testimonialId, {
       ...changes,
       // Somebody's words on the public website: the client's approval is recorded, and publishing checks for it.
       ...(approved === undefined ? {} : { approvedByClientAt: approved ? Date.now() : undefined }),
     });
+    // Taking approval back takes the quote off the website. Leaving it up would mean the client has said no and the
+    // site still says yes, with nothing on screen admitting it.
+    const cameDown =
+      approved === false
+        ? await unpublishInPlace(
+            ctx,
+            'testimonials',
+            testimonialId,
+            testimonial,
+            ctx.principal.member._id,
+            labelOf('testimonials', testimonial),
+          )
+        : false;
+    return { cameDown };
   },
 });
 
@@ -283,6 +399,8 @@ function rowView(table: CmsTable, doc: Doc<'works' | 'servicePages' | 'posts' | 
     table,
     label: labelOf(table, doc),
     slug: 'slug' in doc ? doc.slug : undefined,
+    // Lets a project say whether it already has a case study, rather than drafting a second one to find out.
+    projectId: 'projectId' in doc ? doc.projectId : undefined,
     status: doc.status,
     publishedAt: doc.publishedAt,
     draftUpdatedAt: doc.draftUpdatedAt,
@@ -297,6 +415,35 @@ export const list = teamQuery('cms.view')({
     return rows
       .sort((a, b) => ('order' in a && 'order' in b ? a.order - b.order : b.draftUpdatedAt - a.draftUpdatedAt))
       .map((row) => rowView(table, row));
+  },
+});
+
+/**
+ * Testimonials, in full. Every other type has a page of its own, so its list only needs a label; a quote is short
+ * enough that the list is the whole screen, and a list of "Quote from John Doe" says nothing about the quote.
+ */
+export const testimonials = teamQuery('cms.view')({
+  args: {},
+  handler: async (ctx) => {
+    const rows = await ctx.db.query('testimonials').collect();
+    return await Promise.all(
+      rows
+        .sort((a, b) => b.draftUpdatedAt - a.draftUpdatedAt)
+        .map(async (row) => ({
+          id: row._id,
+          quote: row.quote,
+          authorName: row.authorName,
+          authorRole: row.authorRole,
+          status: row.status,
+          approvedByClientAt: row.approvedByClientAt,
+          unpublishedChanges: hasUnpublishedChanges(row),
+          clientName: row.clientId ? ((await ctx.db.get('clients', row.clientId))?.displayName ?? null) : null,
+          workName: row.workId ? ((await ctx.db.get('works', row.workId))?.name ?? null) : null,
+          workId: row.workId,
+          clientId: row.clientId,
+          blockers: publishBlockers('testimonials', row),
+        })),
+    );
   },
 });
 

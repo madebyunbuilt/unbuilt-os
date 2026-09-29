@@ -38,6 +38,13 @@ export const SEO_DESCRIPTION_MAX = 160;
 /** The artwork variants the website's own code can draw. Adding one needs a change in the website repo. */
 export const WORK_ART = ['glossup', 'qravit', 'orrery', 'commit', 'pr'] as const;
 
+/** Site settings sit beside the content types on the overview, though they are one row rather than a list. */
+export const SETTINGS_CARD = {
+  href: '/cms/settings',
+  label: 'Site settings',
+  blurb: 'Contact details, the status line, and how long publishing waits before it rebuilds.',
+};
+
 export function statusLabel(status: string): string {
   if (status === 'published') return 'Published';
   if (status === 'scheduled') return 'Scheduled';

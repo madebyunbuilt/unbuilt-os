@@ -262,3 +262,11 @@ describe('who may draft one', () => {
     await expect(outsider.as.mutation(api.caseStudy.draftFromProject, { projectId })).rejects.toThrow();
   });
 });
+
+describe('finding the one a project already has', () => {
+  it('carries the project on the list, so a project can link to its case study', async () => {
+    const { workId } = await draft();
+    const [row] = await editor.as.query(api.cms.list, { table: 'works' });
+    expect(row).toMatchObject({ id: workId, projectId });
+  });
+});

@@ -170,6 +170,19 @@ describe('what stops something being published', () => {
   it('refuses artwork the website cannot draw', async () => {
     await expectCode(editor.as.mutation(api.cms.createWork, work({ art: 'something-new' })), 'cms.art');
   });
+
+  it('accepts a case study that has not chosen its artwork yet, and blocks publishing it', async () => {
+    // How one starts, from the new-work dialog and from a project: empty means nobody has chosen, not a bad value.
+    const workId = await editor.as.mutation(api.cms.createWork, work({ art: '' }));
+    await editor.as.mutation(api.cms.recordClientPermission, { workId, granted: true });
+    const said = await blockers(workId);
+    expect(said.some((message) => message.includes('artwork'))).toBe(true);
+    await expectCode(editor.as.mutation(api.cmsPublish.publish, { table: 'works', id: workId }), 'cms.blocked');
+
+    // And choosing one clears it.
+    await editor.as.mutation(api.cms.updateWork, { workId, ...work({ art: 'glossup' }) });
+    expect(await blockers(workId)).toEqual([]);
+  });
 });
 
 describe('drafts and the live website', () => {
@@ -313,5 +326,89 @@ describe('the other content types', () => {
     await editor.as.mutation(api.cms.createWork, work());
     const [row] = await editor.as.query(api.cms.list, { table: 'works' });
     expect(row).toMatchObject({ label: 'Glossup', slug: 'glossup', status: 'draft', unpublishedChanges: false });
+  });
+});
+
+describe('taking a permission back', () => {
+  it('takes a published case study off the website, rather than leaving it up', async () => {
+    const workId = await editor.as.mutation(api.cms.createWork, work());
+    await editor.as.mutation(api.cms.recordClientPermission, { workId, granted: true });
+    await editor.as.mutation(api.cmsPublish.publish, { table: 'works', id: workId });
+    expect((await t.run((ctx) => ctx.db.get('works', workId)))!.status).toBe('published');
+
+    const { cameDown } = await editor.as.mutation(api.cms.recordClientPermission, { workId, granted: false });
+    expect(cameDown).toBe(true);
+
+    // The client has said no, so the website must stop saying yes.
+    const stored = await t.run((ctx) => ctx.db.get('works', workId));
+    expect(stored!.status).toBe('draft');
+    expect(stored).not.toHaveProperty('published');
+    // And a rebuild is asked for, so it actually leaves the site.
+    const [deploy] = await t.run((ctx) => ctx.db.query('publishes').collect());
+    expect(deploy.changes.at(-1)).toMatchObject({ action: 'unpublished', table: 'works' });
+  });
+
+  it('takes a published quote down when the client withdraws approval', async () => {
+    const id = await editor.as.mutation(api.cms.createTestimonial, {
+      quote: 'They shipped it.',
+      authorName: 'Ada Eze',
+      authorRole: 'Founder',
+    });
+    const fields = { quote: 'They shipped it.', authorName: 'Ada Eze', authorRole: 'Founder' };
+    await editor.as.mutation(api.cms.updateTestimonial, { testimonialId: id, approved: true, ...fields });
+    await editor.as.mutation(api.cmsPublish.publish, { table: 'testimonials', id });
+
+    const { cameDown } = await editor.as.mutation(api.cms.updateTestimonial, {
+      testimonialId: id,
+      approved: false,
+      ...fields,
+    });
+    expect(cameDown).toBe(true);
+    expect((await t.run((ctx) => ctx.db.get('testimonials', id)))!.status).toBe('draft');
+  });
+
+  it('says nothing came down when it was never up', async () => {
+    const workId = await editor.as.mutation(api.cms.createWork, work());
+    await editor.as.mutation(api.cms.recordClientPermission, { workId, granted: true });
+    const { cameDown } = await editor.as.mutation(api.cms.recordClientPermission, { workId, granted: false });
+    expect(cameDown).toBe(false);
+    expect(await t.run((ctx) => ctx.db.query('publishes').collect())).toHaveLength(0);
+  });
+
+  it('leaves a published item alone when the permission is being given, not taken', async () => {
+    const workId = await editor.as.mutation(api.cms.createWork, work());
+    await editor.as.mutation(api.cms.recordClientPermission, { workId, granted: true });
+    await editor.as.mutation(api.cmsPublish.publish, { table: 'works', id: workId });
+    const { cameDown } = await editor.as.mutation(api.cms.recordClientPermission, {
+      workId,
+      granted: true,
+      note: 'Confirmed again in writing',
+    });
+    expect(cameDown).toBe(false);
+    expect((await t.run((ctx) => ctx.db.get('works', workId)))!.status).toBe('published');
+  });
+});
+
+describe('the testimonials list', () => {
+  it('carries the quote and who it is about, not just a label', async () => {
+    const workId = await editor.as.mutation(api.cms.createWork, work());
+    const ada = await createClientUser(t, roles.client_admin, { clientName: 'Glossup', email: 'ada@glossup.com' });
+    await editor.as.mutation(api.cms.createTestimonial, {
+      quote: 'They shipped it.',
+      authorName: 'Ada Eze',
+      authorRole: 'Founder',
+      clientId: ada.clientId,
+      workId,
+    });
+    const [row] = await editor.as.query(api.cms.testimonials, {});
+    expect(row).toMatchObject({
+      quote: 'They shipped it.',
+      authorName: 'Ada Eze',
+      authorRole: 'Founder',
+      clientName: 'Glossup',
+      workName: 'Glossup',
+      status: 'draft',
+    });
+    expect(row.blockers.map((problem) => problem.message)).toContain('The client has not approved this quote yet');
   });
 });
