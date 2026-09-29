@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { ConfirmDialog } from '@/components/app/confirm-dialog';
+import { ImagePicker } from '@/components/cms/image-picker';
 import { PublishBar } from '@/components/cms/publish-bar';
 import { Revisions } from '@/components/cms/revisions';
 import { SeoFields } from '@/components/cms/seo-fields';
@@ -223,12 +224,34 @@ export function WorkEditor({ workId }: { workId: Id<'works'> }) {
 
       <section className="space-y-3">
         <h2 className="text-lg font-medium">Screenshots</h2>
+        <ImagePicker
+          table="works"
+          id={workId}
+          workId={workId}
+          label="Add a screenshot"
+          onPicked={({ fileId }) =>
+            // Alt text is left empty for the person to write, which is what holds publishing until they do.
+            set({ shots: [...current.shots, { fileId, alt: '', caption: '', frame: 'desktop' as const }] })
+          }
+        />
         {current.shots.length === 0 ? (
           <p className="text-muted-foreground">None yet.</p>
         ) : (
           <ul className="space-y-3">
             {current.shots.map((shot, index) => (
               <li key={index} className="space-y-2 rounded-lg border p-3">
+                <div className="flex items-start justify-between gap-3">
+                  <ShotPreview fileId={shot.fileId} />
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    aria-label={`Remove screenshot ${index + 1}`}
+                    onClick={() => set({ shots: current.shots.filter((_, at) => at !== index) })}
+                  >
+                    Remove
+                  </Button>
+                </div>
                 <div className="space-y-2">
                   <Label htmlFor={`shot-alt-${index}`}>Alt text</Label>
                   <Input
@@ -403,4 +426,13 @@ function PermissionForm({ workId }: { workId: Id<'works'> }) {
       </Button>
     </div>
   );
+}
+
+/** What the screenshot actually is, so a list of alt text fields is not a guessing game. */
+function ShotPreview({ fileId }: { fileId?: Id<'files'> }) {
+  const urls = useQuery(api.cms.imageUrls, fileId ? { fileIds: [fileId] } : 'skip');
+  const url = fileId ? urls?.[fileId] : undefined;
+  if (!url) return <span className="text-sm text-muted-foreground">No picture on this one</span>;
+  // eslint-disable-next-line @next/next/no-img-element
+  return <img src={url} alt="" className="h-20 w-32 rounded object-cover" />;
 }

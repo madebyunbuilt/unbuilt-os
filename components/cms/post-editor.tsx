@@ -7,6 +7,7 @@ import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { ConfirmDialog } from '@/components/app/confirm-dialog';
 import { BodyField } from '@/components/cms/body-field';
+import { ImagePicker } from '@/components/cms/image-picker';
 import { PublishBar } from '@/components/cms/publish-bar';
 import { Revisions } from '@/components/cms/revisions';
 import { SeoFields } from '@/components/cms/seo-fields';
@@ -78,6 +79,25 @@ export function PostEditor({ postId }: { postId: Id<'posts'> }) {
             onChange={(event) => set({ excerpt: event.target.value })}
           />
           <p className="text-sm text-muted-foreground">The line under the title on the insights list.</p>
+        </div>
+        <div className="space-y-2">
+          <Label>Cover image</Label>
+          <CoverImage fileId={current.coverFileId} />
+          <ImagePicker
+            table="posts"
+            id={postId}
+            label={current.coverFileId ? 'Change the cover' : 'Add a cover'}
+            onPicked={({ fileId }) => set({ coverFileId: fileId })}
+          />
+          {current.coverFileId && (
+            <Button type="button" variant="ghost" size="sm" onClick={() => set({ coverFileId: undefined })}>
+              Remove the cover
+            </Button>
+          )}
+          {/* The alt text is the title: a cover illustrates the article rather than saying something of its own. */}
+          <p className="text-sm text-muted-foreground">
+            Shown on the insights list and at the top of the article. Its alt text is the title.
+          </p>
         </div>
         <BodyField
           id="post-body"
@@ -228,4 +248,13 @@ function Scheduling({
       {error && <p className="text-sm text-destructive">{error}</p>}
     </div>
   );
+}
+
+/** The cover as it stands, so somebody can see what they are replacing. */
+function CoverImage({ fileId }: { fileId?: Id<'files'> }) {
+  const urls = useQuery(api.cms.imageUrls, fileId ? { fileIds: [fileId] } : 'skip');
+  const url = fileId ? urls?.[fileId] : undefined;
+  if (!url) return null;
+  // eslint-disable-next-line @next/next/no-img-element
+  return <img src={url} alt="" className="h-32 w-full max-w-sm rounded object-cover" />;
 }

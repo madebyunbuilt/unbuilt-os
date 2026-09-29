@@ -30,6 +30,15 @@ files) are a separate PR in the website repo, described below.
   of 140 to 160 characters, a slug of lowercase words and hyphens. Show live character counts.
 - **Images**: uploaded to Convex storage, with alt text required. Case study shots keep the `frame` option (phone,
   desktop, wide). Warn when an image is over 500 KB, and reject over 5 MB.
+- The warning comes **before** the upload, not after, and is never acted on quietly: shrinking is offered as a button,
+  so what reaches the website is the file somebody chose or the smaller one they asked for. Shrinking re-encodes to
+  WebP at 2000px wide, which is what makes the difference for a screenshot. Past the hard limit, shrinking is the only
+  way through, so using it as it is stops being offered.
+- A case study can also take a picture **from the project it came from** — the images on the version the client
+  approved — so a screenshot already in the OS is not uploaded a second time. A case study written from nothing has no
+  project to take from, which is why uploading exists as well.
+- Insights take a cover image the same way. Its alt text is the article's title: a cover illustrates the article rather
+  than saying anything of its own.
 - **Works `art`** is a fixed list of the variants drawn in the website's code (`glossup`, `qravit`, `orrery`, `commit`,
   `pr`). Adding a variant requires a website code change, so the CMS shows the list and explains that.
 - **Preview**: drafts are viewable on the website's preview deployment through a signed preview token (see Website

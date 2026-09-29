@@ -18,6 +18,7 @@ import {
   unpublishInPlace,
   WORK_ART,
 } from './lib/cms';
+import { recordUpload } from './lib/files';
 import { internalQuery, teamMutation, teamQuery } from './lib/functions';
 import { type TeamPrincipal } from './lib/principals';
 
@@ -46,6 +47,91 @@ async function saveDraft<T extends PublishableTable>(
   await ctx.db.patch(table, id, { ...changes, draftUpdatedAt: Date.now() } as never);
   return null;
 }
+
+// Images ---------------------------------------------------------------------------------------------------------------
+
+/** An upload URL for a CMS image. What actually landed is checked afterwards, in recordCmsImage. */
+export const generateImageUploadUrl = teamMutation('cms.edit')({
+  args: {},
+  handler: async (ctx): Promise<string> => await ctx.storage.generateUploadUrl(),
+});
+
+/**
+ * Records an uploaded image against the content it belongs to. Published content is public by definition, so the file
+ * is marked client-visible: it is served to the website and to whoever reads it there.
+ */
+export const recordCmsImage = teamMutation('cms.edit')({
+  args: {
+    storageId: v.id('_storage'),
+    name: v.string(),
+    contentType: v.string(),
+    table: v.union(v.literal('works'), v.literal('posts')),
+    id: v.string(),
+  },
+  handler: async (ctx, { storageId, name, contentType, table, id }) => {
+    const docId = ctx.db.normalizeId(table, id);
+    if (!docId || !(await ctx.db.get(table, docId))) throw cmsError('cms.notFound', 'That content is not here');
+
+    const result = await recordUpload(ctx, {
+      storageId,
+      name,
+      contentType,
+      context: 'image',
+      owner: { table, id },
+      visibility: 'client',
+      uploadedBy: { kind: 'team', id: ctx.principal.member._id },
+    });
+    if (!result.ok) return result;
+    return { ok: true as const, fileId: result.fileId, url: await ctx.storage.getUrl(storageId) };
+  },
+});
+
+/** Links for images already recorded, so an editor can show what is there. */
+export const imageUrls = teamQuery('cms.view')({
+  args: { fileIds: v.array(v.id('files')) },
+  handler: async (ctx, { fileIds }): Promise<Record<string, string>> => {
+    const entries: [string, string][] = [];
+    for (const fileId of fileIds) {
+      const file = await ctx.db.get('files', fileId);
+      const url = file ? await ctx.storage.getUrl(file.storageId) : null;
+      if (url) entries.push([fileId, url]);
+    }
+    return Object.fromEntries(entries);
+  },
+});
+
+/**
+ * The images already delivered on the project a case study came from, so a screenshot that exists in the OS is not
+ * uploaded a second time. Only what the client approved: a later unapproved upload is not what was delivered.
+ */
+export const projectImages = teamQuery('cms.view')({
+  args: { workId: v.id('works') },
+  handler: async (ctx, { workId }) => {
+    const work = await ctx.db.get('works', workId);
+    if (!work?.projectId) return [];
+
+    const deliverables = await ctx.db
+      .query('deliverables')
+      .withIndex('by_project', (q) => q.eq('projectId', work.projectId!))
+      .collect();
+
+    const images = [];
+    for (const deliverable of deliverables.filter((row) => row.status === 'approved')) {
+      const version = deliverable.approvedVersion ?? deliverable.currentVersion;
+      const final = await ctx.db
+        .query('deliverableVersions')
+        .withIndex('by_deliverable_version', (q) => q.eq('deliverableId', deliverable._id).eq('version', version))
+        .first();
+      for (const fileId of final?.fileIds ?? []) {
+        const file = await ctx.db.get('files', fileId);
+        if (!file?.mimeType.startsWith('image/')) continue;
+        const url = await ctx.storage.getUrl(file.storageId);
+        if (url) images.push({ fileId, url, name: file.name, deliverable: deliverable.title });
+      }
+    }
+    return images;
+  },
+});
 
 // Works ---------------------------------------------------------------------------------------------------------------
 

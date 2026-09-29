@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event';
 import { ConvexError } from 'convex/values';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ContentList } from './content-list';
+import { ImagePicker } from './image-picker';
 import { NewContent } from './new-content';
 import { PostEditor } from './post-editor';
 import { SettingsEditor } from './settings-editor';
@@ -450,5 +451,63 @@ describe('quotes', () => {
     await user().click(screen.getByRole('button', { name: 'Take that back' }));
     expect(await screen.findByText(/cannot be published again until the client approves it/)).toBeInTheDocument();
     expect(screen.queryByText(/takes it down at the next rebuild/)).not.toBeInTheDocument();
+  });
+});
+
+describe('putting a picture on a page', () => {
+  const pick = (overrides: object = {}) =>
+    render(<ImagePicker table="works" id="w1" label="Add a screenshot" onPicked={() => {}} {...overrides} />);
+
+  const file = (name: string, bytes: number) => new File([new Uint8Array(bytes)], name, { type: 'image/png' });
+
+  it('uploads a small one without a word about it', async () => {
+    const onPicked = vi.fn();
+    state.mutations['cms.generateImageUploadUrl'] = vi.fn().mockResolvedValue('https://upload.example');
+    state.mutations['cms.recordCmsImage'] = vi.fn().mockResolvedValue({ ok: true, fileId: 'f1', url: 'https://img' });
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ json: async () => ({ storageId: 's1' }) }));
+    pick({ onPicked });
+
+    await user().upload(screen.getByLabelText('Add a screenshot'), file('shot.png', 1000));
+    await waitFor(() => expect(onPicked).toHaveBeenCalledWith({ fileId: 'f1', url: 'https://img' }));
+    expect(screen.queryByText(/slows the page down/)).not.toBeInTheDocument();
+  });
+
+  it('warns about a heavy one before it goes anywhere, and still allows it', async () => {
+    state.mutations['cms.generateImageUploadUrl'] = vi.fn().mockResolvedValue('https://upload.example');
+    pick();
+    await user().upload(screen.getByLabelText('Add a screenshot'), file('big.png', 800 * 1024));
+
+    // Warned, and nothing uploaded yet: the warning is for reading before, not after.
+    expect(screen.getByText(/slows the page down on a phone/)).toBeInTheDocument();
+    expect(state.mutations['cms.generateImageUploadUrl']).not.toHaveBeenCalled();
+    expect(screen.getByRole('button', { name: 'Use it as it is' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Shrink it and use it' })).toBeInTheDocument();
+  });
+
+  it('refuses one the website will not take, and offers only the way through', async () => {
+    pick();
+    await user().upload(screen.getByLabelText('Add a screenshot'), file('huge.png', 6 * 1024 * 1024));
+    expect(screen.getByText(/5.0 MB is the most the website takes/)).toBeInTheDocument();
+    // Using it as it is would fail, so it is not offered; shrinking is.
+    expect(screen.queryByRole('button', { name: 'Use it as it is' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Shrink it and use it' })).toBeInTheDocument();
+  });
+
+  it('offers what the project already delivered, rather than asking for it twice', async () => {
+    const onPicked = vi.fn();
+    state.queries['cms.projectImages'] = [
+      { fileId: 'f9', url: 'https://img/one', name: 'one.png', deliverable: 'The app' },
+    ];
+    pick({ workId: 'w1', onPicked });
+
+    await user().click(screen.getByRole('button', { name: /From the project \(1\)/ }));
+    await user().click(screen.getByText('The app'));
+    expect(onPicked).toHaveBeenCalledWith({ fileId: 'f9', url: 'https://img/one' });
+  });
+
+  it('says nothing about the project when there is none behind this one', () => {
+    state.queries['cms.projectImages'] = [];
+    pick();
+    expect(screen.queryByText(/From the project/)).not.toBeInTheDocument();
   });
 });
